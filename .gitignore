@@ -22,3 +22,9 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 omni_ui-*.tar
 
+# Ignore local claude settings
+/.claude/settings.local.json
+
+# Environment variables
+.env
+.envrc
