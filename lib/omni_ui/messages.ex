@@ -1,18 +1,6 @@
 defmodule OmniUI.Messages do
   use Phoenix.Component
 
-  def message_list(assigns) do
-    ~H"""
-    <div class="flex flex-col gap-3">
-      <.message
-        :for={message <- @messages}
-        message={message}
-        tool_results={tool_result_map(message, @messages)}
-      />
-    </div>
-    """
-  end
-
   def message(%{message: %{role: :assistant}} = assigns) do
     ~H"""
     <div class="">
@@ -50,9 +38,12 @@ defmodule OmniUI.Messages do
     """
   end
 
-  # TODO - build toll result map
-  defp tool_result_map(_message, _messages) do
-    %{}
+  def content_block(%{content: %Omni.Content.Thinking{}} = assigns) do
+    ~H"""
+    <div class="content-block">
+      <p><%= @content.text %></p>
+    </div>
+    """
   end
 
 end
