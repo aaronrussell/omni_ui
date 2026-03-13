@@ -21,6 +21,7 @@ defmodule OmniUI.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:mdex, "~> 0.11.6"},
       {:omni, "~> 1.0.0"},
       {:phoenix_live_view, "~> 1.1.27"}
       # {:dep_from_hexpm, "~> 0.3.0"},

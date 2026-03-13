@@ -5,19 +5,23 @@ defmodule OmniUI.ChatLive do
   require Logger
 
   def render(assigns) do
-     ~H"""
-     <div class="relative w-full h-full overflow-hidden flex">
-       <div class="h-full w-full">
-         <.agent_interface messages={@context.messages} />
-       </div>
+    ~H"""
+    <div class="relative w-full h-full overflow-hidden flex">
+      <div class="h-full w-full">
+        <.agent_interface
+          messages={@context.messages}
+          streaming={@streaming}
+          streaming_message={@streaming_message}
+        />
+      </div>
 
-       <!-- TODO : artifacts button -->
+      <!-- TODO : artifacts button -->
 
-       <div class="h-full hidden">
-         <!-- TODO : artifacts panel -->
-       </div>
-     </div>
-     """
+      <div class="h-full hidden">
+        <!-- TODO : artifacts panel -->
+      </div>
+    </div>
+    """
   end
 
   def agent_interface(assigns) do
@@ -32,7 +36,11 @@ defmodule OmniUI.ChatLive do
               message={message}
               tool_results={tool_result_map(message, @messages)}
             />
-            <!-- TODO streaming message -->
+            <.message
+              :if={@streaming and @streaming_message.content != []}
+              message={@streaming_message}
+              tool_results={%{}}
+            />
           </div>
         </div>
       </div>
@@ -50,21 +58,68 @@ defmodule OmniUI.ChatLive do
   def mount(_params, _session, socket) do
     {:ok, agent} = Omni.Agent.start_link(model: {:opencode, "kimi-k2.5"})
 
-    {:ok, assign(socket,
-      agent: agent,
-      context: Omni.context(messages: [])
-    )}
+    socket =
+      assign(socket,
+        agent: agent,
+        context: Omni.context(messages: []),
+        streaming: false,
+        streaming_message: %{role: :assistant, content: []}
+      )
+
+    {:ok, socket}
   end
 
   def handle_info({:new_message, message}, socket) do
-    context = Omni.Context.push(socket.assigns.context, message)
     :ok = Omni.Agent.prompt(socket.assigns.agent, message.content)
-    {:noreply, assign(socket, context: context)}
+
+    socket =
+      assign(socket,
+        context: Omni.Context.push(socket.assigns.context, message),
+        streaming: true,
+        streaming_message: %{role: :assistant, content: []}
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:agent, _pid, :thinking_start, _data}, socket) do
+    socket =
+      update(socket, :streaming_message, fn msg ->
+        %{msg | content: msg.content ++ [%Omni.Content.Thinking{text: ""}]}
+      end)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:agent, _pid, :text_start, _data}, socket) do
+    socket =
+      update(socket, :streaming_message, fn msg ->
+        %{msg | content: msg.content ++ [%Omni.Content.Text{text: ""}]}
+      end)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:agent, _pid, delta_type, %{delta: delta}}, socket)
+      when delta_type in [:thinking_delta, :text_delta] do
+    socket =
+      update(socket, :streaming_message, fn msg ->
+        content = List.update_at(msg.content, -1, &%{&1 | text: &1.text <> delta})
+        %{msg | content: content}
+      end)
+
+    {:noreply, socket}
   end
 
   def handle_info({:agent, _pid, :done, response}, socket) do
-    context = Omni.Context.push(socket.assigns.context, response)
-    {:noreply, assign(socket, context: context)}
+    socket =
+      assign(socket,
+        context: Omni.Context.push(socket.assigns.context, response),
+        streaming: false,
+        streaming_message: %{role: :assistant, content: []}
+      )
+
+    {:noreply, socket}
   end
 
   def handle_info({:agent, _pid, :error, reason}, socket) do

@@ -51,5 +51,4 @@ defmodule OmniUI.MessageEditor do
       {:noreply, assign(socket, input: "")}
     end
   end
-
 end

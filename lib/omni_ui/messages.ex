@@ -1,5 +1,6 @@
 defmodule OmniUI.Messages do
   use Phoenix.Component
+  import Phoenix.HTML, only: [raw: 1]
 
   def message(%{message: %{role: :assistant}} = assigns) do
     ~H"""
@@ -33,7 +34,7 @@ defmodule OmniUI.Messages do
   def content_block(%{content: %Omni.Content.Text{}} = assigns) do
     ~H"""
     <div class="content-block">
-      <p><%= @content.text %></p>
+      <p><%= MDEx.to_html!(@content.text) |> raw() %></p>
     </div>
     """
   end
@@ -41,9 +42,8 @@ defmodule OmniUI.Messages do
   def content_block(%{content: %Omni.Content.Thinking{}} = assigns) do
     ~H"""
     <div class="content-block">
-      <p><%= @content.text %></p>
+      <p><%= MDEx.to_html!(@content.text) |> raw() %></p>
     </div>
     """
   end
-
 end
