@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OmniUI is a LiveView component kit for building agent chat interfaces, powered by the `omni` Hex package. Currently in **Phase 1** — hand-wiring the core chat UI before extracting abstractions.
+OmniUI is a LiveView component kit for building agent chat interfaces, powered by the `omni` Hex package. Currently transitioning from **Phase 1** (hand-wired chat UI) to **Phase 2** (extracting `use OmniUI` macro).
 
 - `context/vision.md` — Full architecture plan and phased roadmap
 - `.claude/skills/omni/SKILL.md` — Omni library API reference (use the `omni` skill when writing code that uses Omni)
@@ -36,11 +36,11 @@ mix format                   # Auto-format code
 3. **`ChatLive`** (Layer 3) — Mountable LiveView. The "just give me a chat" entry point.
 
 **Current component hierarchy:**
-- `OmniUI.ChatLive` (LiveView) → `OmniUI.AgentInterface` (LiveComponent) → `OmniUI.Messages` (function components) + `OmniUI.MessageEditor` (LiveComponent)
+- `OmniUI.ChatLive` (LiveView) → `agent_interface/1` (function component) → `OmniUI.Messages` (function components) + `OmniUI.MessageEditor` (LiveComponent)
 
-**Streaming flow:** `Omni.Agent` GenServer → sends process messages → LiveView `handle_info` → updates assigns (`@current_message`, `@streaming`, `@messages`) → function components re-render.
+**Streaming flow:** `Omni.Agent` GenServer → sends `{:agent, pid, type, data}` process messages → LiveView `handle_info` → builds up `@streaming_message` from deltas → on `:done`, pushes completed message onto `@messages` → function components re-render.
 
-**Key pattern:** `tool_result_map/2` pairs tool_use blocks with their results across messages at render time.
+**Message shape:** The LiveView maintains its own `@messages` list (plain maps), separate from the agent's internal context. Each agent prompt round collapses into a single assistant message with accumulated content blocks and a `tool_results` map. See `context/vision.md` "Phase 1 Learnings" for details.
 
 ## Key Dependencies
 

@@ -285,9 +285,40 @@ The exploratory phase. Code execution, artifacts, richer tool UI.
 
 ---
 
+## Phase 1 Learnings
+
+### UI message shape — decoupled from Omni's Context
+
+The LiveView does **not** mirror the agent's internal `%Omni.Context{}`. The agent manages its own context for generation; the LiveView maintains a separate `@messages` list optimised for rendering.
+
+The key insight: a single agent prompt round may involve multiple internal turns (tool calls, tool results, continuation), but in the UI this collapses into **one assistant message** with accumulated content blocks and tool results.
+
+```elixir
+# User message
+%{role: :user, content: [%Text{}], timestamp: DateTime.t()}
+
+# Assistant message — one per prompt round, not per internal turn
+%{
+  role: :assistant,
+  content: [%Thinking{}, %Text{}, %ToolUse{}, %Text{}, ...],
+  tool_results: %{tool_use_id => %ToolResult{}},
+  usage: %Omni.Usage{},
+  timestamp: DateTime.t()
+}
+```
+
+Content blocks from all turns in a round are appended to the same list. Tool results are collected into a map keyed by `tool_use_id` as they arrive. A tool_use block with no entry in the map is in-progress.
+
+This shape is what `use OmniUI` will manage in Phase 2.
+
+### Tool result pairing — in the message, not at render time
+
+The original plan was a `tool_result_map/2` helper that joined tool_use blocks with results across messages at render time. Instead, tool results live directly in the assistant message map alongside the content blocks. No render-time join needed — the message is self-contained.
+
+---
+
 ## Open Questions
 
-- ~~**Tool result pairing**~~ — Resolved. A `tool_result_map/2` helper builds a lookup of `tool_use_id => result` at render time. Passed into each Message component. MessageList stays dumb, Message stays dumb, the helper does the join.
 - **Error rendering** — Rate limits, network failures, context overflow. Inline system message? Toast? Needs a pattern.
 - **Message editing / retry** — Not MVP, but the data model should support branching (edit a user message, regenerate from that point). Worth keeping in mind for message IDs.
 - **Artifacts** — What are they? Sandboxed HTML/JS output? LiveView components rendered from agent output? Needs its own exploration.
