@@ -22,7 +22,7 @@ defmodule OmniUI.MixProject do
   defp deps do
     [
       {:mdex, "~> 0.11.6"},
-      {:omni, "~> 1.0.0"},
+      {:omni, "~> 1.1.0"},
       {:phoenix_live_view, "~> 1.1.27"}
     ]
   end

@@ -17,7 +17,7 @@ defmodule OmniUIDevWeb.Router do
   scope "/" do
     pipe_through :browser
 
-    live "/", OmniUI.ChatLive
+    live "/", OmniUI.AgentLive
   end
 
   # Other scopes may use custom stacks.

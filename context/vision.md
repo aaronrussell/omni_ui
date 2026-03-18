@@ -6,113 +6,43 @@ A LiveView component kit for building agent chat interfaces, powered by Omni. Li
 
 ## 1. Component Inventory
 
-### ChatLive
+The component inventory, data structures, and naming are documented in `architecture.md`. This section captures the intent behind each component.
 
-The mountable LiveView — the "just give me a chat" option. Composes AgentInterface alongside an artifacts panel into a complete, ready-to-use chat interface. Mount it directly or embed via `live_render/3`.
+### AgentLive
+
+The mountable LiveView — the "just give me an agent" entry point. Composes `chat_interface/1` alongside an artifacts panel into a complete, ready-to-use agent interface. Mount it directly or embed via `live_render/3`.
 
 ```elixir
 # Direct route
-live "/chat", OmniUI.ChatLive
+live "/agent", OmniUI.AgentLive
 
 # Embedded in another LiveView
-live_render(@socket, OmniUI.ChatLive,
-  id: "chat",
+live_render(@socket, OmniUI.AgentLive,
+  id: "agent",
   session: %{"provider" => :anthropic, "model" => "claude-sonnet-4-20250514"}
 )
 ```
 
-A dev who doesn't need artifacts or the outer shell can skip this entirely and build their own LiveView using AgentInterface and the function components directly.
+A dev who doesn't need artifacts or the outer shell can skip this entirely and build their own LiveView using `chat_interface/1` and the function components directly.
 
-### AgentInterface (composition, not a component)
+### chat_interface/1
 
-The inner core — the composition of components that makes a chat UI. Handles the message list, streaming, agent communication. The developer controls this layout in their own LiveView (via `use OmniUI`), or gets it pre-composed inside `ChatLive`.
+The inner core — a function component composing the turn stream, current turn, editor, and usage into a chat UI. The developer controls this layout in their own LiveView (via `use OmniUI`), or gets it pre-composed inside `AgentLive`.
 
-Typical composition:
-
-```heex
-<OmniUI.message_list messages={@messages} />
-<OmniUI.streaming_message :if={@streaming} message={@current_message} />
-<OmniUI.message_editor />
-<OmniUI.usage_stats usage={@usage} />
-```
-
-The developer is free to rearrange, wrap, interleave their own markup, or skip components entirely. `AgentInterface` works standalone — `ChatLive` wraps it with artifacts and layout chrome.
-
-### MessageList
-
-Dumb list. Receives messages as assigns, renders them. Only re-renders when a new message is appended. Each message is a list of content blocks — the component iterates blocks and dispatches to the appropriate renderer.
-
-```heex
-<div :for={message <- @messages}>
-  <.message message={message} tool_results={tool_result_map(message, @messages)} />
-</div>
-```
-
-A helper function builds a lookup map of `tool_use_id => result` for each message. For user messages or assistant messages without tool_use blocks, this returns an empty map. Keeps the Message component clean — it just passes the relevant result into each ToolUseBlock.
-
-### Message
-
-Renders a single message (user or assistant). Iterates over content blocks and dispatches to block-type renderers. The role determines wrapper styling, but the rendering logic is the same: walk the blocks.
-
-```heex
-<div class={["message", @message.role]}>
-  <.content_block :for={block <- @message.content} block={block} />
-</div>
-```
+The developer is free to skip `chat_interface/1` entirely and compose the individual function components however they like.
 
 ### Content Block Renderers
 
-Function components, one per block type. Stateless. These are the leaves of the tree.
+Function components, one per block type. Stateless. Pattern-matched on Omni content struct type. These are the leaves of the tree.
 
-- **TextBlock** — renders markdown text content.
-- **ThinkingBlock** — renders model thinking/reasoning. Collapsible.
-- **ToolUseBlock** — renders a tool call paired with its result. Shows the tool name, input params, and the result content. When no result is available yet (streaming), shows a pending/spinner state.
-- **AttachmentTile** — renders a file or image attachment. Used in both user messages (input attachments) and potentially tool results.
-
-```heex
-<div :if={@block.type == :text}><.text_block block={@block} /></div>
-<div :if={@block.type == :thinking}><.thinking_block block={@block} /></div>
-<div :if={@block.type == :tool_use}><.tool_use_block block={@block} result={@result} /></div>
-```
-
-The tool_use renderer receives the tool_result alongside the tool_use block. The parent component is responsible for pairing them up (matching on tool_use_id), even though they live in different messages structurally.
-
-### StreamingMessage
-
-Visible only while the agent is actively generating. Renders the in-progress assistant message as tokens arrive. Distinct from the static MessageList because:
-
-- It re-renders on every streamed token/event
-- It displays tool calls in-progress (no results yet)
-- It hosts the stop button and streaming indicators
-- When streaming completes, the finished message is pushed to MessageList and this component disappears
-
-A function component. It receives the in-progress message and streaming flag as assigns from the parent LiveView (or AgentInterface composition), which handles all streaming events via `handle_info`.
-
-```heex
-<div class="streaming">
-  <.message message={@current_message} streaming={true} />
-  <.stop_button phx-click="stop_generation" />
-</div>
-```
+- **text** — renders markdown text content.
+- **thinking** — renders model thinking/reasoning. Collapsible.
+- **tool_use** — renders a tool call paired with its result. Shows the tool name, input params, and the result content. When no result is available yet (streaming), shows a pending/spinner state.
+- **attachment** (TODO) — renders a file or image attachment. Used in user messages and potentially tool results.
 
 ### MessageEditor
 
-The input area. A form with a textarea, attachment management, and action buttons. Handles file drops for multimodal input. Possibly includes model selection.
-
-```heex
-<form phx-submit="send_message" phx-change="validate">
-  <.attachment_list :if={@attachments != []} attachments={@attachments} />
-  <textarea phx-drop="attach_file" />
-  <div class="actions">
-    <.model_selector :if={@show_model_selector} models={@models} selected={@model} />
-    <button type="submit">Send</button>
-  </div>
-</form>
-```
-
-### UsageStats
-
-Displays token counts, cost estimate, model info. Dev-facing utility — the kind of thing you'd show in a debug/dev mode or a power-user interface.
+LiveComponent. Owns composition state — textarea input, in-progress attachments. Builds up a message internally and sends the completed message to the parent on submit. LiveComponent is justified here because high-frequency keystroke and attachment state should be isolated from the parent.
 
 ---
 
@@ -122,16 +52,16 @@ Three layers — developers pick their entry point based on how much control the
 
 ### Layer 1: Function Components
 
-The actual UI pieces — `message_list`, `message`, `text_block`, `tool_use_block`, `message_editor`, `streaming_message`, `usage_stats`, etc. Pure rendering, zero state. These are the building blocks of the kit.
+The actual UI pieces — `turn/1`, `user_message/1`, `assistant_message/1`, `content_block/1`, `chat_interface/1`, etc. Pure rendering, zero state (except `MessageEditor` LiveComponent). These are the building blocks of the kit.
 
-Developers can use any component individually, restyle them, skip ones they don't need, or replace them with their own. This is the "hackable kit" layer.
+Developers can use any component individually, restyle them, skip ones they don't need, or replace them with their own. This is the "hackable kit" layer. All function components live in `OmniUI.Components`.
 
 ### Layer 2: `use OmniUI` Macro
 
 Adds agent capabilities to any LiveView. Injects:
 
 - `handle_info` clauses for streaming events from the Agent process
-- State management (accumulating tokens into `@current_message`, flipping `@streaming`, appending completed messages to `@messages`)
+- State management (accumulating deltas into `@current_turn`, pushing completed turns to `@streams.turns`)
 - `OmniUI.init/2` helper to set up assigns and start the Agent
 
 The developer owns their template entirely. They compose function components from Layer 1 however they like, interleaved with their own markup.
@@ -148,45 +78,24 @@ defmodule MyAppWeb.ChatLive do
   def render(assigns) do
     ~H"""
     <.my_logo />
-    <OmniUI.message_list messages={@messages} />
-    <OmniUI.streaming_message :if={@streaming} message={@current_message} />
-    <div class="my-custom-footer">
-      <OmniUI.message_editor />
-      <OmniUI.usage_stats usage={@usage} />
-    </div>
+    <OmniUI.Components.chat_interface
+      turns={@streams.turns}
+      current_turn={@current_turn}
+      usage={@usage} />
     """
   end
 end
 ```
 
-### Layer 3: `OmniUI.ChatLive`
+### Layer 3: `OmniUI.AgentLive`
 
-The mountable LiveView — composes Layers 1 and 2 into a ready-to-use chat interface with artifacts panel. For the "just give me a chat" use case — demos, prototyping, or embedding via `live_render/3`.
+The mountable LiveView — composes Layers 1 and 2 into a ready-to-use agent interface with artifacts panel. For the "just give me an agent" use case — demos, prototyping, or embedding via `live_render/3`.
 
-```elixir
-# Direct route
-live "/chat", OmniUI.ChatLive
-
-# Embedded in another LiveView
-live_render(@socket, OmniUI.ChatLive,
-  id: "chat",
-  session: %{"provider" => :anthropic, "model" => "claude-sonnet-4-20250514"}
-)
-```
-
-`ChatLive` is a reference implementation, not a separate thing. It's built with the same primitives a developer would use.
+`AgentLive` is a reference implementation, not a separate thing. It's built with the same primitives a developer would use.
 
 ### Streaming
 
-The Agent GenServer sends messages to the LiveView process (whether that's the developer's own LiveView via `use OmniUI`, or `ChatLive`) directly via `handle_info`. The macro handles accumulating streaming deltas into `@current_message`, flipping `@streaming` on/off, and appending completed messages to `@messages`. Child components are all function components that re-render from assigns.
-
-```
-Agent process --send--> LiveView (with `use OmniUI`)
-                           |
-                           +--> handle_info (injected by macro)
-                           +--> updates assigns
-                           +--> re-renders function components
-```
+See `architecture.md` for the full streaming architecture. In summary: the Agent GenServer sends `{:agent, pid, type, data}` messages to the LiveView via `handle_info`. The LiveView accumulates deltas into `@current_turn`. On completion, the turn is pushed to the stream. Streaming state is determined by `@current_turn != nil`.
 
 ### Persistence
 
@@ -208,11 +117,11 @@ Separate hex package (`omni_ui` or similar). Depends on `omni` but the core libr
 
 ### Decisions
 
-1. **Three-layer architecture.** Function components (hackable) → `use OmniUI` macro (wiring) → `ChatLive` (mountable). Developers pick their level.
-2. **All UI components are function components.** State flows down via assigns. No LiveComponents in the rendering tree.
+1. **Three-layer architecture.** Function components (hackable) → `use OmniUI` macro (wiring) → `AgentLive` (mountable). Developers pick their level.
+2. **Function components by default.** State flows down via assigns. `MessageEditor` is the exception — a LiveComponent justified by state isolation. See `architecture.md` for component structure.
 3. **`use OmniUI` handles streaming plumbing.** Injects `handle_info`, state management, and init into the developer's own LiveView.
-4. **`ChatLive` is the outer shell and the default LiveView.** No separate wrapper — `ChatLive` composes AgentInterface + artifacts and is directly mountable. Developers who want full control build their own LiveView instead.
-5. **Naming: AgentInterface is the inner core, ChatLive is the outer shell.** AgentInterface handles messages, streaming, and agent comms. ChatLive wraps it with artifacts and layout chrome.
+4. **Naming: `AgentLive` is the outer shell, `chat_interface/1` is the inner core.** AgentLive wraps chat_interface with artifacts and layout chrome. chat_interface composes the turn stream, editor, and usage display.
+5. **Turns, not flat messages.** See `architecture.md` for the data structure rationale and `OmniUI.Turn` struct shape.
 6. **Persistence is a behaviour.** Pluggable, ships with a basic FS adapter.
 7. **Separate package.** Prototype in Phoenix app first, extract later.
 
@@ -231,12 +140,13 @@ Separate hex package (`omni_ui` or similar). Depends on `omni` but the core libr
 
 ### Phase 1: Agent Chat UI (hand-wired)
 
-The core loop. Send a message, stream a response, render the conversation. Built by hand in a standalone Phoenix app — no macro, no abstractions. The goal is to figure out what the optimal wiring actually is.
+The core loop. Send a message, stream a response, render the conversation. Built by hand — no macro, no abstractions. The goal is to figure out what the optimal wiring actually is.
 
-- A LiveView with manually implemented `handle_info` for Agent streaming events
-- Function components: `message_list`, `message`, `text_block`, `thinking_block`, `streaming_message`, `message_editor`
+- `AgentLive` with manually implemented `handle_info` for Agent streaming events
+- Function components in `OmniUI.Components`: `chat_interface`, `turn`, `user_message`, `assistant_message`, `content_block`
+- `MessageEditor` LiveComponent for input composition
+- `OmniUI.Turn` struct as the rendering-optimized data unit
 - All state management done explicitly in the LiveView
-- Built in a standalone Phoenix app for prototyping
 
 **Delivers:** a working chat UI that streams responses. Proves the component architecture and — crucially — reveals what the streaming wiring, state management, and Agent interaction patterns actually look like in practice.
 
@@ -246,7 +156,7 @@ Now that we know what the wiring looks like, extract it.
 
 - `use OmniUI` macro — extracted from the working Phase 1 code
 - `OmniUI.init/2` helper
-- `OmniUI.ChatLive` — the Phase 1 LiveView refactored to use the macro (becomes the reference implementation, mountable out of the box)
+- `OmniUI.AgentLive` — the Phase 1 LiveView refactored to use the macro (becomes the reference implementation, mountable out of the box)
 
 **Delivers:** the three-layer architecture. The macro is an extraction from real code, not a speculative design.
 
@@ -287,39 +197,20 @@ The exploratory phase. Code execution, artifacts, richer tool UI.
 
 ## Phase 1 Learnings
 
-### UI message shape — decoupled from Omni's Context
+### Turns, not flat messages
 
-The LiveView does **not** mirror the agent's internal `%Omni.Context{}`. The agent manages its own context for generation; the LiveView maintains a separate `@messages` list optimised for rendering.
+The LiveView does **not** mirror the agent's internal message list. The agent manages its own context for generation; the LiveView maintains a stream of `OmniUI.Turn` structs optimised for rendering.
 
-The key insight: a single agent prompt round may involve multiple internal turns (tool calls, tool results, continuation), but in the UI this collapses into **one assistant message** with accumulated content blocks and tool results.
+The key insight: a single agent prompt round may involve multiple internal messages (tool calls, tool results, continuation), but in the UI this collapses into **one turn** — a user message paired with an accumulated assistant response. See `architecture.md` for the full `OmniUI.Turn` struct and rationale.
 
-```elixir
-# User message
-%{role: :user, content: [%Text{}], timestamp: DateTime.t()}
+### Tool result pairing — in the turn, not at render time
 
-# Assistant message — one per prompt round, not per internal turn
-%{
-  role: :assistant,
-  content: [%Thinking{}, %Text{}, %ToolUse{}, %Text{}, ...],
-  tool_results: %{tool_use_id => %ToolResult{}},
-  usage: %Omni.Usage{},
-  timestamp: DateTime.t()
-}
-```
-
-Content blocks from all turns in a round are appended to the same list. Tool results are collected into a map keyed by `tool_use_id` as they arrive. A tool_use block with no entry in the map is in-progress.
-
-This shape is what `use OmniUI` will manage in Phase 2.
-
-### Tool result pairing — in the message, not at render time
-
-The original plan was a `tool_result_map/2` helper that joined tool_use blocks with results across messages at render time. Instead, tool results live directly in the assistant message map alongside the content blocks. No render-time join needed — the message is self-contained.
+The original plan was a `tool_result_map/2` helper that joined tool_use blocks with results across messages at render time. Instead, tool results are accumulated into the turn's `tool_results` map as they arrive. No render-time join needed — the turn is self-contained.
 
 ---
 
 ## Open Questions
 
-- **Error rendering** — Rate limits, network failures, context overflow. Inline system message? Toast? Needs a pattern.
-- **Message editing / retry** — Not MVP, but the data model should support branching (edit a user message, regenerate from that point). Worth keeping in mind for message IDs.
 - **Artifacts** — What are they? Sandboxed HTML/JS output? LiveView components rendered from agent output? Needs its own exploration.
 - **Agent API gaps** — What does `Omni.Agent` need to expose for this UI to work? Streaming callbacks, state persistence, conversation history, token usage. This is a key output of building the UI.
+- **Persistence shape** — How does save/load interact with the turn-based data model? Serialising `OmniUI.Turn` vs reconstructing from `Omni.MessageTree`.
