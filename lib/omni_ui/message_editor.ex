@@ -1,32 +1,56 @@
 defmodule OmniUI.MessageEditor do
   use Phoenix.LiveComponent
+  alias OmniUI.Icons
+
+  slot :control do
+    attr :class, :string
+  end
 
   def render(assigns) do
     ~H"""
-    <div class="bg-card rounded-xl border shadow-sm relative -- border-border">
+    <div class={[
+      "w-full bg-white border border-slate-400/75 rounded-xl overflow-hidden shadow-xl",
+      "[&:has(textarea:focus)]:border-blue-500"
+    ]}>
       <!-- TODO dragging effect -->
       <!-- TODO attachments -->
 
       <form phx-submit="submit" phx-change="change" phx-target={@myself}>
-        <textarea
-          name="input"
-          class="w-full bg-transparent p-4 text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-auto"
-          rows="1"
-          style="max-height: 200px; field-sizing: content; min-height: 1lh; height: auto;"
-        >{@input}</textarea>
-
-        <div class="px-2 pb-2 flex items-center justify-between">
-          <div class="flex gap-2 items-center">
-            <!-- TODO attachment button -->
-            <!-- TODO thinking select -->
-          </div>
-
-          <div class="flex gap-2 items-center">
-            <!-- TODO model select -->
-            <button type="submit" class="h-8">
-              Send
+        <div class="relative">
+          <textarea
+            name="input"
+            class={[
+              "block w-full max-h-64 p-4 pr-16 text-foreground outline-none field-sizing-content resize-none overflow-y-auto",
+              "bg-transparent text-slate-500 focus:text-slate-700 placeholder-slate-400"
+              ]}
+            placeholder="Type your message here..."
+            rows="1">{@input}</textarea>
+          <div class="absolute top-0 right-0 bottom-0 p-4 flex items-center justify-center">
+            <button type="submit" class="text-slate-400 hover:text-blue-500 transition-colors cursor-pointer">
+              <Icons.send class="size-6" />
             </button>
           </div>
+        </div>
+
+        <div class="flex items-center gap-4 h-14 p-4 bg-slate-100 border-t border-slate-300">
+          <button class={[
+            "flex items-center gap-1.5 text-sm transition-colors cursor-pointer",
+            "text-slate-700 hover:text-blue-600"
+          ]}>
+            <Icons.paperclip class="size-4" />
+            <span>Attach</span>
+          </button>
+
+          <%= for control <- @control do %>
+            <div class={[
+              "before:content=[''] before:w-px before:h-3 before:bg-slate-300",
+              control.class
+            ]}>
+              {render_slot(control)}
+            </div>
+          <% end %>
+
+
         </div>
       </form>
     </div>

@@ -1,8 +1,24 @@
 defmodule OmniUI.Helpers do
-  def markdown(text) do
-    text
-    |> MDEx.to_html!()
-    |> Phoenix.HTML.raw()
+  def format_json(str) when is_binary(str) do
+    case Jason.decode(str) do
+      {:ok, json} -> format_json(json)
+      {:error, _} -> str
+    end
+  end
+
+  def format_json(data) do
+    case Jason.encode(data, pretty: true) do
+      {:ok, json} -> json
+      {:error, _} -> inspect(data)
+    end
+  end
+
+  def format_tool_result(%Omni.Content.ToolResult{} = result) do
+    result.content
+    |> Enum.filter(&match?(%Omni.Content.Text{}, &1))
+    |> Enum.map(& &1.text)
+    |> Enum.join("\n")
+    |> format_json()
   end
 
   def format_usage(%Omni.Usage{} = usage) do
@@ -23,4 +39,21 @@ defmodule OmniUI.Helpers do
   def format_token_count(count), do: "#{round(count / 1000)}k"
 
   def format_token_cost(cost), do: :erlang.float_to_binary(cost / 1, decimals: 4)
+
+  def sibling_pos(id, siblings) do
+    index = Enum.find_index(siblings, &(&1 == id))
+    "#{index + 1}/#{length(siblings)}"
+  end
+
+  def to_md(text) do
+    MDEx.new(markdown: text, streaming: true)
+    |> MDExGFM.attach()
+    |> MDExMermaid.attach()
+    |> MDEx.to_html!(
+      syntax_highlight: [
+        formatter: {:html_inline, theme: "catppuccin_macchiato"}
+      ]
+    )
+    |> Phoenix.HTML.raw()
+  end
 end

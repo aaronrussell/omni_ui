@@ -9,7 +9,7 @@ defmodule OmniUI.AgentLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="relative size-full overflow-y-scroll flex">
+    <div class="relative size-full flex">
       <div class="h-full w-full">
         <.chat_interface
           turns={@streams.turns}
@@ -28,9 +28,16 @@ defmodule OmniUI.AgentLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    # todo - build parent_map and pass it to Turn.from_omni
     tree = OmniUI.FakeTree.generate()
-    turns = Enum.map(tree, &OmniUI.Turn.from_omni(elem(&1, 1), %{}))
+
+    parent_map =
+      [nil | tree.active_path]
+      |> Enum.reduce(%{}, fn parent, acc ->
+        Map.put(acc, parent, Omni.MessageTree.children(tree, parent))
+      end)
+
+    turns = Enum.map(tree, &OmniUI.Turn.from_omni(elem(&1, 1), parent_map))
+    usage = Omni.MessageTree.usage(tree)
 
     {:ok, agent} =
       Omni.Agent.start_link(
@@ -40,7 +47,7 @@ defmodule OmniUI.AgentLive do
 
     socket =
       socket
-      |> assign(agent: agent, current_turn: nil, usage: %Omni.Usage{})
+      |> assign(agent: agent, current_turn: nil, usage: usage)
       |> stream(:turns, turns)
 
     {:ok, socket}

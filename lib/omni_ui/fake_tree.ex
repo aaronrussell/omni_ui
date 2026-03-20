@@ -19,7 +19,11 @@ defmodule OmniUI.FakeTree do
     - Turn 3: Multi-tool turn (search + fetch)
     - Turn 4: Branched — a sibling of turn 2 (alternate follow-up)
 
-  Active path: [0, 1, 2, 3]. Turn 4 branches from turn 1 (sibling of turn 2).
+  Active path: [0, 1, 2, 3, 5, 6, 7]. Turn 4 branches from turn 1 (sibling of turn 2).
+
+    - Turn 5: Failed tool result (is_error: true)
+    - Turn 6: Response with all typographical elements (headings, lists, blockquotes, links)
+    - Turn 7: Response with code blocks and a mermaid diagram
   """
 
   alias Omni.{Content, MessageTree, Turn, Usage}
@@ -31,12 +35,15 @@ defmodule OmniUI.FakeTree do
       1 => turn_1_tool_use(),
       2 => turn_2_followup(),
       3 => turn_3_multi_tool(),
-      4 => turn_4_branch()
+      4 => turn_4_branch(),
+      5 => turn_5_failed_tool(),
+      6 => turn_6_typography(),
+      7 => turn_7_code_and_mermaid()
     }
 
     %MessageTree{
       turns: turns,
-      active_path: [0, 1, 2, 3]
+      active_path: [0, 1, 2, 3, 5, 6, 7]
     }
   end
 
@@ -270,6 +277,308 @@ defmodule OmniUI.FakeTree do
         input_cost: 0.0153,
         output_cost: 0.006,
         total_cost: 0.0213
+      }
+    )
+  end
+
+  # Turn 5: Failed tool — database query tool returns an error
+  defp turn_5_failed_tool do
+    Turn.new(
+      id: 5,
+      parent: 3,
+      messages: [
+        user_message("Can you look up my reservation history at Dishoom?"),
+        assistant_message([
+          %Content.Thinking{
+            text:
+              "The user wants their reservation history. I'll query the reservations database for their profile."
+          },
+          %Content.ToolUse{
+            id: "tool_call_006",
+            name: "query_database",
+            input: %{
+              "table" => "reservations",
+              "filter" => %{"user_id" => "usr_42", "restaurant" => "Dishoom"},
+              "order_by" => "date DESC"
+            }
+          }
+        ]),
+        user_message([
+          %Content.ToolResult{
+            tool_use_id: "tool_call_006",
+            name: "query_database",
+            is_error: true,
+            content: [
+              %Content.Text{
+                text:
+                  "ConnectionError: could not connect to database server at \"db-primary.internal:5432\" — connection refused. The server may not be running or may not be accepting TCP/IP connections on the specified port."
+              }
+            ]
+          }
+        ]),
+        assistant_message([
+          %Content.Text{
+            text:
+              "I'm sorry, I wasn't able to look up your reservation history — the database is currently unavailable. This is likely a temporary issue on our end.\n\nYou can try again in a few minutes, or if you need the information right away, you could check your confirmation emails for past Dishoom bookings."
+          }
+        ])
+      ],
+      usage: %Usage{
+        input_tokens: 720,
+        output_tokens: 95,
+        total_tokens: 815,
+        input_cost: 0.018,
+        output_cost: 0.0048,
+        total_cost: 0.0228
+      }
+    )
+  end
+
+  # Turn 6: All typographical elements — headings, paragraphs, lists, blockquotes, links
+  defp turn_6_typography do
+    Turn.new(
+      id: 6,
+      parent: 5,
+      messages: [
+        user_message(
+          "Give me a comprehensive overview of London's food scene — I want the full picture."
+        ),
+        assistant_message([
+          %Content.Text{
+            text: """
+            # London's Food Scene: A Complete Guide
+
+            London has become one of the world's great food cities. What was once mocked for bland cuisine now rivals Paris, Tokyo, and New York in diversity and quality.
+
+            ## The History
+
+            The transformation began in the 1990s with the rise of **Modern British** cooking. Chefs like Fergus Henderson championed nose-to-tail dining, proving British ingredients could shine.
+
+            ### Key Milestones
+
+            - **1994** — Fergus Henderson opens St. JOHN in Smithfield
+            - **2001** — Borough Market reopens as a public food market
+            - **2012** — The Olympics put London street food on the world stage
+            - **2020s** — Post-pandemic boom in neighbourhood restaurants
+
+            ## What Makes It Special
+
+            London's strength is its *extraordinary diversity*. Within a single mile you can find:
+
+            1. **Brick Lane** — Bangladeshi curry houses dating back decades
+            2. **Chinatown** — Cantonese roast meats and dim sum
+            3. **Edgware Road** — Lebanese and Middle Eastern grill rooms
+            4. **Brixton Market** — Caribbean, West African, and Colombian street food
+
+            ### The Market Scene
+
+            Markets are the beating heart of London food culture:
+
+            - **Borough Market** — The granddaddy. Cheese, charcuterie, pastries, everything
+            - **Broadway Market** — Saturday morning favourite in Hackney
+            - **Maltby Street** — The insider's Borough, tucked under railway arches
+              - Great for: artisan producers, smaller crowds
+              - Don't miss: The cheese toastie at Kappacasein
+
+            ## Dining Tiers
+
+            #### Fine Dining
+
+            Michelin stars are well-represented, but London fine dining has a refreshing lack of stuffiness compared to Paris.
+
+            ##### Notable Spots
+
+            Places like The Clove Club and Brat have redefined what high-end British food looks like.
+
+            ###### Price Expectations
+
+            Expect £100–200 per person at the top tier, though set lunch menus can be surprisingly affordable at £35–50.
+
+            ## What the Critics Say
+
+            > "London is now the most exciting food city in Europe — not because of any single cuisine, but because every cuisine in the world is represented, often at an extraordinarily high level."
+            >
+            > — *Jay Rayner, The Observer*
+
+            > "The best meal I had last year wasn't in Copenhagen or Lima. It was a £12 plate of jollof rice in Peckham."
+            >
+            > — *Food & Travel Magazine*
+
+            ## Getting Started
+
+            If you're new to London dining, here are some resources:
+
+            - [Time Out London Food](https://www.timeout.com/london/food-drink) — Best for trending openings
+            - [Eater London](https://london.eater.com) — Neighbourhood guides and maps
+            - [Hot Dinners](https://www.hotdinners.com) — News on what's opening where
+
+            For booking popular spots, **reserve 2–4 weeks ahead** on [OpenTable](https://www.opentable.co.uk) or check for walk-in availability on the day.
+
+            ---
+
+            Want me to narrow this down to a specific neighbourhood or cuisine?\
+            """
+          }
+        ])
+      ],
+      usage: %Usage{
+        input_tokens: 950,
+        output_tokens: 580,
+        total_tokens: 1530,
+        input_cost: 0.0238,
+        output_cost: 0.029,
+        total_cost: 0.0528
+      }
+    )
+  end
+
+  # Turn 7: Code blocks and mermaid diagram
+  defp turn_7_code_and_mermaid do
+    Turn.new(
+      id: 7,
+      parent: 6,
+      messages: [
+        user_message(
+          "I'm building a restaurant recommendation app. Can you show me how to model this in Elixir and diagram the architecture?"
+        ),
+        assistant_message([
+          %Content.Thinking{
+            text:
+              "The user wants to see Elixir code for a restaurant recommendation system plus an architecture diagram. I'll show schema modules, a recommendation function with pattern matching, and a mermaid diagram of the system."
+          },
+          %Content.Text{
+            text: """
+            Great idea! Here's a starting point for modelling this in Elixir.
+
+            ## Data Schemas
+
+            First, define your core schemas with `Ecto`:
+
+            ```elixir
+            defmodule FoodFinder.Restaurants.Restaurant do
+              use Ecto.Schema
+              import Ecto.Changeset
+
+              schema "restaurants" do
+                field :name, :string
+                field :cuisine, :string
+                field :price_tier, Ecto.Enum, values: [:budget, :mid, :fine]
+                field :rating, :float
+                field :location, Geo.PostGIS.Geometry
+
+                has_many :reviews, FoodFinder.Reviews.Review
+                many_to_many :tags, FoodFinder.Tags.Tag, join_through: "restaurant_tags"
+
+                timestamps()
+              end
+
+              def changeset(restaurant, attrs) do
+                restaurant
+                |> cast(attrs, [:name, :cuisine, :price_tier, :rating, :location])
+                |> validate_required([:name, :cuisine, :price_tier])
+                |> validate_number(:rating, greater_than: 0, less_than_or_equal_to: 5)
+              end
+            end
+            ```
+
+            ## Recommendation Engine
+
+            Use pattern matching and `Enum` to score and rank results:
+
+            ```elixir
+            defmodule FoodFinder.Recommendations do
+              @moduledoc "Scores and ranks restaurant recommendations."
+
+              alias FoodFinder.Restaurants.Restaurant
+
+              @type preference :: %{
+                      cuisine: String.t() | nil,
+                      price_tier: atom() | nil,
+                      max_distance_km: float()
+                    }
+
+              @spec recommend(list(Restaurant.t()), preference()) :: list(Restaurant.t())
+              def recommend(restaurants, preferences) do
+                restaurants
+                |> Enum.map(&{&1, score(&1, preferences)})
+                |> Enum.filter(fn {_r, score} -> score > 0 end)
+                |> Enum.sort_by(fn {_r, score} -> score end, :desc)
+                |> Enum.map(fn {r, _score} -> r end)
+                |> Enum.take(10)
+              end
+
+              defp score(%Restaurant{} = r, prefs) do
+                base = r.rating * 20
+
+                cuisine_bonus = if prefs[:cuisine] == r.cuisine, do: 30, else: 0
+                price_match = if prefs[:price_tier] == r.price_tier, do: 20, else: 0
+
+                base + cuisine_bonus + price_match
+              end
+            end
+            ```
+
+            You'd call it like this in `iex`:
+
+            ```elixir
+            iex> prefs = %{cuisine: "Japanese", price_tier: :mid, max_distance_km: 3.0}
+            iex> FoodFinder.Recommendations.recommend(restaurants, prefs)
+            [%Restaurant{name: "Kanada-Ya", cuisine: "Japanese", ...}, ...]
+            ```
+
+            ## System Architecture
+
+            Here's how the components fit together:
+
+            ```mermaid
+            graph TD
+                A[Phoenix LiveView UI] -->|user preferences| B[Recommendation Engine]
+                B -->|scored results| A
+                B -->|queries| C[(PostgreSQL + PostGIS)]
+                C -->|restaurant data| B
+
+                A -->|search input| D[Search Service]
+                D -->|full-text search| C
+
+                E[Review Ingestion] -->|new reviews| C
+                E -->|sentiment analysis| F[ML Pipeline]
+                F -->|sentiment scores| C
+
+                G[External APIs] -->|Google Places<br/>TripAdvisor| E
+
+                style A fill:#4f46e5,color:#fff
+                style B fill:#059669,color:#fff
+                style C fill:#d97706,color:#fff
+                style F fill:#dc2626,color:#fff
+            ```
+
+            ## Running It Locally
+
+            To get this up and running, you'd set up the project with:
+
+            ```bash
+            mix phx.new food_finder
+            cd food_finder
+            mix ecto.create
+            mix phx.gen.schema Restaurants.Restaurant restaurants \\
+              name:string cuisine:string price_tier:enum:budget:mid:fine rating:float
+            mix ecto.migrate
+            ```
+
+            The `Geo.PostGIS` library handles spatial queries — add `{:geo_postgis, "~> 3.4"}` to your `mix.exs` deps.
+
+            Want me to flesh out any of these parts further?\
+            """
+          }
+        ])
+      ],
+      usage: %Usage{
+        input_tokens: 1680,
+        output_tokens: 820,
+        total_tokens: 2500,
+        input_cost: 0.042,
+        output_cost: 0.041,
+        total_cost: 0.083
       }
     )
   end
