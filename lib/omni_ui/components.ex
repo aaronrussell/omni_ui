@@ -10,11 +10,10 @@ defmodule OmniUI.Components do
 
   def chat_interface(assigns) do
     ~H"""
-    <div
-      class={[
-        "flex flex-col h-full [interpolate-size:allow-keywords]",
-        "text-zinc-800 bg-white",
-      ]}>
+    <div class={[
+      "omni-ui flex flex-col h-full [interpolate-size:allow-keywords]",
+      "bg-omni-bg text-omni-text",
+    ]}>
       <div class="flex-auto overflow-y-scroll">
         <div class="max-w-3xl mx-auto flex flex-col gap-16 px-12 py-16">
           <div class="flex flex-col gap-24" id="turns" phx-update="stream">
@@ -41,7 +40,7 @@ defmodule OmniUI.Components do
             </:control>
           </.live_component>
 
-          <div class={["text-xs", "text-zinc-500"]}>
+          <div class="text-xs text-omni-text-4">
             <p>Boring footer here...</p>
           </div>
         </div>
@@ -67,29 +66,36 @@ defmodule OmniUI.Components do
           timestamp={@turn.timestamp}
           streaming={@turn.status == :streaming} />
       </div>
+      <.turn_end :if={@turn.status == :complete} turn={@turn} />
+    </div>
+    """
+  end
 
-      <div :if={@turn.status == :complete} class="flex items-center gap-4">
-        <.sibling_nav
-          :if={length(@turn.siblings) > 1}
-          sibling_id={@turn.id}
-          siblings={@turn.siblings} />
-        <button class={[
-          "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
-          "text-slate-500 hover:text-blue-600"
-        ]}>
-          <Icons.rotate class="size-3" />
-          <span>Redo</span>
-        </button>
-        <button class={[
-          "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
-          "text-slate-500 hover:text-blue-600"
-        ]}>
-          <Icons.copy class="size-3" />
-          <span>Copy</span>
-        </button>
-        <div class="flex-auto flex justify-end">
-          <.usage_block usage={@turn.usage} />
-        </div>
+  attr :turn, OmniUI.Turn, required: true
+
+  def turn_end(assigns) do
+    ~H"""
+    <div class="flex items-center gap-4">
+      <.sibling_nav
+        :if={length(@turn.siblings) > 1}
+        sibling_id={@turn.id}
+        siblings={@turn.siblings} />
+      <button class={[
+        "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
+        "text-omni-text-3 hover:text-omni-accent-1"
+      ]}>
+        <Icons.rotate class="size-3" />
+        <span>Redo</span>
+      </button>
+      <button class={[
+        "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
+        "text-omni-text-3 hover:text-omni-accent-1"
+      ]}>
+        <Icons.copy class="size-3" />
+        <span>Copy</span>
+      </button>
+      <div class="flex-auto flex justify-end">
+        <.usage_block usage={@turn.usage} />
       </div>
     </div>
     """
@@ -102,7 +108,10 @@ defmodule OmniUI.Components do
   def user_message(assigns) do
     ~H"""
     <div class="flex justify-end">
-      <div class="relative px-4 py-2 text-zinc-700 bg-slate-100  rounded-xl">
+      <div class={[
+        "relative px-4 py-2.5 rounded-xl",
+        "bg-omni-bg-1 text-omni-text-1",
+      ]}>
         <div class="flex flex-col gap-4">
           <.content_block
             :for={content <- @text}
@@ -154,11 +163,11 @@ defmodule OmniUI.Components do
         <Icons.sparkle
           class={[
             "size-4 text-amber-500",
-            if(@streaming, do: "animate-spin", else: "")
+            if(@streaming, do: "animate-spin")
           ]} />
       </:icon>
 
-      <.markdown text={@content.text} class="text-sm text-slate-500 italic" />
+      <.markdown text={@content.text} class="text-sm text-omni-text-3 italic" />
     </.expandable>
     """
   end
@@ -168,16 +177,18 @@ defmodule OmniUI.Components do
     <.expandable>
       <:icon>
         <Icons.cog class={[
-          "size-4 text-zinc-400",
-          if(@streaming, do: "animate-spin", else: "")
+          "size-4",
+          "text-omni-text-4",
+          if(@streaming, do: "animate-spin")
         ]} />
       </:icon>
 
       <:toggle>
         <div class="flex items-center gap-1">
-          <code
-            class="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-1 rounded"
-          ><%= @content.name %></code>
+          <code class={[
+            "px-2 py-1 rounded font-mono text-xs",
+            "bg-omni-bg-1 text-omni-text-1"
+          ]}><%= @content.name %></code>
           <%= if @tool_results[@content.id] do %>
             <Icons.check
               :if={@tool_results[@content.id].is_error == false}
@@ -190,13 +201,17 @@ defmodule OmniUI.Components do
       </:toggle>
 
       <div class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-3 items-center">
-        <div class="text-xs text-slate-600">Input:</div>
-        <pre class="font-mono text-xs text-slate-600 bg-slate-50 /50 px-2 py-1 text-wrap rounded"><%= format_json(@content.input) %></pre>
+        <div class="text-xs text-omni-text-2">Input:</div>
+        <pre class={[
+          "px-2 py-1 font-mono text-xs text-wrap rounded",
+          "bg-omni-bg-2 text-omni-text-2"
+        ]}><%= format_json(@content.input) %></pre>
 
         <%= if @tool_results[@content.id] do %>
-          <div class="text-xs text-slate-600">Output:</div>
+          <div class="text-xs text-omni-text-2">Output:</div>
           <pre class={[
-            "font-mono text-xs text-slate-600 bg-slate-50 /50 px-2 py-1 text-wrap rounded",
+            "px-2 py-1 font-mono text-xs text-wrap rounded",
+            "bg-omni-bg-2 text-omni-text-2",
             if(@tool_results[@content.id].is_error, do: "border border-red-500")
           ]}><%= format_tool_result(@tool_results[@content.id]) %></pre>
         <% end %>
@@ -209,21 +224,24 @@ defmodule OmniUI.Components do
 
   def usage_block(assigns) do
     ~H"""
-    <div class="group inline-flex items-center gap-1.5 font-mono text-xs text-slate-500">
+    <div class={[
+      "group inline-flex items-center gap-1.5 font-mono text-xs",
+      "text-omni-text-3"
+    ]}>
       <div>
         <Icons.chart_no_axis class="size-4 text-blue-500" />
       </div>
       <div class="flex items-center gap-1.5">
         <div class="flex items-center gap-0.5">
-          <Icons.arrow_up class="size-3 text-slate-400" />
+          <Icons.arrow_up class="size-3 text-omni-text-4" />
           <span>{format_token_count(@usage.input_tokens)}</span>
         </div>
         <div class="flex items-center gap-0.5">
-          <Icons.arrow_up class="size-3 text-slate-400 rotate-180" />
+          <Icons.arrow_up class="size-3 rotate-180 text-omni-text-4" />
           <span>{format_token_count(@usage.output_tokens)}</span>
         </div>
         <div class="flex items-center gap-0.5">
-          <span class="text-slate-400">$</span>
+          <span class="text-omni-text-4">$</span>
           <span>{format_token_cost(@usage.total_cost)}</span>
         </div>
       </div>
@@ -239,19 +257,19 @@ defmodule OmniUI.Components do
     <div class="flex items-center gap-0.5">
       <button
         class={[
-          if(hd(@siblings) == @sibling_id,
-            do: "text-slate-300",
-            else: "text-slate-400 hover:text-blue-500 transition-colors cursor-pointer")
-        ]}>
+          "transition-colors disabled:opacity-50 [:not(:disabled)]:cursor-pointer",
+          "text-omni-text-4 [:not(:disabled)]:hover:text-omni-accent-1",
+        ]}
+        disabled={hd(@siblings) == @sibling_id}>
         <Icons.chevron_down class="size-4 rotate-90" />
       </button>
-      <span class="font-mono text-xs text-slate-500">{sibling_pos(@sibling_id, @siblings)}</span>
+      <span class="font-mono text-xs text-omni-text-3">{sibling_pos(@sibling_id, @siblings)}</span>
       <button
         class={[
-          if(List.last(@siblings) == @sibling_id,
-            do: "text-slate-300",
-            else: "text-slate-400 hover:text-blue-500 transition-colors cursor-pointer")
-        ]}>
+          "transition-colors disabled:opacity-50 [:not(:disabled)]:cursor-pointer",
+          "text-omni-text-4 [:not(:disabled)]:hover:text-omni-accent-1",
+        ]}
+        disabled={List.last(@siblings) == @sibling_id}>
         <Icons.chevron_down class="size-4 -rotate-90" />
       </button>
     </div>
@@ -275,11 +293,14 @@ defmodule OmniUI.Components do
         <div class="hidden group-hover/toggle:block group-[.active]/expandable:block">
           <Icons.chevron_down
             class={[
-              "size-4 text-slate-400 transition-all",
-              "group-hover/toggle:text-slate-500 group-hover/toggle group-[.active]/expandable:rotate-180"
+              "size-4 transition-all group-[.active]/expandable:rotate-180",
+              "text-omni-text-4 group-hover/toggle:text-omni-text-3"
             ]} />
         </div>
-        <div class="text-sm transition-colors text-slate-500 group-hover/toggle:text-slate-600 group-hover/toggle">
+        <div class={[
+          "text-sm transition-colors",
+          "text-omni-text-3 group-hover/toggle:text-omni-text-2"
+        ]}>
           {render_slot(@toggle) || @label || "Expand"}
         </div>
       </div>
@@ -318,15 +339,18 @@ defmodule OmniUI.Components do
       "[&_li]:my-0.5",
       "[&_table,pre,img,hr]:my-6",
       "[&_table]:w-full [&_table]:table-fixed [&_table]:text-sm",
-      "[&_table]:border [&_table]:border-separate [&_table]:border-spacing-0 [&_table]:border-slate-200 [&_table]:rounded-xl",
-      "[&_thead_th]:border-b [&_thead_th]:border-slate-200",
+      "[&_table]:border [&_table]:border-separate [&_table]:border-spacing-0 [&_table]:rounded-xl",
+      "[&_table]:border-omni-border-3",
+      "[&_thead_th]:border-b [&_thead_th]:border-omni-border-3",
       "[&_th,td]:text-left [&_th,td]:p-2.5",
-      "[&_tbody>tr]:odd:bg-slate-50",
+      "[&_tbody>tr]:odd:bg-omni-bg-2",
       "[&_pre]:-mx-6 [&_pre]:px-6 [&_pre]:py-5 [&_pre]:rounded-xl [&_pre]:overflow-y-scroll",
-      "[&_hr]:h-px [&_hr]:bg-slate-300 [&_hr]:border-none",
-      "[&_a]:font-medium [&_a]:text-blue-500 [&_a]:hover:text-blue-400 [&_a]:hover:underline [&_a]:transition-colors",
+      "[&_hr]:h-px [&_hr]:bg-omni-border-2 [&_hr]:border-none",
+      "[&_a]:font-medium [&_a]:hover:underline [&_a]:transition-colors",
+      "[&_a]:text-omni-accent-1 [&_a]:hover:text-omni-accent-2",
       "[&_code]:text-sm [&_code]:leading-[1.625] [&_code]:font-mono",
-      "[&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:bg-slate-100 [&_:not(pre)>code]:rounded-sm",
+      "[&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:rounded-sm",
+      "[&_:not(pre)>code]:bg-omni-bg-1",
       @rest.class
     ]}>
       <%= to_md(@text) %>

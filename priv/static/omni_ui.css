@@ -1,0 +1,43 @@
+@theme {
+  /* Base background and text colors */
+  --color-omni-bg: oklch(1 0 0);                        /* white */
+  --color-omni-text: oklch(26.3% 0.024 320.12);         /* --color-mauve-800 */
+
+  /* Theme colors */
+  --color-omni-bg-1: oklch(96.8% 0.007 247.896);        /* --color-slate-100 */
+  --color-omni-bg-2: oklch(98.4% 0.003 247.858);        /* --color-slate-50 */
+
+  --color-omni-text-1: oklch(36.4% 0.029 323.89);       /* --color-mauve-700 */
+  --color-omni-text-2: oklch(43.5% 0.029 321.78);       /* --color-mauve-600 */
+  --color-omni-text-3: oklch(54.2% 0.034 322.5);        /* --color-mauve-500 */
+  --color-omni-text-4: oklch(71.1% 0.019 323.02);       /* --color-mauve-400 */
+
+  --color-omni-border-1: oklch(70.4% 0.04 256.788);     /* --color-slate-400 */
+  --color-omni-border-2: oklch(86.9% 0.022 252.894);    /* --color-slate-300 */
+  --color-omni-border-3: oklch(92.9% 0.013 255.508);    /* --color-slate-200 */
+
+  --color-omni-accent-1: oklch(62.3% 0.214 259.815);    /* --color-blue-500 */
+  --color-omni-accent-2: oklch(70.7% 0.165 254.624);    /* --color-blue-400 */
+}
+
+:root {
+  @variant dark {
+    --color-omni-bg: oklch(21.2% 0.019 322.12);         /* --color-mauve-900 */
+    --color-omni-text: oklch(92.9% 0.013 255.508);      /* --color-slate-200 */
+
+    --color-omni-bg-1: oklch(26.3% 0.024 320.12);       /* --color-mauve-800 */
+    --color-omni-bg-2: oklch(26.3% 0.024 320.12);       /* --color-mauve-800 */
+
+    --color-omni-text-1: oklch(86.9% 0.022 252.894);    /* --color-slate-300 */
+    --color-omni-text-2: oklch(86.9% 0.022 252.894);    /* --color-slate-300 */
+    --color-omni-text-3: oklch(70.4% 0.04 256.788);     /* --color-slate-400 */
+    --color-omni-text-4: oklch(55.4% 0.046 257.417);    /* --color-slate-500 */
+
+    --color-omni-border-1: oklch(54.2% 0.034 322.5);    /* --color-mauve-500 */
+    --color-omni-border-2: oklch(43.5% 0.029 321.78);   /* --color-mauve-600 */
+    --color-omni-border-3: oklch(36.4% 0.029 323.89);   /* --color-mauve-700 */
+
+    --color-omni-accent-1: oklch(70.7% 0.165 254.624);  /* --color-blue-400 */
+    --color-omni-accent-2: oklch(80.9% 0.105 251.813);  /* --color-blue-300 */
+  }
+}

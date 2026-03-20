@@ -9,8 +9,8 @@ defmodule OmniUI.MessageEditor do
   def render(assigns) do
     ~H"""
     <div class={[
-      "w-full bg-white border border-slate-400/75 rounded-xl overflow-hidden shadow-xl",
-      "[&:has(textarea:focus)]:border-blue-500"
+      "w-full border rounded-xl overflow-hidden shadow-xl",
+      "bg-omni-bg border-omni-border-1/75 [&:has(textarea:focus)]:border-omni-accent-1"
     ]}>
       <!-- TODO dragging effect -->
       <!-- TODO attachments -->
@@ -20,22 +20,31 @@ defmodule OmniUI.MessageEditor do
           <textarea
             name="input"
             class={[
-              "block w-full max-h-64 p-4 pr-16 text-foreground outline-none field-sizing-content resize-none overflow-y-auto",
-              "bg-transparent text-slate-500 focus:text-slate-700 placeholder-slate-400"
+              "block w-full max-h-64 p-4 pr-16 outline-none overflow-y-auto",
+              "field-sizing-content resize-none",
+              "bg-transparent text-omni-text-3 focus:text-omni-text-1 placeholder-omni-text-4"
               ]}
             placeholder="Type your message here..."
             rows="1">{@input}</textarea>
           <div class="absolute top-0 right-0 bottom-0 p-4 flex items-center justify-center">
-            <button type="submit" class="text-slate-400 hover:text-blue-500 transition-colors cursor-pointer">
+            <button
+              type="submit"
+              class={[
+                "transition-colors cursor-pointer",
+                "text-omni-text-4 hover:text-omni-accent-1"
+              ]}>
               <Icons.send class="size-6" />
             </button>
           </div>
         </div>
 
-        <div class="flex items-center gap-4 h-14 p-4 bg-slate-100 border-t border-slate-300">
+        <div class={[
+          "flex items-center gap-4 h-14 p-4 border-t",
+          "bg-omni-bg-1 border-omni-border-2"
+        ]}>
           <button class={[
             "flex items-center gap-1.5 text-sm transition-colors cursor-pointer",
-            "text-slate-700 hover:text-blue-600"
+            "text-omni-text-1 hover:text-omni-accent-1"
           ]}>
             <Icons.paperclip class="size-4" />
             <span>Attach</span>
@@ -43,14 +52,12 @@ defmodule OmniUI.MessageEditor do
 
           <%= for control <- @control do %>
             <div class={[
-              "before:content=[''] before:w-px before:h-3 before:bg-slate-300",
+              "before:content=[''] before:w-px before:h-3 before:bg-omni-border-3",
               control.class
             ]}>
               {render_slot(control)}
             </div>
           <% end %>
-
-
         </div>
       </form>
     </div>
