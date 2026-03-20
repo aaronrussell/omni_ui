@@ -4,9 +4,12 @@ defmodule OmniUI.Components do
   alias OmniUI.Icons
   alias Phoenix.LiveView.JS
 
-  attr :turns, Phoenix.LiveView.LiveStream, required: true
-  attr :current_turn, OmniUI.Turn
-  attr :usage, Omni.Usage, required: true
+  slot :inner_block, required: true
+  slot :current_turn
+  slot :footer
+  slot :toolbar do
+    attr :align, :string
+  end
 
   def chat_interface(assigns) do
     ~H"""
@@ -16,35 +19,39 @@ defmodule OmniUI.Components do
     ]}>
       <div class="flex-auto overflow-y-scroll">
         <div class="max-w-3xl mx-auto flex flex-col gap-16 px-12 py-16">
-          <div class="flex flex-col gap-24" id="turns" phx-update="stream">
-            <.turn
-              :for={{dom_id, turn} <- @turns}
-              id={dom_id}
-              turn={turn} />
-          </div>
-          <.turn :if={@current_turn} turn={@current_turn} />
+          {render_slot(@inner_block)}
+          {render_slot(@current_turn)}
         </div>
       </div>
 
-      <div class="shrink-0 pb-8">
+      <div class={["shrink-0", if(@footer == [], do: "pb-8", else: "pb-6")]}>
         <div class="max-w-3xl mx-auto flex flex-col items-center gap-6">
           <.live_component id="editor" module={OmniUI.MessageEditor}>
-            <:control class="text-sm">
-              <div>model select</div>
-            </:control>
-            <:control class="text-sm">
-              <div>thinking</div>
-            </:control>
-            <:control class="ml-auto before:content-none">
-              <.usage_block usage={@usage} />
-            </:control>
+            <:toolbar :for={item <- @toolbar} align={item[:align]}>
+              {render_slot(item)}
+            </:toolbar>
           </.live_component>
 
-          <div class="text-xs text-omni-text-4">
-            <p>Boring footer here...</p>
+          <div :if={@footer != []} class={[
+            "text-xs text-omni-text-4",
+            "[&_a]:text-omni-text-3 [&_a]:underline [&_a]:transition-colors",
+            "[&_a]:hover:text-omni-accent-2",
+          ]}>
+            {render_slot(@footer)}
           </div>
         </div>
       </div>
+    </div>
+    """
+  end
+
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def message_list(assigns) do
+    ~H"""
+    <div class="flex flex-col gap-24" {@rest}>
+      {render_slot(@inner_block)}
     </div>
     """
   end

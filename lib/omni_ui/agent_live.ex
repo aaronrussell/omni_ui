@@ -11,10 +11,29 @@ defmodule OmniUI.AgentLive do
     ~H"""
     <div class="relative size-full flex">
       <div class="h-full w-full">
-        <.chat_interface
-          turns={@streams.turns}
-          current_turn={@current_turn}
-          usage={@usage} />
+        <.chat_interface>
+          <.message_list id="turns" phx-update="stream">
+            <.turn :for={{dom_id, turn} <- @streams.turns} id={dom_id} turn={turn} />
+          </.message_list>
+
+          <:current_turn :if={@current_turn}>
+            <.turn turn={@current_turn} />
+          </:current_turn>
+
+          <:toolbar>
+            <div class="text-sm">model select</div>
+          </:toolbar>
+          <:toolbar>
+            <div class="text-sm">thinking</div>
+          </:toolbar>
+          <:toolbar align="end">
+            <.usage_block usage={@usage} />
+          </:toolbar>
+
+          <:footer>
+            <p>Boring footer here. <a href="#todo">Privacy Policy</a></p>
+          </:footer>
+        </.chat_interface>
       </div>
 
       <!-- TODO : artifacts button -->

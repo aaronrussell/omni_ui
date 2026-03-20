@@ -2,8 +2,8 @@ defmodule OmniUI.MessageEditor do
   use Phoenix.LiveComponent
   alias OmniUI.Icons
 
-  slot :control do
-    attr :class, :string
+  slot :toolbar do
+    attr :align, :string, values: ["start", "end"]
   end
 
   def render(assigns) do
@@ -50,14 +50,25 @@ defmodule OmniUI.MessageEditor do
             <span>Attach</span>
           </button>
 
-          <%= for control <- @control do %>
+          <%= for item <- @toolbar, item.align != "end" do %>
             <div class={[
-              "before:content=[''] before:w-px before:h-3 before:bg-omni-border-3",
-              control.class
+              "flex items-center gap-4",
+              "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
             ]}>
-              {render_slot(control)}
+              {render_slot(item)}
             </div>
           <% end %>
+
+          <div class="flex-auto flex items-center justify-end gap-4">
+            <%= for item <- @toolbar, item.align == "end" do %>
+              <div class={[
+                "flex items-center gap-4",
+                "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2 first:before:content-none"
+              ]}>
+                {render_slot(item)}
+              </div>
+            <% end %>
+          </div>
         </div>
       </form>
     </div>
