@@ -38,11 +38,11 @@ Function components, one per block type. Stateless. Pattern-matched on Omni cont
 - **text** — renders markdown text content.
 - **thinking** — renders model thinking/reasoning. Collapsible.
 - **tool_use** — renders a tool call paired with its result. Shows the tool name, input params, and the result content. When no result is available yet (streaming), shows a pending/spinner state.
-- **attachment** (TODO) — renders a file or image attachment. Used in user messages and potentially tool results.
+- **attachment** — renders a file or image attachment tile. Shared between the message editor (with cancel action slot) and the message list (read-only). Accepts `:image` and `:action` slots plus `name` and `media_type` attrs.
 
 ### MessageEditor
 
-LiveComponent. Owns composition state — textarea input, in-progress attachments. Builds up a message internally and sends the completed message to the parent on submit. LiveComponent is justified here because high-frequency keystroke and attachment state should be isolated from the parent.
+LiveComponent. Owns composition state — textarea input, file uploads. Uses LiveView's built-in upload system (`allow_upload/3`) for click-to-attach and drag-and-drop. On submit, uploaded files are base64-encoded into `Omni.Content.Attachment` structs and sent alongside text content as an `Omni.Message` to the parent. LiveComponent is justified here because high-frequency keystroke and upload state should be isolated from the parent.
 
 ---
 

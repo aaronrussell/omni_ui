@@ -6,10 +6,12 @@ defmodule OmniUI.Components do
 
   slot :inner_block, required: true
   slot :current_turn
-  slot :footer
+
   slot :toolbar do
     attr :align, :string
   end
+
+  slot :footer
 
   def chat_interface(assigns) do
     ~H"""
@@ -116,18 +118,24 @@ defmodule OmniUI.Components do
     ~H"""
     <div class="flex justify-end">
       <div class={[
-        "relative px-4 py-2.5 rounded-xl",
+        "relative flex flex-col gap-4 px-4 py-2.5 rounded-xl",
         "bg-omni-bg-1 text-omni-text-1",
       ]}>
-        <div class="flex flex-col gap-4">
+        <div
+          :if={@text != []}
+          class="flex flex-col gap-4">
           <.content_block
             :for={content <- @text}
             content={content} />
         </div>
-      </div>
 
-      <div :if={@attachments != []} class="mt-3 flex flex-wrap gap-2">
-        <!-- TODO - attachment_tile -->
+        <div
+          :if={@attachments != []}
+          class="flex flex-wrap gap-3">
+          <.content_block
+            :for={content <- @attachments}
+            content={content} />
+        </div>
       </div>
     </div>
     """
@@ -179,6 +187,16 @@ defmodule OmniUI.Components do
     """
   end
 
+  def content_block(%{content: %Omni.Content.Attachment{}} = assigns) do
+    ~H"""
+    <.attachment name={@content.media_type} media_type={@content.media_type}>
+      <:image :if={match?("image/" <> _, @content.media_type)}>
+        <img src={attachment_url(@content)} />
+      </:image>
+    </.attachment>
+    """
+  end
+
   def content_block(%{content: %Omni.Content.ToolUse{}} = assigns) do
     ~H"""
     <.expandable>
@@ -224,6 +242,36 @@ defmodule OmniUI.Components do
         <% end %>
       </div>
     </.expandable>
+    """
+  end
+
+  attr :name, :string, required: true
+  attr :media_type, :string, required: true
+  attr :rest, :global
+  slot :image
+  slot :action
+
+  def attachment(assigns) do
+    ~H"""
+    <div class="relative group" {@rest}>
+      <div class={[
+        "size-16 border rounded-lg overflow-hidden",
+        "bg-omni-bg text-omni-text-3 border-omni-border-2",
+        "[&_img]:block [&_img]:size-16 [&_img]:object-cover"
+      ]}>
+        <div
+          :if={@image == [] and not match?("image/" <> _, @media_type)}
+          class="size-full flex flex-col items-center justify-center gap-2 p-2">
+          <Icons.paperclip class="size-4" />
+          <div class="w-full text-[10px] leading-[12px] text-center break-all truncate">
+            {@name}
+          </div>
+        </div>
+
+        {render_slot(@image)}
+      </div>
+      {render_slot(@action)}
+    </div>
     """
   end
 

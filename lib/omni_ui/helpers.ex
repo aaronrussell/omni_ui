@@ -1,4 +1,10 @@
 defmodule OmniUI.Helpers do
+  def attachment_url(%Omni.Content.Attachment{source: {:base64, data}} = content) do
+    "data:#{content.media_type};base64,#{data}"
+  end
+
+  def attachment_url(%Omni.Content.Attachment{source: {:url, url}}), do: url
+
   def format_json(str) when is_binary(str) do
     case Jason.decode(str) do
       {:ok, json} -> format_json(json)

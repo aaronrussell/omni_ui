@@ -68,8 +68,8 @@ AgentLive (LiveView)
 ├── chat_interface/1 (function component)
 │   ├── Stream of turn/1 (function component)
 │   │   ├── user_message/1 (function component)
-│   │   │   ├── text content
-│   │   │   └── attachment tiles
+│   │   │   ├── text content blocks
+│   │   │   └── attachment/1 tiles (shared component, read-only)
 │   │   └── assistant_message/1 (function component)
 │   │       ├── content_block/1 (pattern-matched function component)
 │   │       │   ├── text block
@@ -83,14 +83,17 @@ AgentLive (LiveView)
 │   │   └── assistant_message/1 (same components, streaming indicators)
 │   │
 │   └── MessageEditor (LiveComponent)
-│       ├── attachment list
-│       ├── textarea
-│       └── action buttons
+│       ├── textarea + submit button
+│       ├── drag-drop zone (phx-drop-target)
+│       ├── attachment previews (using shared attachment/1 component)
+│       │   └── cancel button per entry (via :action slot)
+│       ├── attach button (label wrapping hidden live_file_input)
+│       └── toolbar slots
 │
 └── artifacts panel (future)
 ```
 
-**One LiveComponent — `MessageEditor`** — justified by state isolation. It owns composition state (textarea input, in-progress attachments), builds up an `Omni.Message` internally, and sends the completed message to the parent on submit. High-frequency keystroke state stays isolated from the parent.
+**One LiveComponent — `MessageEditor`** — justified by state isolation. It owns composition state (textarea input, file uploads via `allow_upload/3`), supports click-to-attach and drag-and-drop, and on submit base64-encodes files into `Omni.Content.Attachment` structs, builds an `Omni.Message`, and sends it to the parent. High-frequency keystroke and upload state stays isolated from the parent.
 
 **The streaming turn is a function component**, not a LiveComponent. The LiveView keeps `@current_turn` in its assigns and renders it with the same `turn/1` component used for completed turns. LiveView's change tracking means only the template block referencing `@current_turn` re-evaluates on each delta — the stream of completed turns is untouched. The DOM diff sent over the wire is small (just appended text).
 
@@ -122,3 +125,18 @@ When the agent errors during a turn:
 3. Retry re-prompts the agent; on success, `stream_insert` replaces the errored turn (same ID)
 
 The user message is never lost because the turn is always pushed to the stream.
+
+---
+
+## CSS Theming
+
+`priv/static/omni_ui.css` defines the visual theme using Tailwind 4's `@theme` directive. All colors are semantic tokens in OKLCH color space:
+
+- `omni-bg`, `omni-bg-1`, `omni-bg-2` — background layers
+- `omni-text-1..4` — text emphasis levels (1 = strongest, 4 = muted)
+- `omni-border-1..3` — border emphasis levels
+- `omni-accent-1`, `omni-accent-2` — interactive/accent colors
+
+A dark mode variant is defined using `@variant dark`. Components use these tokens exclusively via Tailwind classes (e.g. `text-omni-text-3`, `bg-omni-bg-1`), with exceptions only for semantic colors (green/red/amber for success/error/thinking states).
+
+Consumers override the theme by redefining the CSS custom properties (`--color-omni-*`). The `.omni-ui` class on the root `chat_interface` element scopes the component tree.

@@ -1,6 +1,7 @@
 defmodule OmniUI.MessageEditor do
   use Phoenix.LiveComponent
   alias OmniUI.Icons
+  import OmniUI.Components
 
   slot :toolbar do
     attr :align, :string, values: ["start", "end"]
@@ -8,15 +9,24 @@ defmodule OmniUI.MessageEditor do
 
   def render(assigns) do
     ~H"""
-    <div class={[
-      "w-full border rounded-xl overflow-hidden shadow-xl",
-      "bg-omni-bg border-omni-border-1/75 [&:has(textarea:focus)]:border-omni-accent-1"
-    ]}>
-      <!-- TODO dragging effect -->
-      <!-- TODO attachments -->
-
+    <div
+      class={[
+        "w-full border rounded-xl overflow-hidden shadow-xl",
+        "bg-omni-bg border-omni-border-1/75 [&:has(textarea:focus)]:border-omni-accent-1",
+        "[&.phx-drop-target-active]:ring-2 [&.phx-drop-target-active]:ring-omni-accent-1"
+      ]}
+      phx-drop-target={@uploads.attachments.ref}
+      >
       <form phx-submit="submit" phx-change="change" phx-target={@myself}>
-        <div class="relative">
+        <div class="relative rounded-t-xl">
+          <div
+            class={[
+              "absolute inset-0 z-10 bg-omni-bg-2 pointer-events-none items-center justify-center",
+              "hidden [.phx-drop-target-active_&]:flex"
+            ]}>
+            <span class="text-sm text-omni-text-3">Drop files here</span>
+          </div>
+
           <textarea
             name="input"
             class={[
@@ -26,48 +36,80 @@ defmodule OmniUI.MessageEditor do
               ]}
             placeholder="Type your message here..."
             rows="1">{@input}</textarea>
+
           <div class="absolute top-0 right-0 bottom-0 p-4 flex items-center justify-center">
             <button
               type="submit"
               class={[
                 "transition-colors cursor-pointer",
-                "text-omni-text-4 hover:text-omni-accent-1"
+                "text-omni-text-3 hover:text-omni-accent-1"
               ]}>
-              <Icons.send class="size-6" />
+              <Icons.send class="size-6 [:disabled>&]:hidden" />
+              <Icons.sparkle class="hidden size-5 text-amber-400 animate-spin [:disabled>&]:block" />
             </button>
           </div>
         </div>
 
-        <div class={[
-          "flex items-center gap-4 h-14 p-4 border-t",
-          "bg-omni-bg-1 border-omni-border-2"
-        ]}>
-          <button class={[
-            "flex items-center gap-1.5 text-sm transition-colors cursor-pointer",
-            "text-omni-text-1 hover:text-omni-accent-1"
-          ]}>
-            <Icons.paperclip class="size-4" />
-            <span>Attach</span>
-          </button>
+        <div class="bg-omni-bg-1 border-t border-omni-border-2">
+          <div
+            :if={@uploads.attachments.entries != []}
+            class="flex flex-wrap items-center gap-3 px-4 pt-3">
+            <.attachment
+              :for={entry <- @uploads.attachments.entries}
+              name={entry.client_name}
+              media_type={entry.client_name}>
 
-          <%= for item <- @toolbar, item.align != "end" do %>
-            <div class={[
-              "flex items-center gap-4",
-              "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
+              <:image :if={match?("image/" <> _, entry.client_type)}>
+                <.live_img_preview entry={entry} />
+              </:image>
+
+              <:action>
+                <button
+                  type="button"
+                  phx-click="cancel-upload"
+                  phx-value-ref={entry.ref}
+                  phx-target={@myself}
+                  class={[
+                    "absolute -top-1 -right-1 size-5 rounded-full flex items-center justify-center transition-all cursor-pointer",
+                    "[@media(hover:hover)]:opacity-0 group-hover:opacity-100",
+                    "bg-omni-bg text-omni-text-4 border border-omni-border-2 hover:text-red-500 hover:border-red-500",
+                  ]}>
+                  <Icons.x class="size-3" />
+                </button>
+              </:action>
+
+            </.attachment>
+          </div>
+
+          <div class="flex items-center gap-4 h-14 p-4">
+            <label class={[
+              "flex items-center gap-1.5 text-sm transition-colors cursor-pointer",
+              "text-omni-text-1 hover:text-omni-accent-1"
             ]}>
-              {render_slot(item)}
-            </div>
-          <% end %>
+              <Icons.paperclip class="size-4" />
+              <span>Attach</span>
+              <.live_file_input upload={@uploads.attachments} class="hidden" />
+            </label>
 
-          <div class="flex-auto flex items-center justify-end gap-4">
-            <%= for item <- @toolbar, item.align == "end" do %>
+            <%= for item <- @toolbar, item.align != "end" do %>
               <div class={[
                 "flex items-center gap-4",
-                "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2 first:before:content-none"
+                "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
               ]}>
                 {render_slot(item)}
               </div>
             <% end %>
+
+            <div class="flex-auto flex items-center justify-end gap-4">
+              <%= for item <- @toolbar, item.align == "end" do %>
+                <div class={[
+                  "flex items-center gap-4",
+                  "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2 first:before:content-none"
+                ]}>
+                  {render_slot(item)}
+                </div>
+              <% end %>
+            </div>
           </div>
         </div>
       </form>
@@ -76,20 +118,47 @@ defmodule OmniUI.MessageEditor do
   end
 
   def mount(socket) do
-    {:ok, assign(socket, input: "")}
+    socket =
+      socket
+      |> assign(input: "")
+      |> allow_upload(:attachments,
+        accept: ~w(.jpg .jpeg .png .gif .webp .pdf),
+        max_entries: 10,
+        max_file_size: 20_000_000
+      )
+
+    {:ok, socket}
   end
 
   def handle_event("change", %{"input" => input}, socket) do
     {:noreply, assign(socket, input: input)}
   end
 
+  def handle_event("cancel-upload", %{"ref" => ref}, socket) do
+    {:noreply, cancel_upload(socket, :attachments, ref)}
+  end
+
   def handle_event("submit", _, socket) do
     input = String.trim(socket.assigns.input)
 
-    if input == "" do
+    attachments =
+      consume_uploaded_entries(socket, :attachments, fn %{path: path}, entry ->
+        data = path |> File.read!() |> Base.encode64()
+
+        {:ok,
+         %Omni.Content.Attachment{
+           source: {:base64, data},
+           media_type: entry.client_type
+         }}
+      end)
+
+    content =
+      if(input != "", do: [%Omni.Content.Text{text: input}], else: []) ++ attachments
+
+    if content == [] do
       {:noreply, socket}
     else
-      send(self(), {:new_message, Omni.message(input)})
+      send(self(), {:new_message, Omni.message(role: :user, content: content)})
       {:noreply, assign(socket, input: "")}
     end
   end

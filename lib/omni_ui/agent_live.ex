@@ -47,7 +47,8 @@ defmodule OmniUI.AgentLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    tree = OmniUI.FakeTree.generate()
+    tree = %Omni.MessageTree{}
+    # tree = OmniUI.FakeTree.generate()
 
     parent_map =
       [nil | tree.active_path]
@@ -74,7 +75,7 @@ defmodule OmniUI.AgentLive do
 
   @impl true
   def handle_info({:new_message, message}, socket) do
-    :ok = Omni.Agent.prompt(socket.assigns.agent, message.content)
+    # :ok = Omni.Agent.prompt(socket.assigns.agent, message.content)
 
     current_turn = %OmniUI.Turn{
       status: :streaming,
