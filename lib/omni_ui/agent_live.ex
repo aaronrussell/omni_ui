@@ -21,10 +21,22 @@ defmodule OmniUI.AgentLive do
           </:current_turn>
 
           <:toolbar>
-            <div class="text-sm">model select</div>
+            <% {provider_id, model_id} = Omni.Model.to_ref(@model) %>
+            <.select
+              id="model-select"
+              options={@model_options}
+              value={"#{provider_id}:#{model_id}"}
+              event="select_model"
+            />
           </:toolbar>
-          <:toolbar>
-            <div class="text-sm">thinking</div>
+          <:toolbar :if={@model.reasoning}>
+            <.select
+              id="thinking-select"
+              options={@thinking_options}
+              value={to_string(@thinking)}
+              event="select_thinking"
+              prompt="Thinking"
+            />
           </:toolbar>
           <:toolbar align="end">
             <.usage_block usage={@usage} />
@@ -59,18 +71,68 @@ defmodule OmniUI.AgentLive do
     turns = Enum.map(tree, &OmniUI.Turn.from_omni(elem(&1, 1), parent_map))
     usage = Omni.MessageTree.usage(tree)
 
-    {:ok, agent} =
-      Omni.Agent.start_link(
-        model: {:anthropic, "claude-haiku-4-5"},
-        tree: tree
-      )
+    {:ok, model} = Omni.get_model(:anthropic, "claude-haiku-4-5")
+    {:ok, agent} = Omni.Agent.start_link(model: model, tree: tree)
+
+    model_options =
+      :persistent_term.get({Omni, :provider_ids}, %{})
+      |> Map.values()
+      |> Enum.sort()
+      |> Enum.map(fn provider_id ->
+        {:ok, models} = Omni.list_models(provider_id)
+        provider_name =
+          models
+          |> hd()
+          |> Map.get(:provider)
+          |> Module.split()
+          |> List.last()
+
+        %{
+          label: provider_name,
+          options:
+            models
+            |> Enum.sort_by(& &1.name)
+            |> Enum.map(&%{value: "#{provider_id}:#{&1.id}", label: &1.name})
+        }
+      end)
+
+    thinking_options =
+      [false, :low, :medium, :high, :max]
+      |> Enum.reverse()
+      |> Enum.map(fn val ->
+        value = to_string(val)
+        label = if val == false, do: "Off", else: String.capitalize(value)
+        %{value: value, label: label}
+      end)
 
     socket =
       socket
-      |> assign(agent: agent, current_turn: nil, usage: usage)
+      |> assign(
+        agent: agent,
+        current_turn: nil,
+        model: model,
+        model_options: model_options,
+        thinking: false,
+        thinking_options: thinking_options,
+        usage: usage
+      )
       |> stream(:turns, turns)
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_event("select_model", %{"value" => value}, socket) do
+    [provider, model_id] = String.split(value, ":", parts: 2)
+    {:ok, model} = Omni.get_model(String.to_existing_atom(provider), model_id)
+    :ok = Omni.Agent.set_state(socket.assigns.agent, :model, model)
+    {:noreply, assign(socket, model: model)}
+  end
+
+  def handle_event("select_thinking", %{"value" => value}, socket) do
+    thinking = String.to_existing_atom(value)
+    :ok = Omni.Agent.set_state(socket.assigns.agent, :opts, &Keyword.put(&1, :thinking, thinking))
+    {:noreply, assign(socket, thinking: thinking)}
   end
 
   @impl true

@@ -11,17 +11,17 @@ defmodule OmniUI.MessageEditor do
     ~H"""
     <div
       class={[
-        "w-full border rounded-xl overflow-hidden shadow-xl",
+        "w-full border rounded-xl shadow-xl",
         "bg-omni-bg border-omni-border-1/75 [&:has(textarea:focus)]:border-omni-accent-1",
-        "[&.phx-drop-target-active]:ring-2 [&.phx-drop-target-active]:ring-omni-accent-1"
+        "[&.phx-drop-target-active]:border-omni-accent-1 [&.phx-drop-target-active]:ring-2 [&.phx-drop-target-active]:ring-omni-accent-1/50"
       ]}
       phx-drop-target={@uploads.attachments.ref}
       >
       <form phx-submit="submit" phx-change="change" phx-target={@myself}>
-        <div class="relative rounded-t-xl">
+        <div class="relative">
           <div
             class={[
-              "absolute inset-0 z-10 bg-omni-bg-2 pointer-events-none items-center justify-center",
+              "absolute inset-0 z-10 bg-omni-bg-2 pointer-events-none items-center justify-center rounded-t-xl",
               "hidden [.phx-drop-target-active_&]:flex"
             ]}>
             <span class="text-sm text-omni-text-3">Drop files here</span>
@@ -50,7 +50,7 @@ defmodule OmniUI.MessageEditor do
           </div>
         </div>
 
-        <div class="bg-omni-bg-1 border-t border-omni-border-2">
+        <div class="bg-omni-bg-1 border-t border-omni-border-2 rounded-b-xl">
           <div
             :if={@uploads.attachments.entries != []}
             class="flex flex-wrap items-center gap-3 px-4 pt-3">

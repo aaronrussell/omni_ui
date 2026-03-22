@@ -331,6 +331,113 @@ defmodule OmniUI.Components do
     """
   end
 
+  attr :id, :string, required: true
+  attr :options, :list, required: true
+  attr :value, :string, default: nil
+  attr :prompt, :string, default: "Select..."
+  attr :event, :string, required: true
+  attr :target, :any, default: nil
+
+  def select(assigns) do
+    assigns = assign(assigns, :selected_label, find_option_label(assigns.options, assigns.value))
+
+    ~H"""
+    <div
+      id={@id}
+      class="group/select relative inline-flex"
+      phx-click-away={JS.remove_class("active", to: "##{@id}")}>
+      <button
+        type="button"
+        class={[
+          "inline-flex items-center gap-1.5 text-sm transition-colors cursor-pointer",
+          "text-omni-text-3 hover:text-omni-accent-1"
+        ]}
+        phx-click={JS.toggle_class("active", to: "##{@id}")}>
+        <span>{@selected_label || @prompt}</span>
+        <Icons.chevron_down class={[
+          "size-3.5 transition-transform",
+          "rotate-180 group-[.active]/select:rotate-0"
+        ]} />
+      </button>
+
+      <div class={[
+        "absolute bottom-full mb-4 z-20 -translate-x-4",
+        "min-w-48 max-h-64 overflow-y-auto",
+        "bg-omni-bg border border-omni-border-2 rounded-lg shadow-lg",
+        "opacity-0 invisible scale-95 transition-all origin-bottom-left",
+        "group-[.active]/select:opacity-100 group-[.active]/select:visible group-[.active]/select:scale-100"
+      ]}>
+        <.select_items
+          :for={item <- @options}
+          item={item}
+          value={@value}
+          event={@event}
+          target={@target}
+          select_id={@id} />
+      </div>
+    </div>
+    """
+  end
+
+  defp select_items(%{item: %{options: options}} = assigns) do
+    assigns = assign(assigns, :options, options)
+
+    ~H"""
+    <div class="px-3 py-1.5 text-xs text-omni-text-4 bg-omni-bg-2 font-medium uppercase tracking-wide">
+      {@item.label}
+    </div>
+    <.select_option
+      :for={option <- @options}
+      option={option}
+      value={@value}
+      event={@event}
+      target={@target}
+      select_id={@select_id} />
+    """
+  end
+
+  defp select_items(assigns) do
+    ~H"""
+    <.select_option
+      option={@item}
+      value={@value}
+      event={@event}
+      target={@target}
+      select_id={@select_id} />
+    """
+  end
+
+  defp select_option(assigns) do
+    ~H"""
+    <button
+      type="button"
+      class={[
+        "block w-full text-left px-3 py-1.5 text-sm whitespace-nowrap transition-colors cursor-pointer",
+        if(@option.value == @value,
+          do: "text-omni-accent-1",
+          else: "text-omni-text-2 hover:bg-omni-bg-1 hover:text-omni-accent-1"
+        )
+      ]}
+      phx-click={
+        JS.push(@event, value: %{value: @option.value})
+        |> JS.remove_class("active", to: "##{@select_id}")
+      }
+      {if @target, do: [{"phx-target", @target}], else: []}>
+      {@option.label}
+    </button>
+    """
+  end
+
+  defp find_option_label(options, value) do
+    Enum.find_value(options, fn
+      %{value: v, label: label} ->
+        if(v == value, do: label)
+
+      %{options: items} ->
+        Enum.find_value(items, fn %{value: v, label: label} -> if(v == value, do: label) end)
+    end)
+  end
+
   attr :label, :string
   slot :icon, required: true
   slot :toggle
