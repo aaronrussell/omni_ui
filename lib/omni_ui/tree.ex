@@ -1,0 +1,181 @@
+defmodule OmniUI.Tree do
+  @moduledoc """
+  A tree structure for storing conversation messages with support for branching.
+
+  Each node holds a message and an optional parent pointer, forming a tree where
+  linear conversations are the common case and branches represent alternate replies
+  or edits. An **active path** acts as a cursor through the tree — `push/3` always
+  appends to the head of this path, and `navigate/2` moves it to a different branch.
+
+  Implements `Enumerable`, yielding the nodes along the active path in order.
+  """
+
+  alias Omni.{Message, Usage}
+
+  @typedoc "A tree of conversation messages with an active path cursor."
+  @type t :: %__MODULE__{
+          nodes: %{node_id() => tree_node()},
+          path: [node_id()]
+        }
+
+  @typedoc "Integer node identifier, assigned sequentially."
+  @type node_id :: non_neg_integer()
+
+  @typedoc "A tree node wrapping a message with tree metadata."
+  @type tree_node :: %{
+          id: node_id(),
+          parent_id: node_id() | nil,
+          message: Message.t(),
+          usage: Usage.t() | nil
+        }
+
+  defstruct nodes: %{}, path: []
+
+  # Query
+
+  @doc "Returns a flat list of all messages along the active path, in order."
+  @spec messages(t()) :: [Message.t()]
+  def messages(%__MODULE__{} = tree) do
+    Enum.map(tree, & &1.message)
+  end
+
+  @doc "Returns the total number of nodes in the tree."
+  @spec size(t()) :: non_neg_integer()
+  def size(%__MODULE__{nodes: nodes}), do: map_size(nodes)
+
+  @doc "Returns the cumulative usage across all nodes in the tree."
+  @spec usage(t()) :: Usage.t()
+  def usage(%__MODULE__{nodes: nodes}) do
+    Enum.reduce(nodes, %Usage{}, fn {_id, node}, acc ->
+      case node.usage do
+        nil -> acc
+        usage -> Usage.add(acc, usage)
+      end
+    end)
+  end
+
+  @doc "Returns the ID of the last node in the active path, or `nil` if empty."
+  @spec head(t()) :: node_id() | nil
+  def head(%__MODULE__{path: []}), do: nil
+  def head(%__MODULE__{path: path}), do: List.last(path)
+
+  @doc "Returns the full tree node for a given ID, or `nil` if not found."
+  @spec get_node(t(), node_id()) :: tree_node() | nil
+  def get_node(%__MODULE__{nodes: nodes}, id), do: Map.get(nodes, id)
+
+  @doc "Returns the message for a given ID, or `nil` if not found."
+  @spec get_message(t(), node_id()) :: Message.t() | nil
+  def get_message(%__MODULE__{nodes: nodes}, id), do: get_in(nodes, [id, :message])
+
+  # Mutate
+
+  @doc "Appends a message to the head of the active path. Pipe-safe."
+  @spec push(t(), Message.t(), Usage.t() | nil) :: t()
+  def push(%__MODULE__{} = tree, %Message{} = message, usage \\ nil) do
+    {_id, tree} = push_node(tree, message, usage)
+    tree
+  end
+
+  @doc "Like `push/3`, but returns `{node_id, tree}` for when you need the new node's ID."
+  @spec push_node(t(), Message.t(), Usage.t() | nil) :: {node_id(), t()}
+  def push_node(%__MODULE__{nodes: nodes, path: path} = tree, %Message{} = message, usage \\ nil) do
+    id = size(tree) + 1
+
+    node = %{
+      id: id,
+      parent_id: head(tree),
+      message: message,
+      usage: usage
+    }
+
+    {id, %{tree | nodes: Map.put(nodes, id, node), path: path ++ [id]}}
+  end
+
+  @doc """
+  Sets the active path by walking parent pointers from `node_id` back to root.
+
+  Returns `{:error, :not_found}` if the node ID doesn't exist in the tree.
+  """
+  @spec navigate(t(), node_id()) :: {:ok, t()} | {:error, :not_found}
+  def navigate(%__MODULE__{nodes: nodes} = tree, node_id) do
+    case walk_to_root(nodes, node_id) do
+      {:ok, path} -> {:ok, %{tree | path: path}}
+      {:error, :not_found} -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Resets the active path to `[]` but preserves all nodes.
+
+  A subsequent `push/3` starts a new root node (`parent_id: nil`).
+  """
+  @spec clear(t()) :: t()
+  def clear(%__MODULE__{} = tree), do: %{tree | path: []}
+
+  # Introspect
+
+  @doc "Returns the IDs of all nodes whose parent is the given node."
+  @spec children(t(), node_id()) :: [node_id()]
+  def children(%__MODULE__{nodes: nodes}, node_id) do
+    nodes
+    |> Enum.filter(fn {_id, node} -> node.parent_id == node_id end)
+    |> Enum.map(&elem(&1, 0))
+    |> Enum.sort()
+  end
+
+  @doc "Returns other children of the same parent, excluding the given node."
+  @spec siblings(t(), node_id()) :: [node_id()]
+  def siblings(%__MODULE__{nodes: nodes} = tree, node_id) do
+    case Map.get(nodes, node_id) do
+      nil ->
+        []
+
+      %{parent_id: nil} ->
+        roots(tree) -- [node_id]
+
+      %{parent_id: parent_id} ->
+        children(tree, parent_id) -- [node_id]
+    end
+  end
+
+  @doc """
+  Walks parent pointers from `node_id` to root, returns the path in root-first order.
+
+  Useful for UIs that need to show the full path to a specific branch point.
+  """
+  @spec path_to(t(), node_id()) :: {:ok, [node_id()]} | {:error, :not_found}
+  def path_to(%__MODULE__{nodes: nodes}, node_id), do: walk_to_root(nodes, node_id)
+
+  @doc "Returns IDs of all nodes with `parent_id: nil`."
+  @spec roots(t()) :: [node_id()]
+  def roots(%__MODULE__{nodes: nodes}) do
+    nodes
+    |> Enum.filter(fn {_id, node} -> node.parent_id == nil end)
+    |> Enum.map(&elem(&1, 0))
+    |> Enum.sort()
+  end
+
+  # Internal
+
+  defp walk_to_root(nodes, id, acc \\ [])
+
+  defp walk_to_root(nodes, id, acc) do
+    case Map.get(nodes, id) do
+      nil -> {:error, :not_found}
+      %{parent_id: nil} -> {:ok, [id | acc]}
+      %{parent_id: parent_id} -> walk_to_root(nodes, parent_id, [id | acc])
+    end
+  end
+
+  defimpl Enumerable do
+    def reduce(tree, cmd, fun) do
+      tree.path
+      |> Enum.map(&tree.nodes[&1])
+      |> Enumerable.List.reduce(cmd, fun)
+    end
+
+    def count(tree), do: {:ok, length(tree.path)}
+    def member?(_tree, _element), do: {:error, __MODULE__}
+    def slice(_tree), do: {:error, __MODULE__}
+  end
+end

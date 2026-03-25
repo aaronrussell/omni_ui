@@ -86,9 +86,9 @@ defmodule OmniUI.Components do
     ~H"""
     <div class="flex items-center gap-4">
       <.sibling_nav
-        :if={length(@turn.siblings) > 1}
+        :if={length(@turn.forks) > 1}
         sibling_id={@turn.id}
-        siblings={@turn.siblings} />
+        siblings={@turn.forks} />
       <button class={[
         "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
         "text-omni-text-3 hover:text-omni-accent-1"

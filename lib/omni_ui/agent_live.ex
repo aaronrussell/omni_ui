@@ -59,20 +59,19 @@ defmodule OmniUI.AgentLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    tree = %Omni.MessageTree{}
-    # tree = OmniUI.FakeTree.generate()
+    # tree = %OmniUI.Tree{}
+    tree = OmniUI.TreeFaker.generate()
 
-    parent_map =
-      [nil | tree.active_path]
-      |> Enum.reduce(%{}, fn parent, acc ->
-        Map.put(acc, parent, Omni.MessageTree.children(tree, parent))
-      end)
-
-    turns = Enum.map(tree, &OmniUI.Turn.from_omni(elem(&1, 1), parent_map))
-    usage = Omni.MessageTree.usage(tree)
+    turns = OmniUI.Turn.from_tree(tree)
+    usage = OmniUI.Tree.usage(tree)
 
     {:ok, model} = Omni.get_model(:anthropic, "claude-haiku-4-5")
-    {:ok, agent} = Omni.Agent.start_link(model: model, tree: tree)
+
+    {:ok, agent} =
+      Omni.Agent.start_link(
+        model: model,
+        context: Omni.context(messages: OmniUI.Tree.messages(tree))
+      )
 
     model_options =
       :persistent_term.get({Omni, :provider_ids}, %{})
@@ -80,6 +79,7 @@ defmodule OmniUI.AgentLive do
       |> Enum.sort()
       |> Enum.map(fn provider_id ->
         {:ok, models} = Omni.list_models(provider_id)
+
         provider_name =
           models
           |> hd()
@@ -109,6 +109,7 @@ defmodule OmniUI.AgentLive do
       socket
       |> assign(
         agent: agent,
+        tree: tree,
         current_turn: nil,
         model: model,
         model_options: model_options,
@@ -137,7 +138,7 @@ defmodule OmniUI.AgentLive do
 
   @impl true
   def handle_info({:new_message, message}, socket) do
-    # :ok = Omni.Agent.prompt(socket.assigns.agent, message.content)
+    :ok = Omni.Agent.prompt(socket.assigns.agent, message.content)
 
     current_turn = %OmniUI.Turn{
       status: :streaming,
@@ -199,12 +200,21 @@ defmodule OmniUI.AgentLive do
   end
 
   def handle_info({:agent, _pid, :done, response}, socket) do
-    # todo - build parent_map and pass it to Turn.from_omni
+    {[user_node_id | rest_ids], tree} =
+      tree_push_all(socket.assigns.tree, response.messages, response.usage)
+
+    parent_id = tree.nodes[user_node_id].parent_id
+    forks = OmniUI.Tree.children(tree, parent_id)
+    regens = [hd(rest_ids)]
+
+    turn = OmniUI.Turn.new(user_node_id, response.messages, response.usage)
+    turn = %{turn | forks: forks, regens: regens}
+
     socket =
       socket
-      |> assign(current_turn: nil)
-      |> update(:usage, &Omni.Usage.add(&1, response.turn.usage))
-      |> stream_insert(:turns, OmniUI.Turn.from_omni(response.turn, %{}))
+      |> assign(current_turn: nil, tree: tree)
+      |> update(:usage, &Omni.Usage.add(&1, response.usage))
+      |> stream_insert(:turns, turn)
 
     {:noreply, socket}
   end
@@ -226,5 +236,19 @@ defmodule OmniUI.AgentLive do
   # Catch-all
   def handle_info({:agent, _pid, _type, _data}, socket) do
     {:noreply, socket}
+  end
+
+  # Helpers
+
+  defp tree_push_all(tree, messages, usage, node_ids \\ [])
+
+  defp tree_push_all(tree, [last], usage, node_ids) do
+    {id, tree} = OmniUI.Tree.push_node(tree, last, usage)
+    {Enum.reverse([id | node_ids]), tree}
+  end
+
+  defp tree_push_all(tree, [message | rest], usage, node_ids) do
+    {id, tree} = OmniUI.Tree.push_node(tree, message)
+    tree_push_all(tree, rest, usage, [id | node_ids])
   end
 end

@@ -24,7 +24,8 @@ defmodule OmniUI.MixProject do
       {:mdex, "~> 0.11.6"},
       {:mdex_gfm, "~> 0.2"},
       {:mdex_mermaid, "~> 0.3.5"},
-      {:omni, "~> 1.1.0"},
+      {:omni, "~> 1.2.0"},
+      {:omni_agent, "~> 0.1.0"},
       {:phoenix_live_view, "~> 1.1.27"}
     ]
   end
