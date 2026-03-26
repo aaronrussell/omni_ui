@@ -19,8 +19,8 @@ defmodule OmniUI.Components do
       "omni-ui flex flex-col h-full [interpolate-size:allow-keywords]",
       "bg-omni-bg text-omni-text",
     ]}>
-      <div class="flex-auto overflow-y-scroll">
-        <div class="max-w-3xl mx-auto flex flex-col gap-16 px-12 py-16">
+      <div id="scroll-lock" class="flex-auto overflow-y-scroll">
+        <div class="max-w-3xl mx-auto flex flex-col gap-16 px-12 py-16 min-h-[var(--scroll-lock,auto)]">
           {render_slot(@inner_block)}
           {render_slot(@current_turn)}
         </div>
@@ -52,9 +52,11 @@ defmodule OmniUI.Components do
 
   def message_list(assigns) do
     ~H"""
-    <div class="flex flex-col gap-24" {@rest}>
+    <div class="flex flex-col gap-24" style="overflow-anchor: none" {@rest}>
       {render_slot(@inner_block)}
     </div>
+
+    <div id="sentinel" class="h-0" style="overflow-anchor: auto;"></div>
     """
   end
 
@@ -394,7 +396,10 @@ defmodule OmniUI.Components do
           "text-omni-text-4 [:not(:disabled)]:hover:text-omni-accent-1",
         ]}
         disabled={hd(@versions) == @version_id}
-        phx-click={JS.push("navigate", value: %{node_id: @prev_id})}>
+        phx-click={
+          JS.dispatch("omni-ui:scroll-lock", to: "#scroll-lock")
+          |> JS.push("navigate", value: %{node_id: @prev_id})
+        }>
         <Icons.chevron_down class="size-4 rotate-90" />
       </button>
       <span class="font-mono text-xs text-omni-text-3">{sibling_pos(@version_id, @versions)}</span>
@@ -404,7 +409,10 @@ defmodule OmniUI.Components do
           "text-omni-text-4 [:not(:disabled)]:hover:text-omni-accent-1",
         ]}
         disabled={List.last(@versions) == @version_id}
-        phx-click={JS.push("navigate", value: %{node_id: @next_id})}>
+        phx-click={
+          JS.dispatch("omni-ui:scroll-lock", to: "#scroll-lock")
+          |> JS.push("navigate", value: %{node_id: @next_id})
+        }>
         <Icons.chevron_down class="size-4 -rotate-90" />
       </button>
     </div>

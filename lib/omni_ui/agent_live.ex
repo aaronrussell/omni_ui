@@ -135,6 +135,7 @@ defmodule OmniUI.AgentLive do
       socket
       |> assign(tree: tree)
       |> stream(:turns, turns, reset: true)
+      |> push_event("omni-ui:observe-scroll-lock", %{})
 
     {:noreply, socket}
   end
