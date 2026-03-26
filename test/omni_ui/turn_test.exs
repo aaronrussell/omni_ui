@@ -81,11 +81,12 @@ defmodule OmniUI.TurnTest do
       assert turn.timestamp == now
     end
 
-    test "defaults forks and regens to empty lists" do
+    test "defaults edits, regens, and res_id" do
       turn = Turn.new(1, [msg("hi"), assistant("hey")], %Usage{})
 
-      assert turn.forks == []
+      assert turn.edits == []
       assert turn.regens == []
+      assert turn.res_id == nil
     end
   end
 
@@ -103,6 +104,7 @@ defmodule OmniUI.TurnTest do
       [turn] = Turn.from_tree(tree)
 
       assert turn.id == 1
+      assert turn.res_id == 2
       assert [%Content.Text{text: "hello"}] = turn.user_text
       assert [%Content.Text{text: "hi"}] = turn.content
       assert turn.usage == usage(10, 20)
@@ -137,7 +139,7 @@ defmodule OmniUI.TurnTest do
       assert length(turn.content) == 2
     end
 
-    test "forks are populated when user messages share a parent" do
+    test "edits are populated when user messages share a parent" do
       tree =
         %Tree{}
         |> Tree.push(msg("hello"))
@@ -145,7 +147,7 @@ defmodule OmniUI.TurnTest do
         |> Tree.push(msg("follow-up A"))
         |> Tree.push(assistant("response A"), usage(30, 40))
 
-      # Navigate back and fork
+      # Navigate back and create an edit
       {:ok, tree} = Tree.navigate(tree, 2)
 
       tree =
@@ -160,7 +162,7 @@ defmodule OmniUI.TurnTest do
       turn_2 = Enum.at(turns, 1)
 
       assert turn_2.id == 3
-      assert turn_2.forks == [3, 5]
+      assert turn_2.edits == [3, 5]
     end
 
     test "regens are populated when assistant messages share a parent" do
@@ -178,10 +180,11 @@ defmodule OmniUI.TurnTest do
 
       [turn] = Turn.from_tree(tree)
 
+      assert turn.res_id == 2
       assert turn.regens == [2, 3]
     end
 
-    test "no branching produces single-element forks and regens" do
+    test "no branching produces single-element edits and regens" do
       tree =
         %Tree{}
         |> Tree.push(msg("hello"))
@@ -189,7 +192,7 @@ defmodule OmniUI.TurnTest do
 
       [turn] = Turn.from_tree(tree)
 
-      assert turn.forks == [1]
+      assert turn.edits == [1]
       assert turn.regens == [2]
     end
 
@@ -207,22 +210,23 @@ defmodule OmniUI.TurnTest do
   end
 
   describe "from_tree/1 with faker" do
-    test "produces correct turns with forks and regens" do
+    test "produces correct turns with edits and regens" do
       tree = OmniUI.TreeFaker.generate()
       turns = Turn.from_tree(tree)
 
       assert length(turns) == 7
 
-      # Turn at node 9 (lunch spots) should have both a fork and a regen
+      # Turn at node 9 (lunch spots) should have both an edit and a regen
       lunch_turn = Enum.find(turns, &(&1.id == 9))
-      assert lunch_turn.forks == [9, 25]
+      assert lunch_turn.edits == [9, 25]
       assert lunch_turn.regens == [10, 29]
+      assert lunch_turn.res_id == 10
 
-      # All other turns should have single-element forks and regens
+      # All other turns should have single-element edits and regens
       other_turns = Enum.reject(turns, &(&1.id == 9))
 
       for turn <- other_turns do
-        assert length(turn.forks) == 1, "turn #{turn.id} should have 1 fork"
+        assert length(turn.edits) == 1, "turn #{turn.id} should have 1 edit"
         assert length(turn.regens) == 1, "turn #{turn.id} should have 1 regen"
       end
     end
@@ -233,6 +237,14 @@ defmodule OmniUI.TurnTest do
 
       ids = Enum.map(turns, & &1.id)
       assert ids == [1, 3, 9, 11, 17, 21, 23]
+    end
+
+    test "res_id matches the first assistant message node in each turn" do
+      tree = OmniUI.TreeFaker.generate()
+      turns = Turn.from_tree(tree)
+
+      res_ids = Enum.map(turns, & &1.res_id)
+      assert res_ids == [2, 4, 10, 12, 18, 22, 24]
     end
   end
 

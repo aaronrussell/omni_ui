@@ -9,18 +9,21 @@ defmodule OmniUI.Turn do
 
   Branching metadata:
 
-    * `forks` — sorted node IDs of sibling user messages sharing the same parent.
-      Length > 1 means the user edited their prompt at this point.
+    * `edits` — sorted node IDs of sibling user messages sharing the same parent.
+      Length > 1 means the user edited their prompt at this point. `id` identifies
+      the active edit.
     * `regens` — sorted node IDs of sibling assistant messages sharing the same
       parent user message. Length > 1 means the user regenerated the response.
+      `res_id` identifies the active generation.
   """
 
   alias OmniUI.Tree
 
   defstruct [
     :id,
+    :res_id,
     status: :complete,
-    forks: [],
+    edits: [],
     regens: [],
     user_text: [],
     user_attachments: [],
@@ -34,8 +37,9 @@ defmodule OmniUI.Turn do
 
   @type t :: %__MODULE__{
           id: Tree.node_id(),
+          res_id: Tree.node_id() | nil,
           status: :complete | :streaming | :error,
-          forks: [Tree.node_id()],
+          edits: [Tree.node_id()],
           regens: [Tree.node_id()],
           user_text: [Omni.Content.Text.t()],
           user_attachments: [Omni.Content.Attachment.t()],
@@ -111,11 +115,16 @@ defmodule OmniUI.Turn do
       |> Enum.filter(&match?(%Omni.Usage{}, &1.usage))
       |> Enum.reduce(%Omni.Usage{}, &Omni.Usage.add(&2, &1.usage))
 
-    forks = Map.get(children_map, parent_id, [])
+    res_id = case rest do
+      [%{id: id} | _] -> id
+      [] -> nil
+    end
+
+    edits = Map.get(children_map, parent_id, [])
     regens = Map.get(children_map, node_id, [])
 
     turn = new(node_id, Enum.map(nodes, & &1.message), usage)
-    %{turn | forks: forks, regens: regens}
+    %{turn | res_id: res_id, edits: edits, regens: regens}
   end
 
   defp children_map(%Tree{nodes: nodes}) do

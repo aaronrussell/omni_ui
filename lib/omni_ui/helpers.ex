@@ -46,6 +46,11 @@ defmodule OmniUI.Helpers do
 
   def format_token_cost(cost), do: :erlang.float_to_binary(cost / 1, decimals: 4)
 
+  def model_key(%Omni.Model{} = model) do
+    {provider_id, model_id} = Omni.Model.to_ref(model)
+    "#{provider_id}:#{model_id}"
+  end
+
   def sibling_pos(id, siblings) do
     index = Enum.find_index(siblings, &(&1 == id))
     "#{index + 1}/#{length(siblings)}"

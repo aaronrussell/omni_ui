@@ -3,9 +3,7 @@ defmodule OmniUI.MessageEditor do
   alias OmniUI.Icons
   import OmniUI.Components
 
-  slot :toolbar do
-    attr :align, :string, values: ["start", "end"]
-  end
+  slot :toolbar
 
   def render(assigns) do
     ~H"""
@@ -91,6 +89,9 @@ defmodule OmniUI.MessageEditor do
               <.live_file_input upload={@uploads.attachments} class="hidden" />
             </label>
 
+            {render_slot(@toolbar)}
+
+            <!--
             <%= for item <- @toolbar, item.align != "end" do %>
               <div class={[
                 "flex items-center gap-4",
@@ -110,6 +111,7 @@ defmodule OmniUI.MessageEditor do
                 </div>
               <% end %>
             </div>
+             -->
           </div>
         </div>
       </form>

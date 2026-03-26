@@ -13,7 +13,10 @@ defmodule OmniUI.AgentLive do
       <div class="h-full w-full">
         <.chat_interface>
           <.message_list id="turns" phx-update="stream">
-            <.turn :for={{dom_id, turn} <- @streams.turns} id={dom_id} turn={turn} />
+            <.turn
+              :for={{dom_id, turn} <- @streams.turns}
+              id={dom_id}
+              turn={turn} />
           </.message_list>
 
           <:current_turn :if={@current_turn}>
@@ -21,25 +24,12 @@ defmodule OmniUI.AgentLive do
           </:current_turn>
 
           <:toolbar>
-            <% {provider_id, model_id} = Omni.Model.to_ref(@model) %>
-            <.select
-              id="model-select"
-              options={@model_options}
-              value={"#{provider_id}:#{model_id}"}
-              event="select_model"
-            />
-          </:toolbar>
-          <:toolbar :if={@model.reasoning}>
-            <.select
-              id="thinking-select"
-              options={@thinking_options}
-              value={to_string(@thinking)}
-              event="select_thinking"
-              prompt="Thinking"
-            />
-          </:toolbar>
-          <:toolbar align="end">
-            <.usage_block usage={@usage} />
+            <.toolbar
+              model={@model}
+              model_options={@model_options}
+              thinking={@thinking}
+              thinking_options={@thinking_options}
+              usage={@usage} />
           </:toolbar>
 
           <:footer>
@@ -203,12 +193,13 @@ defmodule OmniUI.AgentLive do
     {[user_node_id | rest_ids], tree} =
       tree_push_all(socket.assigns.tree, response.messages, response.usage)
 
+    res_id = hd(rest_ids)
     parent_id = tree.nodes[user_node_id].parent_id
-    forks = OmniUI.Tree.children(tree, parent_id)
-    regens = [hd(rest_ids)]
+    edits = OmniUI.Tree.children(tree, parent_id)
+    regens = [res_id]
 
     turn = OmniUI.Turn.new(user_node_id, response.messages, response.usage)
-    turn = %{turn | forks: forks, regens: regens}
+    turn = %{turn | res_id: res_id, edits: edits, regens: regens}
 
     socket =
       socket

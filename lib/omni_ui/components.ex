@@ -63,48 +63,31 @@ defmodule OmniUI.Components do
 
   def turn(assigns) do
     ~H"""
-    <div class="space-y-8" {@rest}>
-      <div class="flex flex-col gap-24">
+    <div class="flex flex-col gap-24" {@rest}>
+      <div class="flex flex-col items-end gap-6">
         <.user_message
           text={@turn.user_text}
-          attachments={@turn.user_attachments}
+          attachments={@turn.user_attachments} />
+
+        <.user_message_actions
+          :if={@turn.status == :complete}
+          turn_id={@turn.id}
+          versions={@turn.edits}
           timestamp={@turn.user_timestamp} />
+      </div>
+
+      <div class="flex flex-col gap-6">
         <.assistant_message
           content={@turn.content}
           tool_results={@turn.tool_results}
-          timestamp={@turn.timestamp}
           streaming={@turn.status == :streaming} />
-      </div>
-      <.turn_end :if={@turn.status == :complete} turn={@turn} />
-    </div>
-    """
-  end
 
-  attr :turn, OmniUI.Turn, required: true
-
-  def turn_end(assigns) do
-    ~H"""
-    <div class="flex items-center gap-4">
-      <.sibling_nav
-        :if={length(@turn.forks) > 1}
-        sibling_id={@turn.id}
-        siblings={@turn.forks} />
-      <button class={[
-        "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
-        "text-omni-text-3 hover:text-omni-accent-1"
-      ]}>
-        <Icons.rotate class="size-3" />
-        <span>Redo</span>
-      </button>
-      <button class={[
-        "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
-        "text-omni-text-3 hover:text-omni-accent-1"
-      ]}>
-        <Icons.copy class="size-3" />
-        <span>Copy</span>
-      </button>
-      <div class="flex-auto flex justify-end">
-        <.usage_block usage={@turn.usage} />
+        <.assistant_message_actions
+          :if={@turn.status == :complete}
+          turn_id={@turn.id}
+          node_id={@turn.res_id}
+          versions={@turn.regens}
+          usage={@turn.usage} />
       </div>
     </div>
     """
@@ -112,31 +95,68 @@ defmodule OmniUI.Components do
 
   attr :text, :list, required: true
   attr :attachments, :list, required: true
-  attr :timestamp, DateTime
 
   def user_message(assigns) do
     ~H"""
-    <div class="flex justify-end">
-      <div class={[
-        "relative flex flex-col gap-4 px-4 py-2.5 rounded-xl",
-        "bg-omni-bg-1 text-omni-text-1",
-      ]}>
-        <div
-          :if={@text != []}
-          class="flex flex-col gap-4">
-          <.content_block
-            :for={content <- @text}
-            content={content} />
-        </div>
-
-        <div
-          :if={@attachments != []}
-          class="flex flex-wrap gap-3">
-          <.content_block
-            :for={content <- @attachments}
-            content={content} />
-        </div>
+    <div class={[
+      "relative flex flex-col gap-4 px-4 py-2.5 rounded-xl",
+      "bg-omni-bg-1 text-omni-text-1",
+    ]}>
+      <div
+        :if={@text != []}
+        class="flex flex-col gap-4">
+        <.content_block
+          :for={content <- @text}
+          content={content} />
       </div>
+
+      <div
+        :if={@attachments != []}
+        class="flex flex-wrap gap-3">
+        <.content_block
+          :for={content <- @attachments}
+          content={content} />
+      </div>
+    </div>
+    """
+  end
+
+  attr :turn_id, :integer, required: true
+  attr :versions, :list, required: true
+  attr :timestamp, DateTime, required: true
+
+  def user_message_actions(assigns) do
+    ~H"""
+    <div class="flex items-center gap-4">
+      <time
+        class="text-xs text-omni-text-4"
+        datetime={Calendar.strftime(@timestamp, "%c")}
+        title={Calendar.strftime(@timestamp, "%c")}>
+        {Calendar.strftime(@timestamp, "%I:%M%P")}
+      </time>
+
+      <button
+        class={[
+          "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
+          "text-omni-text-3 hover:text-omni-accent-1"
+        ]}>
+        <Icons.copy class="size-3" />
+        <span>Copy</span>
+      </button>
+
+      <button
+        class={[
+          "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
+          "text-omni-text-3 hover:text-omni-accent-1"
+        ]}>
+        <Icons.rotate class="size-3" />
+        <span>Edit</span>
+      </button>
+
+      <.version_nav
+        :if={length(@versions) > 1}
+        version_id={@turn_id}
+        versions={@versions} />
     </div>
     """
   end
@@ -144,7 +164,6 @@ defmodule OmniUI.Components do
   attr :content, :list, required: true
   attr :tool_results, :map, required: true
   attr :streaming, :boolean, required: true
-  attr :timestamp, DateTime
 
   def assistant_message(assigns) do
     ~H"""
@@ -157,6 +176,42 @@ defmodule OmniUI.Components do
       </div>
 
       <!-- TODO - message error -->
+    </div>
+    """
+  end
+
+  attr :turn_id, :integer, required: true
+  attr :node_id, :integer, required: true
+  attr :versions, :list, required: true
+  attr :usage, Omni.Usage, required: true
+
+  def assistant_message_actions(assigns) do
+    ~H"""
+    <div class="flex items-center gap-4">
+      <button class={[
+        "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
+        "text-omni-text-3 hover:text-omni-accent-1"
+      ]}>
+        <Icons.copy class="size-3" />
+        <span>Copy</span>
+      </button>
+
+      <button class={[
+        "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
+        "text-omni-text-3 hover:text-omni-accent-1"
+      ]}>
+        <Icons.rotate class="size-3" />
+        <span>Redo</span>
+      </button>
+
+      <.version_nav
+        :if={length(@versions) > 1}
+        version_id={@node_id}
+        versions={@versions} />
+
+      <div class="flex-auto flex justify-end">
+        <.usage_block usage={@usage} />
+      </div>
     </div>
     """
   end
@@ -304,10 +359,10 @@ defmodule OmniUI.Components do
     """
   end
 
-  attr :sibling_id, :integer, required: true
-  attr :siblings, :list, required: true
+  attr :version_id, :integer, required: true
+  attr :versions, :list, required: true
 
-  def sibling_nav(assigns) do
+  def version_nav(assigns) do
     ~H"""
     <div class="flex items-center gap-0.5">
       <button
@@ -315,18 +370,58 @@ defmodule OmniUI.Components do
           "transition-colors disabled:opacity-50 [:not(:disabled)]:cursor-pointer",
           "text-omni-text-4 [:not(:disabled)]:hover:text-omni-accent-1",
         ]}
-        disabled={hd(@siblings) == @sibling_id}>
+        disabled={hd(@versions) == @version_id}>
         <Icons.chevron_down class="size-4 rotate-90" />
       </button>
-      <span class="font-mono text-xs text-omni-text-3">{sibling_pos(@sibling_id, @siblings)}</span>
+      <span class="font-mono text-xs text-omni-text-3">{sibling_pos(@version_id, @versions)}</span>
       <button
         class={[
           "transition-colors disabled:opacity-50 [:not(:disabled)]:cursor-pointer",
           "text-omni-text-4 [:not(:disabled)]:hover:text-omni-accent-1",
         ]}
-        disabled={List.last(@siblings) == @sibling_id}>
+        disabled={List.last(@versions) == @version_id}>
         <Icons.chevron_down class="size-4 -rotate-90" />
       </button>
+    </div>
+    """
+  end
+
+  attr :model_options, :list
+  attr :model, Omni.Model
+  attr :thinking_options, :list
+  attr :thinking, :atom
+  attr :usage, Omni.Usage
+
+  def toolbar(assigns) do
+    ~H"""
+    <div class="flex flex-auto items-center gap-4">
+      <div class={[
+        "flex items-center gap-4",
+        "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
+      ]}>
+        <.select
+          id="model-select"
+          options={@model_options}
+          value={model_key(@model)}
+          event="select_model" />
+      </div>
+
+      <div class={[
+        "flex items-center gap-4",
+        "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
+      ]}>
+        <.select
+          :if={@model.reasoning}
+          id="thinking-select"
+          options={@thinking_options}
+          value={to_string(@thinking)}
+          event="select_thinking"
+          prompt="Thinking" />
+      </div>
+
+      <div class="flex-auto flex items-center justify-end">
+        <.usage_block usage={@usage} />
+      </div>
     </div>
     """
   end
