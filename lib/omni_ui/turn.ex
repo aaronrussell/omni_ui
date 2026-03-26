@@ -131,12 +131,12 @@ defmodule OmniUI.Turn do
   end
 
   @doc "Returns the concatenated text content for the given role in a turn."
-  @spec copy_text(t(), :user | :assistant) :: String.t()
-  def copy_text(%__MODULE__{user_text: texts}, :user) do
+  @spec get_text(t(), :user | :assistant) :: String.t()
+  def get_text(%__MODULE__{user_text: texts}, :user) do
     texts |> Enum.map(& &1.text) |> Enum.join("\n\n")
   end
 
-  def copy_text(%__MODULE__{content: content}, :assistant) do
+  def get_text(%__MODULE__{content: content}, :assistant) do
     content
     |> Enum.filter(&match?(%Omni.Content.Text{}, &1))
     |> Enum.map(& &1.text)
@@ -151,10 +151,11 @@ defmodule OmniUI.Turn do
       |> Enum.filter(&match?(%Omni.Usage{}, &1.usage))
       |> Enum.reduce(%Omni.Usage{}, &Omni.Usage.add(&2, &1.usage))
 
-    res_id = case rest do
-      [%{id: id} | _] -> id
-      [] -> nil
-    end
+    res_id =
+      case rest do
+        [%{id: id} | _] -> id
+        [] -> nil
+      end
 
     edits = Map.get(children_map, parent_id, [])
     regens = Map.get(children_map, node_id, [])

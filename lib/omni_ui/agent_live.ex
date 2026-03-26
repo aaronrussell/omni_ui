@@ -122,7 +122,7 @@ defmodule OmniUI.AgentLive do
 
   def handle_event("copy_message", %{"turn_id" => turn_id, "role" => role}, socket) do
     turn = OmniUI.Turn.get(socket.assigns.tree, turn_id)
-    text = OmniUI.Turn.copy_text(turn, String.to_existing_atom(role))
+    text = OmniUI.Turn.get_text(turn, String.to_existing_atom(role))
     {:noreply, push_event(socket, "omni-ui:clipboard", %{text: text})}
   end
 
