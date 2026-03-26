@@ -485,6 +485,140 @@ defmodule OmniUI.TreeTest do
     end
   end
 
+  describe "cursors" do
+    test "push sets cursor for parent node" do
+      tree = %Tree{}
+      {1, tree} = Tree.push_node(tree, msg("a"))
+      {2, tree} = Tree.push_node(tree, assistant("b"))
+
+      assert tree.cursors[1] == 2
+    end
+
+    test "first push (root) does not set a cursor" do
+      {_, tree} = Tree.push_node(%Tree{}, msg("a"))
+
+      assert tree.cursors == %{}
+    end
+
+    test "push overwrites previous cursor at same parent" do
+      tree = %Tree{}
+      {1, tree} = Tree.push_node(tree, msg("a"))
+      {2, tree} = Tree.push_node(tree, assistant("b"))
+      assert tree.cursors[1] == 2
+
+      {:ok, tree} = Tree.navigate(tree, 1)
+      {3, tree} = Tree.push_node(tree, assistant("c"))
+      assert tree.cursors[1] == 3
+    end
+
+    test "navigate sets cursor for parent node" do
+      tree = example_tree()
+
+      # Navigate to node 6 — parent is 5
+      {:ok, tree} = Tree.navigate(tree, 6)
+      assert tree.cursors[5] == 6
+    end
+
+    test "navigate to root does not set a cursor" do
+      tree = example_tree()
+      {:ok, tree} = Tree.navigate(tree, 1)
+
+      # No cursor set for nil parent
+      refute Map.has_key?(tree.cursors, nil)
+    end
+  end
+
+  describe "extend/1" do
+    test "empty tree returns empty tree" do
+      tree = Tree.extend(%Tree{})
+      assert tree.path == []
+    end
+
+    test "leaf node is a no-op" do
+      tree = example_tree()
+      # Path ends at 8, which is a leaf
+      assert Tree.head(tree) == 8
+
+      extended = Tree.extend(tree)
+      assert extended.path == tree.path
+    end
+
+    test "follows last child when no cursor exists" do
+      tree = example_tree()
+      # Navigate to node 4 — children are [5, 7, 9], no cursor at 4 yet
+      {:ok, tree} = Tree.navigate(tree, 4)
+      tree = %{tree | cursors: Map.delete(tree.cursors, 4)}
+
+      tree = Tree.extend(tree)
+
+      # Should follow last child (9), which is a leaf
+      assert tree.path == [1, 2, 3, 4, 9]
+    end
+
+    test "follows cursor when one exists" do
+      tree = example_tree()
+      # Navigate to node 4, then set cursor to 7
+      {:ok, tree} = Tree.navigate(tree, 4)
+      tree = %{tree | cursors: Map.put(tree.cursors, 4, 7)}
+
+      tree = Tree.extend(tree)
+
+      # Should follow cursor to 7, then 7's child 8
+      assert tree.path == [1, 2, 3, 4, 7, 8]
+    end
+
+    test "follows cursors through multiple branch points" do
+      # Build a tree with two branch points:
+      #   1 -> 2 -> 3a -> 4a
+      #             3b -> 4b
+      #        2b -> 3c
+      tree = %Tree{}
+      {1, tree} = Tree.push_node(tree, msg("u1"))
+      {2, tree} = Tree.push_node(tree, assistant("a1"))
+      {3, tree} = Tree.push_node(tree, msg("u2a"))
+      {4, tree} = Tree.push_node(tree, assistant("a2a"))
+
+      # Branch at node 2
+      {:ok, tree} = Tree.navigate(tree, 2)
+      {5, tree} = Tree.push_node(tree, msg("u2b"))
+      {6, tree} = Tree.push_node(tree, assistant("a2b"))
+
+      # Branch at node 2 again
+      {:ok, tree} = Tree.navigate(tree, 2)
+      {7, tree} = Tree.push_node(tree, msg("u2c"))
+
+      # Navigate to node 1, set cursors manually
+      {:ok, tree} = Tree.navigate(tree, 1)
+      tree = %{tree | cursors: Map.merge(tree.cursors, %{1 => 2, 2 => 5})}
+
+      tree = Tree.extend(tree)
+
+      # Should follow 1->2 (cursor), 2->5 (cursor), 5->6 (only child)
+      assert tree.path == [1, 2, 5, 6]
+    end
+  end
+
+  describe "cursors remember across navigations" do
+    test "navigating between branches preserves cursor selections" do
+      tree = example_tree()
+      # example_tree active path: [1, 2, 3, 4, 7, 8]
+      # Branch at node 4: children are [5, 7, 9]
+
+      # Navigate to node 5 (sets cursor 4 -> 5)
+      {:ok, tree} = Tree.navigate(tree, 5)
+      assert tree.cursors[4] == 5
+
+      # Now navigate to node 7 (sets cursor 4 -> 7)
+      {:ok, tree} = Tree.navigate(tree, 7)
+      assert tree.cursors[4] == 7
+
+      # Navigate to node 4, extend — should follow cursor to 7, then 8
+      {:ok, tree} = Tree.navigate(tree, 4)
+      tree = Tree.extend(tree)
+      assert tree.path == [1, 2, 3, 4, 7, 8]
+    end
+  end
+
   describe "integration: example tree" do
     test "full tree structure matches spec" do
       tree = example_tree()

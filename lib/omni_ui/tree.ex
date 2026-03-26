@@ -15,7 +15,8 @@ defmodule OmniUI.Tree do
   @typedoc "A tree of conversation messages with an active path cursor."
   @type t :: %__MODULE__{
           nodes: %{node_id() => tree_node()},
-          path: [node_id()]
+          path: [node_id()],
+          cursors: %{node_id() => node_id()}
         }
 
   @typedoc "Integer node identifier, assigned sequentially."
@@ -29,7 +30,7 @@ defmodule OmniUI.Tree do
           usage: Usage.t() | nil
         }
 
-  defstruct nodes: %{}, path: []
+  defstruct nodes: %{}, path: [], cursors: %{}
 
   # Query
 
@@ -78,17 +79,23 @@ defmodule OmniUI.Tree do
 
   @doc "Like `push/3`, but returns `{node_id, tree}` for when you need the new node's ID."
   @spec push_node(t(), Message.t(), Usage.t() | nil) :: {node_id(), t()}
-  def push_node(%__MODULE__{nodes: nodes, path: path} = tree, %Message{} = message, usage \\ nil) do
+  def push_node(
+        %__MODULE__{nodes: nodes, path: path, cursors: cursors} = tree,
+        %Message{} = message,
+        usage \\ nil
+      ) do
     id = size(tree) + 1
+    parent_id = head(tree)
 
     node = %{
       id: id,
-      parent_id: head(tree),
+      parent_id: parent_id,
       message: message,
       usage: usage
     }
 
-    {id, %{tree | nodes: Map.put(nodes, id, node), path: path ++ [id]}}
+    cursors = if parent_id, do: Map.put(cursors, parent_id, id), else: cursors
+    {id, %{tree | nodes: Map.put(nodes, id, node), path: path ++ [id], cursors: cursors}}
   end
 
   @doc """
@@ -97,11 +104,30 @@ defmodule OmniUI.Tree do
   Returns `{:error, :not_found}` if the node ID doesn't exist in the tree.
   """
   @spec navigate(t(), node_id()) :: {:ok, t()} | {:error, :not_found}
-  def navigate(%__MODULE__{nodes: nodes} = tree, node_id) do
+  def navigate(%__MODULE__{nodes: nodes, cursors: cursors} = tree, node_id) do
     case walk_to_root(nodes, node_id) do
-      {:ok, path} -> {:ok, %{tree | path: path}}
-      {:error, :not_found} -> {:error, :not_found}
+      {:ok, path} ->
+        parent_id = nodes[node_id].parent_id
+        cursors = if parent_id, do: Map.put(cursors, parent_id, node_id), else: cursors
+        {:ok, %{tree | path: path, cursors: cursors}}
+
+      {:error, :not_found} ->
+        {:error, :not_found}
     end
+  end
+
+  @doc """
+  Extends the active path from head to a leaf node.
+
+  At each level, follows the cursor if one exists for the current head,
+  otherwise falls back to the last (most recent) child. Stops when
+  reaching a node with no children.
+  """
+  @spec extend(t()) :: t()
+  def extend(%__MODULE__{path: []} = tree), do: tree
+
+  def extend(%__MODULE__{nodes: nodes, path: path, cursors: cursors} = tree) do
+    %{tree | path: extend_path(nodes, cursors, path)}
   end
 
   @doc """
@@ -116,12 +142,7 @@ defmodule OmniUI.Tree do
 
   @doc "Returns the IDs of all nodes whose parent is the given node."
   @spec children(t(), node_id()) :: [node_id()]
-  def children(%__MODULE__{nodes: nodes}, node_id) do
-    nodes
-    |> Enum.filter(fn {_id, node} -> node.parent_id == node_id end)
-    |> Enum.map(&elem(&1, 0))
-    |> Enum.sort()
-  end
+  def children(%__MODULE__{nodes: nodes}, node_id), do: children_of(nodes, node_id)
 
   @doc "Returns other children of the same parent, excluding the given node."
   @spec siblings(t(), node_id()) :: [node_id()]
@@ -156,6 +177,26 @@ defmodule OmniUI.Tree do
   end
 
   # Internal
+
+  defp children_of(nodes, node_id) do
+    nodes
+    |> Enum.filter(fn {_id, node} -> node.parent_id == node_id end)
+    |> Enum.map(&elem(&1, 0))
+    |> Enum.sort()
+  end
+
+  defp extend_path(nodes, cursors, path) do
+    head = List.last(path)
+
+    case children_of(nodes, head) do
+      [] ->
+        path
+
+      children ->
+        next = Map.get(cursors, head, List.last(children))
+        extend_path(nodes, cursors, path ++ [next])
+    end
+  end
 
   defp walk_to_root(nodes, id, acc \\ [])
 

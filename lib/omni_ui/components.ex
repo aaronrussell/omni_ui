@@ -379,6 +379,13 @@ defmodule OmniUI.Components do
   attr :versions, :list, required: true
 
   def version_nav(assigns) do
+    idx = Enum.find_index(assigns.versions, &(&1 == assigns.version_id))
+
+    assigns =
+      assigns
+      |> assign(:prev_id, Enum.at(assigns.versions, idx - 1))
+      |> assign(:next_id, Enum.at(assigns.versions, idx + 1))
+
     ~H"""
     <div class="flex items-center gap-0.5">
       <button
@@ -386,7 +393,8 @@ defmodule OmniUI.Components do
           "transition-colors disabled:opacity-50 [:not(:disabled)]:cursor-pointer",
           "text-omni-text-4 [:not(:disabled)]:hover:text-omni-accent-1",
         ]}
-        disabled={hd(@versions) == @version_id}>
+        disabled={hd(@versions) == @version_id}
+        phx-click={JS.push("navigate", value: %{node_id: @prev_id})}>
         <Icons.chevron_down class="size-4 rotate-90" />
       </button>
       <span class="font-mono text-xs text-omni-text-3">{sibling_pos(@version_id, @versions)}</span>
@@ -395,7 +403,8 @@ defmodule OmniUI.Components do
           "transition-colors disabled:opacity-50 [:not(:disabled)]:cursor-pointer",
           "text-omni-text-4 [:not(:disabled)]:hover:text-omni-accent-1",
         ]}
-        disabled={List.last(@versions) == @version_id}>
+        disabled={List.last(@versions) == @version_id}
+        phx-click={JS.push("navigate", value: %{node_id: @next_id})}>
         <Icons.chevron_down class="size-4 -rotate-90" />
       </button>
     </div>

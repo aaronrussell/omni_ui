@@ -126,6 +126,19 @@ defmodule OmniUI.AgentLive do
     {:noreply, push_event(socket, "omni-ui:clipboard", %{text: text})}
   end
 
+  def handle_event("navigate", %{"node_id" => node_id}, socket) do
+    {:ok, tree} = OmniUI.Tree.navigate(socket.assigns.tree, node_id)
+    tree = OmniUI.Tree.extend(tree)
+    turns = OmniUI.Turn.all(tree)
+
+    socket =
+      socket
+      |> assign(tree: tree)
+      |> stream(:turns, turns, reset: true)
+
+    {:noreply, socket}
+  end
+
   def handle_event("select_thinking", %{"value" => value}, socket) do
     thinking = String.to_existing_atom(value)
     :ok = Omni.Agent.set_state(socket.assigns.agent, :opts, &Keyword.put(&1, :thinking, thinking))
