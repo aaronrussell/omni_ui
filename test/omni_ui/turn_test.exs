@@ -336,6 +336,56 @@ defmodule OmniUI.TurnTest do
     end
   end
 
+  describe "copy_text/2" do
+    test "returns user text from a single block" do
+      turn = Turn.new(1, [msg("hello world"), assistant("hi")], %Usage{})
+      assert Turn.copy_text(turn, :user) == "hello world"
+    end
+
+    test "joins multiple user text blocks with double newline" do
+      user = Message.new(role: :user, content: [
+        %Content.Text{text: "first paragraph"},
+        %Content.Text{text: "second paragraph"}
+      ])
+      turn = Turn.new(1, [user, assistant("hi")], %Usage{})
+      assert Turn.copy_text(turn, :user) == "first paragraph\n\nsecond paragraph"
+    end
+
+    test "returns assistant text from a single block" do
+      turn = Turn.new(1, [msg("hi"), assistant("hello world")], %Usage{})
+      assert Turn.copy_text(turn, :assistant) == "hello world"
+    end
+
+    test "joins multiple assistant text blocks with double newline" do
+      messages = [
+        msg("hi"),
+        Message.new(role: :assistant, content: [tool_use("tc1", "search")]),
+        tool_result_message("tc1", "data"),
+        assistant("final answer")
+      ]
+      turn = Turn.new(1, messages, %Usage{})
+      assert Turn.copy_text(turn, :assistant) == "final answer"
+    end
+
+    test "filters out non-text content from assistant" do
+      messages = [
+        msg("hi"),
+        Message.new(role: :assistant, content: [
+          %Content.Thinking{text: "let me think"},
+          %Content.Text{text: "visible response"}
+        ])
+      ]
+      turn = Turn.new(1, messages, %Usage{})
+      assert Turn.copy_text(turn, :assistant) == "visible response"
+    end
+
+    test "returns empty string when no text content" do
+      turn = %Turn{user_text: [], content: []}
+      assert Turn.copy_text(turn, :user) == ""
+      assert Turn.copy_text(turn, :assistant) == ""
+    end
+  end
+
   describe "push_content/2" do
     test "appends a content block" do
       turn = Turn.new(1, [msg("hi"), assistant("hey")], %Usage{})

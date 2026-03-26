@@ -120,6 +120,12 @@ defmodule OmniUI.AgentLive do
     {:noreply, assign(socket, model: model)}
   end
 
+  def handle_event("copy_message", %{"turn_id" => turn_id, "role" => role}, socket) do
+    turn = OmniUI.Turn.get(socket.assigns.tree, turn_id)
+    text = OmniUI.Turn.copy_text(turn, String.to_existing_atom(role))
+    {:noreply, push_event(socket, "omni-ui:clipboard", %{text: text})}
+  end
+
   def handle_event("select_thinking", %{"value" => value}, socket) do
     thinking = String.to_existing_atom(value)
     :ok = Omni.Agent.set_state(socket.assigns.agent, :opts, &Keyword.put(&1, :thinking, thinking))

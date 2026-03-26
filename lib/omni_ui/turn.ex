@@ -130,6 +130,19 @@ defmodule OmniUI.Turn do
     %{turn | tool_results: tool_results}
   end
 
+  @doc "Returns the concatenated text content for the given role in a turn."
+  @spec copy_text(t(), :user | :assistant) :: String.t()
+  def copy_text(%__MODULE__{user_text: texts}, :user) do
+    texts |> Enum.map(& &1.text) |> Enum.join("\n\n")
+  end
+
+  def copy_text(%__MODULE__{content: content}, :assistant) do
+    content
+    |> Enum.filter(&match?(%Omni.Content.Text{}, &1))
+    |> Enum.map(& &1.text)
+    |> Enum.join("\n\n")
+  end
+
   # Private
 
   defp from_tree_nodes([%{id: node_id, parent_id: parent_id} | rest] = nodes, children_map) do

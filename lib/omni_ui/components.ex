@@ -136,12 +136,19 @@ defmodule OmniUI.Components do
       </time>
 
       <button
+        phx-click={
+          JS.push("copy_message", value: %{turn_id: @turn_id, role: "user"})
+          |> JS.add_class("success")
+          |> JS.dispatch("omni-ui:copied")
+        }
         class={[
-          "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
+          "group flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
           "text-omni-text-3 hover:text-omni-accent-1"
         ]}>
-        <Icons.copy class="size-3" />
-        <span>Copy</span>
+        <Icons.copy class="size-3 group-[.success]:hidden" />
+        <Icons.check class="size-3 hidden group-[.success]:block text-green-500" />
+        <span class="group-[.success]:hidden">Copy</span>
+        <span class="hidden group-[.success]:inline text-green-500">Copied!</span>
       </button>
 
       <button
@@ -188,18 +195,27 @@ defmodule OmniUI.Components do
   def assistant_message_actions(assigns) do
     ~H"""
     <div class="flex items-center gap-4">
-      <button class={[
-        "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
-        "text-omni-text-3 hover:text-omni-accent-1"
-      ]}>
-        <Icons.copy class="size-3" />
-        <span>Copy</span>
+      <button
+        phx-click={
+          JS.push("copy_message", value: %{turn_id: @turn_id, role: "assistant"})
+          |> JS.add_class("success")
+          |> JS.dispatch("omni-ui:copied")
+        }
+        class={[
+          "group flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
+          "text-omni-text-3 hover:text-omni-accent-1"
+        ]}>
+        <Icons.copy class="size-3 group-[.success]:hidden" />
+        <Icons.check class="size-3 hidden group-[.success]:block text-green-500" />
+        <span class="group-[.success]:hidden">Copy</span>
+        <span class="hidden group-[.success]:inline text-green-500">Copied!</span>
       </button>
 
-      <button class={[
-        "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
-        "text-omni-text-3 hover:text-omni-accent-1"
-      ]}>
+      <button
+        class={[
+          "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
+          "text-omni-text-3 hover:text-omni-accent-1"
+        ]}>
         <Icons.rotate class="size-3" />
         <span>Redo</span>
       </button>
