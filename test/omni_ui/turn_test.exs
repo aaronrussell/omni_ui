@@ -90,9 +90,9 @@ defmodule OmniUI.TurnTest do
     end
   end
 
-  describe "from_tree/1" do
+  describe "all/1" do
     test "empty tree returns empty list" do
-      assert Turn.from_tree(%Tree{}) == []
+      assert Turn.all(%Tree{}) == []
     end
 
     test "simple two-message turn" do
@@ -101,7 +101,7 @@ defmodule OmniUI.TurnTest do
         |> Tree.push(msg("hello"))
         |> Tree.push(assistant("hi"), usage(10, 20))
 
-      [turn] = Turn.from_tree(tree)
+      [turn] = Turn.all(tree)
 
       assert turn.id == 1
       assert turn.res_id == 2
@@ -118,7 +118,7 @@ defmodule OmniUI.TurnTest do
         |> Tree.push(msg("second"))
         |> Tree.push(assistant("response 2"), usage(30, 40))
 
-      turns = Turn.from_tree(tree)
+      turns = Turn.all(tree)
 
       assert length(turns) == 2
       assert [%{id: 1}, %{id: 3}] = turns
@@ -132,7 +132,7 @@ defmodule OmniUI.TurnTest do
         |> Tree.push(tool_result_message("tc1", "found it"))
         |> Tree.push(assistant("here's what I found"), usage(50, 60))
 
-      [turn] = Turn.from_tree(tree)
+      [turn] = Turn.all(tree)
 
       assert turn.id == 1
       assert Map.has_key?(turn.tool_results, "tc1")
@@ -158,7 +158,7 @@ defmodule OmniUI.TurnTest do
       # Navigate back to the original path
       {:ok, tree} = Tree.navigate(tree, 4)
 
-      turns = Turn.from_tree(tree)
+      turns = Turn.all(tree)
       turn_2 = Enum.at(turns, 1)
 
       assert turn_2.id == 3
@@ -178,7 +178,7 @@ defmodule OmniUI.TurnTest do
       # Navigate back to original path
       {:ok, tree} = Tree.navigate(tree, 2)
 
-      [turn] = Turn.from_tree(tree)
+      [turn] = Turn.all(tree)
 
       assert turn.res_id == 2
       assert turn.regens == [2, 3]
@@ -190,7 +190,7 @@ defmodule OmniUI.TurnTest do
         |> Tree.push(msg("hello"))
         |> Tree.push(assistant("hi"), usage(10, 20))
 
-      [turn] = Turn.from_tree(tree)
+      [turn] = Turn.all(tree)
 
       assert turn.edits == [1]
       assert turn.regens == [2]
@@ -202,17 +202,17 @@ defmodule OmniUI.TurnTest do
       {_, tree} = Tree.push_node(tree, msg("hello"))
       {_, tree} = Tree.push_node(tree, assistant("hi"))
 
-      turns = Turn.from_tree(tree)
+      turns = Turn.all(tree)
 
       assert length(turns) == 1
       assert hd(turns).id == 2
     end
   end
 
-  describe "from_tree/1 with faker" do
+  describe "all/1 with faker" do
     test "produces correct turns with edits and regens" do
       tree = OmniUI.TreeFaker.generate()
-      turns = Turn.from_tree(tree)
+      turns = Turn.all(tree)
 
       assert length(turns) == 7
 
@@ -233,7 +233,7 @@ defmodule OmniUI.TurnTest do
 
     test "turn IDs match the first user message node in each turn" do
       tree = OmniUI.TreeFaker.generate()
-      turns = Turn.from_tree(tree)
+      turns = Turn.all(tree)
 
       ids = Enum.map(turns, & &1.id)
       assert ids == [1, 3, 9, 11, 17, 21, 23]
@@ -241,10 +241,98 @@ defmodule OmniUI.TurnTest do
 
     test "res_id matches the first assistant message node in each turn" do
       tree = OmniUI.TreeFaker.generate()
-      turns = Turn.from_tree(tree)
+      turns = Turn.all(tree)
 
       res_ids = Enum.map(turns, & &1.res_id)
       assert res_ids == [2, 4, 10, 12, 18, 22, 24]
+    end
+  end
+
+  describe "get/2" do
+    test "returns a single turn for a simple exchange" do
+      tree =
+        %Tree{}
+        |> Tree.push(msg("hello"))
+        |> Tree.push(assistant("hi"), usage(10, 20))
+
+      turn = Turn.get(tree, 1)
+
+      assert turn.id == 1
+      assert turn.res_id == 2
+      assert [%Content.Text{text: "hello"}] = turn.user_text
+      assert [%Content.Text{text: "hi"}] = turn.content
+      assert turn.usage == usage(10, 20)
+    end
+
+    test "returns correct turn from a multi-turn conversation" do
+      tree =
+        %Tree{}
+        |> Tree.push(msg("first"))
+        |> Tree.push(assistant("response 1"), usage(10, 20))
+        |> Tree.push(msg("second"))
+        |> Tree.push(assistant("response 2"), usage(30, 40))
+
+      turn = Turn.get(tree, 3)
+
+      assert turn.id == 3
+      assert turn.res_id == 4
+      assert [%Content.Text{text: "second"}] = turn.user_text
+      assert [%Content.Text{text: "response 2"}] = turn.content
+      assert turn.usage == usage(30, 40)
+    end
+
+    test "includes tool-use nodes within the turn" do
+      tree =
+        %Tree{}
+        |> Tree.push(msg("search for X"))
+        |> Tree.push(Message.new(role: :assistant, content: [tool_use("tc1", "search")]))
+        |> Tree.push(tool_result_message("tc1", "found it"))
+        |> Tree.push(assistant("here's what I found"), usage(50, 60))
+
+      turn = Turn.get(tree, 1)
+
+      assert turn.id == 1
+      assert Map.has_key?(turn.tool_results, "tc1")
+      assert length(turn.content) == 2
+    end
+
+    test "does not bleed into the next turn" do
+      tree =
+        %Tree{}
+        |> Tree.push(msg("first"))
+        |> Tree.push(assistant("response 1"), usage(10, 20))
+        |> Tree.push(msg("second"))
+        |> Tree.push(assistant("response 2"), usage(30, 40))
+
+      turn = Turn.get(tree, 1)
+
+      assert turn.id == 1
+      assert [%Content.Text{text: "response 1"}] = turn.content
+    end
+
+    test "populates edits and regens" do
+      tree =
+        %Tree{}
+        |> Tree.push(msg("hello"))
+        |> Tree.push(assistant("response 1"), usage(10, 20))
+
+      {:ok, tree} = Tree.navigate(tree, 1)
+      tree = Tree.push(tree, assistant("response 2"), usage(15, 25))
+      {:ok, tree} = Tree.navigate(tree, 2)
+
+      turn = Turn.get(tree, 1)
+
+      assert turn.regens == [2, 3]
+    end
+
+    test "matches all/1 output for each turn" do
+      tree = OmniUI.TreeFaker.generate()
+      all_turns = Turn.all(tree)
+
+      for expected <- all_turns do
+        got = Turn.get(tree, expected.id)
+        assert got == expected
+      end
     end
   end
 

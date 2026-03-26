@@ -4,8 +4,9 @@ defmodule OmniUI.Turn do
 
   Each turn collapses a sequence of tree nodes — a user prompt, any intermediate
   tool-use rounds, and the final assistant response — into a single renderable
-  struct. `from_tree/1` walks the active path and chunks it into turns;
-  `new/3` builds a turn from raw messages (used during streaming).
+  struct. `all/1` walks the active path and chunks it into turns; `get/2`
+  returns a single turn by its starting node ID; `new/3` builds a turn from
+  raw messages (used during streaming).
 
   Branching metadata:
 
@@ -75,16 +76,38 @@ defmodule OmniUI.Turn do
   Converts a tree's active path into a list of turns.
 
   Chunks the path at user-message boundaries (skipping tool-result user messages),
-  then builds a turn from each chunk with forks and regens populated from the
+  then builds a turn from each chunk with edits and regens populated from the
   full tree structure.
   """
-  @spec from_tree(Tree.t()) :: [t()]
-  def from_tree(%Tree{} = tree) do
+  @spec all(Tree.t()) :: [t()]
+  def all(%Tree{} = tree) do
     children_map = children_map(tree)
 
     tree
     |> Enum.chunk_while([], &tree_chunk/2, &after_tree_chunk/1)
     |> Enum.map(&from_tree_nodes(&1, children_map))
+  end
+
+  @doc """
+  Returns a single turn from the tree starting at the given node ID.
+
+  Walks the active path forward from `node_id`, collecting nodes until the
+  next turn boundary (a non-tool-result user message), then builds a turn
+  with branching metadata from the full tree structure.
+  """
+  @spec get(Tree.t(), Tree.node_id()) :: t()
+  def get(%Tree{} = tree, node_id) do
+    [first | rest] =
+      tree.path
+      |> Enum.drop_while(&(&1 != node_id))
+      |> Enum.map(&tree.nodes[&1])
+
+    turn_nodes =
+      Enum.take_while(rest, fn node ->
+        not turn_boundary?(node.message)
+      end)
+
+    from_tree_nodes([first | turn_nodes], children_map(tree))
   end
 
   @doc "Appends a content block to the turn's assistant content."

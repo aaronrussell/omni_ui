@@ -52,7 +52,7 @@ defmodule OmniUI.AgentLive do
     # tree = %OmniUI.Tree{}
     tree = OmniUI.TreeFaker.generate()
 
-    turns = OmniUI.Turn.from_tree(tree)
+    turns = OmniUI.Turn.all(tree)
     usage = OmniUI.Tree.usage(tree)
 
     {:ok, model} = Omni.get_model(:anthropic, "claude-haiku-4-5")
