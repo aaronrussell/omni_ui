@@ -5,12 +5,7 @@ defmodule OmniUI.Components do
   alias Phoenix.LiveView.JS
 
   slot :inner_block, required: true
-  slot :current_turn
-
-  slot :toolbar do
-    attr :align, :string
-  end
-
+  slot :toolbar
   slot :footer
 
   def chat_interface(assigns) do
@@ -28,7 +23,6 @@ defmodule OmniUI.Components do
             "min-h-[var(--scroll-lock,auto)]"
           ]}>
           {render_slot(@inner_block)}
-          {render_slot(@current_turn)}
           <div id="omni-sentinel" class="h-0" />
         </div>
       </div>

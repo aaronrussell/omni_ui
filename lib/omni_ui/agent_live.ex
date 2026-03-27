@@ -19,9 +19,7 @@ defmodule OmniUI.AgentLive do
               turn={turn} />
           </.message_list>
 
-          <:current_turn :if={@current_turn}>
-            <.turn turn={@current_turn} />
-          </:current_turn>
+          <.turn :if={@current_turn} turn={@current_turn} />
 
           <:toolbar>
             <.toolbar
