@@ -15,19 +15,21 @@ defmodule OmniUI.Components do
 
   def chat_interface(assigns) do
     ~H"""
-    <div class={[
-      "omni-ui flex flex-col h-full [interpolate-size:allow-keywords]",
-      "bg-omni-bg text-omni-text",
-    ]}>
-      <div id="scroll-lock" class="flex-auto overflow-y-scroll" style="overflow-anchor: none">
+    <div
+      class={[
+        "omni-ui flex flex-col h-full [interpolate-size:allow-keywords]",
+        "bg-omni-bg text-omni-text",
+      ]}>
+      <div id="omni-view" class="flex-auto overflow-y-scroll">
         <div
+          id="omni-content"
           class={[
-            "max-w-3xl mx-auto flex flex-col px-12 py-16",
-            "min-h-[var(--scroll-lock,auto)] [&:has(>:first-child>*)]:gap-24"
+            "max-w-3xl mx-auto flex flex-col px-12 py-16 gap-24",
+            "min-h-[var(--scroll-lock,auto)]"
           ]}>
           {render_slot(@inner_block)}
           {render_slot(@current_turn)}
-          <div id="sentinel" class="h-px" style="overflow-anchor: auto;"></div>
+          <div id="omni-sentinel" class="h-0" />
         </div>
       </div>
 
@@ -57,7 +59,7 @@ defmodule OmniUI.Components do
 
   def message_list(assigns) do
     ~H"""
-    <div class="flex flex-col gap-24" {@rest}>
+    <div class="flex flex-col gap-24 empty:hidden" {@rest}>
       {render_slot(@inner_block)}
     </div>
     """
@@ -75,9 +77,9 @@ defmodule OmniUI.Components do
           attachments={@turn.user_attachments} />
 
         <.user_message_actions
-          :if={@turn.status == :complete}
           turn_id={@turn.id}
           versions={@turn.edits}
+          status={@turn.status}
           timestamp={@turn.user_timestamp} />
       </div>
 
@@ -128,6 +130,7 @@ defmodule OmniUI.Components do
 
   attr :turn_id, :integer, required: true
   attr :versions, :list, required: true
+  attr :status, :atom, required: true
   attr :timestamp, DateTime, required: true
 
   def user_message_actions(assigns) do
@@ -143,8 +146,7 @@ defmodule OmniUI.Components do
       <button
         phx-click={
           JS.push("copy_message", value: %{turn_id: @turn_id, role: "user"})
-          |> JS.add_class("success")
-          |> JS.dispatch("omni-ui:copied")
+          |> JS.transition("success", time: 2000)
         }
         class={[
           "group flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
@@ -157,6 +159,7 @@ defmodule OmniUI.Components do
       </button>
 
       <button
+        :if={@status == :complete}
         class={[
           "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
           "text-omni-text-3 hover:text-omni-accent-1"
@@ -203,8 +206,7 @@ defmodule OmniUI.Components do
       <button
         phx-click={
           JS.push("copy_message", value: %{turn_id: @turn_id, role: "assistant"})
-          |> JS.add_class("success")
-          |> JS.dispatch("omni-ui:copied")
+          |> JS.transition("success", time: 2000)
         }
         class={[
           "group flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
@@ -218,7 +220,7 @@ defmodule OmniUI.Components do
 
       <button
         phx-click={
-          JS.dispatch("omni-ui:scroll-lock", to: "#scroll-lock")
+          JS.dispatch("omni:before-update")
           |> JS.push("regenerate", value: %{turn_id: @turn_id})
         }
         class={[
@@ -404,7 +406,7 @@ defmodule OmniUI.Components do
         ]}
         disabled={hd(@versions) == @version_id}
         phx-click={
-          JS.dispatch("omni-ui:scroll-lock", to: "#scroll-lock")
+          JS.dispatch("omni:before-update")
           |> JS.push("navigate", value: %{node_id: @prev_id})
         }>
         <Icons.chevron_down class="size-4 rotate-90" />
@@ -417,7 +419,7 @@ defmodule OmniUI.Components do
         ]}
         disabled={List.last(@versions) == @version_id}
         phx-click={
-          JS.dispatch("omni-ui:scroll-lock", to: "#scroll-lock")
+          JS.dispatch("omni:before-update")
           |> JS.push("navigate", value: %{node_id: @next_id})
         }>
         <Icons.chevron_down class="size-4 -rotate-90" />

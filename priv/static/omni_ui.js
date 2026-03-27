@@ -1,50 +1,77 @@
 // OmniUI client-side event handlers.
 // Import this file in your app.js to enable clipboard and other UI features.
 
-// Clipboard: copies text to the system clipboard via a LiveView push event.
-// Second event clears a temporary success state on the triggering element.
-(() => {
-  window.addEventListener("phx:omni-ui:clipboard", (event) => {
-    if (event.detail.text != null) {
-      navigator.clipboard.writeText(event.detail.text);
-    }
-  });
+class OmniUI {
+  constructor() {
+    this.$view = document.querySelector("#omni-view");
+    this.$content = document.querySelector("#omni-content");
+    this.$sentinel = document.querySelector("#omni-sentinel");
 
-  document.addEventListener("omni-ui:copied", (event) => {
-    const el = event.target;
-    setTimeout(() => el.classList.remove("success"), 2000);
-  });
-})();
+    if (!this.$view) return;
 
-// Scroll lock: prevents jarring scroll jumps when navigating to a shorter
-// branch by locking the content area's min-height via a CSS variable, then
-// using an IntersectionObserver on a sentinel element to release it once the
-// user scrolls up past the phantom space.
-(() => {
-  let observer = null;
+    this.autoScroll = false;
+    this.scrollLock = false;
+    this.prevScrollTop = this.$view.scrollTop;
 
-  document.addEventListener("omni-ui:scroll-lock", (event) => {
-    const el = event.target;
-    document.body.style.setProperty("--scroll-lock", (el.scrollTop + el.clientHeight) + "px");
+    this.#initClipboard();
+    this.#initAutoScroll();
+    this.#initScrollLock();
+  }
 
-    if (observer) {
-      observer.disconnect();
-      observer = null;
-    }
-  });
-
-  window.addEventListener("phx:omni-ui:observe-scroll-lock", () => {
-    const root = document.querySelector("#scroll-lock");
-    const sentinel = document.querySelector("#sentinel");
-
-    observer = new IntersectionObserver((entries) => {
-      if (!entries[0].isIntersecting) {
-        document.body.style.removeProperty("--scroll-lock");
-        observer.disconnect();
-        observer = null;
+  #initClipboard() {
+    window.addEventListener("phx:omni:clipboard", (e) => {
+      if (e.detail.text != null) {
+        navigator.clipboard.writeText(e.detail.text);
       }
-    }, { root, rootMargin: "0px 0px -50px 0px" });
+    });
+  }
 
-    observer.observe(sentinel);
-  });
-})();
+  #initAutoScroll() {
+    this.$view.addEventListener("scroll", () => {
+      const { scrollTop, scrollHeight, clientHeight } = this.$view;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+      if (scrollTop !== 0 && scrollTop < this.prevScrollTop && distanceFromBottom > 64) {
+        this.autoScroll = false;
+      } else if (distanceFromBottom < 16) {
+        this.autoScroll = true;
+      }
+
+      this.prevScrollTop = scrollTop;
+    });
+
+    const observer = new ResizeObserver(() => {
+      if (this.autoScroll) {
+        this.$view.scrollTop = this.$view.scrollHeight;
+      }
+    });
+
+    if (this.$content) observer.observe(this.$content);
+  }
+
+  #initScrollLock() {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (this.scrollLock && !entries[0].isIntersecting) {
+          document.body.style.removeProperty("--scroll-lock");
+          this.scrollLock = false;
+        }
+      },
+      { root: this.$view, rootMargin: "0px 0px -64px 0px" }
+    );
+
+    document.addEventListener("omni:before-update", () => {
+      const lockHeight = this.$view.scrollTop + this.$view.clientHeight;
+      document.body.style.setProperty("--scroll-lock", lockHeight + "px");
+      this.autoScroll = false;
+    });
+
+    window.addEventListener("phx:omni:updated", () => {
+      this.scrollLock = true;
+    });
+
+    if (this.$sentinel) observer.observe(this.$sentinel);
+  }
+}
+
+window.addEventListener("phx:page-loading-stop", () => new OmniUI());

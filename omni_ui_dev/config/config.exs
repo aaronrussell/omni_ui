@@ -51,7 +51,10 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
-config :omni, providers: [:anthropic, :openai, :google, :opencode, :openrouter]
+config :omni, providers: [:anthropic, :openai, :google, :opencode, :openrouter, :ollama]
+config :omni, Omni.Providers.Ollama, models: [
+  [id: "qwen3.5:4b", reasoning: true]
+]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

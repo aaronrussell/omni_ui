@@ -55,12 +55,15 @@ defmodule OmniUI.AgentLive do
     turns = OmniUI.Turn.all(tree)
     usage = OmniUI.Tree.usage(tree)
 
-    {:ok, model} = Omni.get_model(:anthropic, "claude-haiku-4-5")
+    {:ok, model} = Omni.get_model(:ollama, "qwen3.5:4b")
 
     {:ok, agent} =
       Omni.Agent.start_link(
         model: model,
-        context: Omni.context(messages: OmniUI.Tree.messages(tree))
+        context: Omni.context(messages: OmniUI.Tree.messages(tree)),
+        opts: [
+          thinking: false
+        ]
       )
 
     model_options =
@@ -123,7 +126,7 @@ defmodule OmniUI.AgentLive do
   def handle_event("copy_message", %{"turn_id" => turn_id, "role" => role}, socket) do
     turn = OmniUI.Turn.get(socket.assigns.tree, turn_id)
     text = OmniUI.Turn.get_text(turn, String.to_existing_atom(role))
-    {:noreply, push_event(socket, "omni-ui:clipboard", %{text: text})}
+    {:noreply, push_event(socket, "omni:clipboard", %{text: text})}
   end
 
   def handle_event("navigate", %{"node_id" => node_id}, socket) do
@@ -135,7 +138,7 @@ defmodule OmniUI.AgentLive do
       socket
       |> assign(tree: tree)
       |> stream(:turns, turns, reset: true)
-      |> push_event("omni-ui:observe-scroll-lock", %{})
+      |> push_event("omni:updated", %{})
 
     {:noreply, socket}
   end
@@ -175,7 +178,7 @@ defmodule OmniUI.AgentLive do
       socket
       |> assign(tree: tree, current_turn: current_turn)
       |> stream(:turns, turns, reset: true)
-      |> push_event("omni-ui:observe-scroll-lock", %{})
+      |> push_event("omni:updated", %{})
 
     {:noreply, socket}
   end
