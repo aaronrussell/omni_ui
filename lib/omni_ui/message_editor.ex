@@ -42,8 +42,8 @@ defmodule OmniUI.MessageEditor do
                 "transition-colors cursor-pointer",
                 "text-omni-text-3 hover:text-omni-accent-1"
               ]}>
-              <Icons.send class="size-6 [:disabled>&]:hidden" />
-              <Icons.sparkle class="hidden size-5 text-amber-400 animate-spin [:disabled>&]:block" />
+              <Lucideicons.send class="size-6 [:disabled>&]:hidden" />
+              <Lucideicons.sparkle class="hidden size-5 text-amber-400 animate-spin [:disabled>&]:block" />
             </button>
           </div>
         </div>
@@ -72,7 +72,7 @@ defmodule OmniUI.MessageEditor do
                     "[@media(hover:hover)]:opacity-0 group-hover:opacity-100",
                     "bg-omni-bg text-omni-text-4 border border-omni-border-2 hover:text-red-500 hover:border-red-500",
                   ]}>
-                  <Icons.x class="size-3" />
+                  <Lucideicons.x class="size-3" />
                 </button>
               </:action>
 
@@ -84,7 +84,7 @@ defmodule OmniUI.MessageEditor do
               "flex items-center gap-1.5 text-sm transition-colors cursor-pointer",
               "text-omni-text-1 hover:text-omni-accent-1"
             ]}>
-              <Icons.paperclip class="size-4" />
+              <Lucideicons.paperclip class="size-4" />
               <span>Attach</span>
               <.live_file_input upload={@uploads.attachments} class="hidden" />
             </label>

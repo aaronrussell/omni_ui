@@ -146,8 +146,8 @@ defmodule OmniUI.Components do
           "group flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
           "text-omni-text-3 hover:text-omni-accent-1"
         ]}>
-        <Icons.copy class="size-3 group-[.success]:hidden" />
-        <Icons.check class="size-3 hidden group-[.success]:block text-green-500" />
+        <Lucideicons.copy class="size-3 group-[.success]:hidden" />
+        <Lucideicons.check class="size-3 hidden group-[.success]:block text-green-500" />
         <span class="group-[.success]:hidden">Copy</span>
         <span class="hidden group-[.success]:inline text-green-500">Copied!</span>
       </button>
@@ -158,7 +158,7 @@ defmodule OmniUI.Components do
           "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
           "text-omni-text-3 hover:text-omni-accent-1"
         ]}>
-        <Icons.rotate class="size-3" />
+        <Lucideicons.pencil class="size-3" />
         <span>Edit</span>
       </button>
 
@@ -207,8 +207,8 @@ defmodule OmniUI.Components do
           "group flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
           "text-omni-text-3 hover:text-omni-accent-1"
         ]}>
-        <Icons.copy class="size-3 group-[.success]:hidden" />
-        <Icons.check class="size-3 hidden group-[.success]:block text-green-500" />
+        <Lucideicons.copy class="size-3 group-[.success]:hidden" />
+        <Lucideicons.check class="size-3 hidden group-[.success]:block text-green-500" />
         <span class="group-[.success]:hidden">Copy</span>
         <span class="hidden group-[.success]:inline text-green-500">Copied!</span>
       </button>
@@ -222,7 +222,7 @@ defmodule OmniUI.Components do
           "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
           "text-omni-text-3 hover:text-omni-accent-1"
         ]}>
-        <Icons.rotate class="size-3" />
+        <Lucideicons.rotate_cw class="size-3" />
         <span>Redo</span>
       </button>
 
@@ -252,11 +252,11 @@ defmodule OmniUI.Components do
     ~H"""
     <.expandable label={if(@streaming, do: "Thinking", else: "Thought")}>
       <:icon>
-        <Icons.sparkle
-          class={[
-            "size-4 text-amber-500",
-            if(@streaming, do: "animate-spin")
-          ]} />
+        <Lucideicons.sparkle
+          class={cls([
+          "size-4 text-amber-500",
+          if(@streaming, do: "animate-spin", else: "")
+        ])} />
       </:icon>
 
       <.markdown text={@content.text} class="text-sm text-omni-text-3 italic" />
@@ -278,11 +278,10 @@ defmodule OmniUI.Components do
     ~H"""
     <.expandable>
       <:icon>
-        <Icons.cog class={[
-          "size-4",
-          "text-omni-text-4",
-          if(@streaming, do: "animate-spin")
-        ]} />
+        <Lucideicons.cog class={cls([
+          "size-4 text-omni-text-4",
+          if(@streaming, do: "animate-spin", else: "")
+        ])} />
       </:icon>
 
       <:toggle>
@@ -292,10 +291,10 @@ defmodule OmniUI.Components do
             "bg-omni-bg-1 text-omni-text-1"
           ]}><%= @content.name %></code>
           <%= if @tool_results[@content.id] do %>
-            <Icons.check
+            <Lucideicons.check
               :if={@tool_results[@content.id].is_error == false}
               class="size-3 text-green-500" />
-            <Icons.circle_x
+            <Lucideicons.circle_x
               :if={@tool_results[@content.id].is_error == true}
               class="size-4 text-red-500" />
           <% end %>
@@ -339,7 +338,7 @@ defmodule OmniUI.Components do
         <div
           :if={@image == [] and not match?("image/" <> _, @media_type)}
           class="size-full flex flex-col items-center justify-center gap-2 p-2">
-          <Icons.paperclip class="size-4" />
+          <Lucideicons.paperclip class="size-4" />
           <div class="w-full text-[10px] leading-[12px] text-center break-all truncate">
             {@name}
           </div>
@@ -361,15 +360,15 @@ defmodule OmniUI.Components do
       "text-omni-text-3"
     ]}>
       <div>
-        <Icons.chart_no_axis class="size-4 text-blue-500" />
+        <Lucideicons.chart_no_axes_column class="size-4 text-blue-500" />
       </div>
       <div class="flex items-center gap-1.5">
         <div class="flex items-center gap-0.5">
-          <Icons.arrow_up class="size-3 text-omni-text-4" />
+          <Lucideicons.arrow_up class="size-3 text-omni-text-4" />
           <span>{format_token_count(@usage.input_tokens)}</span>
         </div>
         <div class="flex items-center gap-0.5">
-          <Icons.arrow_up class="size-3 rotate-180 text-omni-text-4" />
+          <Lucideicons.arrow_up class="size-3 rotate-180 text-omni-text-4" />
           <span>{format_token_count(@usage.output_tokens)}</span>
         </div>
         <div class="flex items-center gap-0.5">
@@ -404,7 +403,7 @@ defmodule OmniUI.Components do
           JS.dispatch("omni:before-update")
           |> JS.push("navigate", value: %{node_id: @prev_id})
         }>
-        <Icons.chevron_down class="size-4 rotate-90" />
+        <Lucideicons.chevron_down class="size-4 rotate-90" />
       </button>
       <span class="font-mono text-xs text-omni-text-3">{sibling_pos(@version_id, @versions)}</span>
       <button
@@ -417,7 +416,7 @@ defmodule OmniUI.Components do
           JS.dispatch("omni:before-update")
           |> JS.push("navigate", value: %{node_id: @next_id})
         }>
-        <Icons.chevron_down class="size-4 -rotate-90" />
+        <Lucideicons.chevron_down class="size-4 -rotate-90" />
       </button>
     </div>
     """
@@ -486,10 +485,10 @@ defmodule OmniUI.Components do
         ]}
         phx-click={JS.toggle_class("active", to: "##{@id}")}>
         <span>{@selected_label || @prompt}</span>
-        <Icons.chevron_down class={[
+        <Lucideicons.chevron_down class={cls([
           "size-3.5 transition-transform",
           "rotate-180 group-[.active]/select:rotate-0"
-        ]} />
+        ])} />
       </button>
 
       <div class={[
@@ -585,11 +584,10 @@ defmodule OmniUI.Components do
           {render_slot(@icon)}
         </div>
         <div class="hidden group-hover/toggle:block group-[.active]/expandable:block">
-          <Icons.chevron_down
-            class={[
-              "size-4 transition-all group-[.active]/expandable:rotate-180",
-              "text-omni-text-4 group-hover/toggle:text-omni-text-3"
-            ]} />
+          <Lucideicons.chevron_down class={cls([
+            "size-4 transition-all group-[.active]/expandable:rotate-180",
+            "text-omni-text-4 group-hover/toggle:text-omni-text-3"
+          ])} />
         </div>
         <div class={[
           "text-sm transition-colors",

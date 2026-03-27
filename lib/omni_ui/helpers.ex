@@ -5,6 +5,12 @@ defmodule OmniUI.Helpers do
 
   def attachment_url(%Omni.Content.Attachment{source: {:url, url}}), do: url
 
+  def cls(input) when is_list(input) do
+    input
+    |> Enum.filter(& &1)
+    |> Enum.join(" ")
+  end
+
   def format_json(str) when is_binary(str) do
     case Jason.decode(str) do
       {:ok, json} -> format_json(json)
