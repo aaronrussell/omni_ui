@@ -181,7 +181,8 @@ defmodule OmniUI.Components do
         <.content_block
           :for={content <- @content}
           content={content}
-          tool_results={@tool_results} />
+          tool_results={@tool_results}
+          streaming={@streaming} />
       </div>
 
       <!-- TODO - message error -->
