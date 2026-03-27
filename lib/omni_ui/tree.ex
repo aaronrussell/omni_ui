@@ -103,7 +103,9 @@ defmodule OmniUI.Tree do
 
   Returns `{:error, :not_found}` if the node ID doesn't exist in the tree.
   """
-  @spec navigate(t(), node_id()) :: {:ok, t()} | {:error, :not_found}
+  @spec navigate(t(), node_id() | nil) :: {:ok, t()} | {:error, :not_found}
+  def navigate(%__MODULE__{} = tree, nil), do: {:ok, %{tree | path: []}}
+
   def navigate(%__MODULE__{nodes: nodes, cursors: cursors} = tree, node_id) do
     case walk_to_root(nodes, node_id) do
       {:ok, path} ->
@@ -129,14 +131,6 @@ defmodule OmniUI.Tree do
   def extend(%__MODULE__{nodes: nodes, path: path, cursors: cursors} = tree) do
     %{tree | path: extend_path(nodes, cursors, path)}
   end
-
-  @doc """
-  Resets the active path to `[]` but preserves all nodes.
-
-  A subsequent `push/3` starts a new root node (`parent_id: nil`).
-  """
-  @spec clear(t()) :: t()
-  def clear(%__MODULE__{} = tree), do: %{tree | path: []}
 
   # Introspect
 

@@ -76,7 +76,6 @@ class OmniUI {
 
   #initAutoFocus() {
     document.addEventListener("omni:focus", (e) => {
-      console.log('focus')
       e.target.focus();
     });
   }

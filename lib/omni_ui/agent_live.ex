@@ -48,7 +48,7 @@ defmodule OmniUI.AgentLive do
   @impl true
   def mount(_params, _session, socket) do
     tree = %OmniUI.Tree{}
-    tree = OmniUI.TreeFaker.generate()
+    # tree = OmniUI.TreeFaker.generate()
 
     turns = OmniUI.Turn.all(tree)
     usage = OmniUI.Tree.usage(tree)
@@ -201,6 +201,45 @@ defmodule OmniUI.AgentLive do
     }
 
     socket = assign(socket, tree: tree, current_turn: current_turn)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:edit_message, turn_id, message}, socket) do
+    # Navigate to the PARENT of the edited message so push_node creates a sibling.
+    %{parent_id: parent_id} = socket.assigns.tree.nodes[turn_id]
+    {:ok, tree} = OmniUI.Tree.navigate(socket.assigns.tree, parent_id)
+
+    # Push new user message (branches from parent as sibling of original)
+    {id, tree} = OmniUI.Tree.push_node(tree, message)
+
+    # Sync agent context to messages BEFORE the new user message
+    messages = OmniUI.Tree.messages(tree) |> Enum.drop(-1)
+
+    :ok =
+      Omni.Agent.set_state(socket.assigns.agent, :context, fn ctx ->
+        Map.put(ctx, :messages, messages)
+      end)
+
+    # Prompt agent with new content
+    :ok = Omni.Agent.prompt(socket.assigns.agent, message.content)
+
+    # Reset stream with all turns before the edited one
+    turns = OmniUI.Turn.all(tree) |> Enum.drop(-1)
+
+    current_turn = %OmniUI.Turn{
+      id: id,
+      status: :streaming,
+      user_text: Enum.filter(message.content, &match?(%Omni.Content.Text{}, &1)),
+      user_attachments: Enum.filter(message.content, &match?(%Omni.Content.Attachment{}, &1)),
+      user_timestamp: message.timestamp
+    }
+
+    socket =
+      socket
+      |> assign(tree: tree, current_turn: current_turn)
+      |> stream(:turns, turns, reset: true)
+      |> push_event("omni:updated", %{})
 
     {:noreply, socket}
   end

@@ -14,7 +14,7 @@ defmodule OmniUI.UserMessage do
             "bg-omni-bg border-omni-border-1/75 [&:has(textarea:focus)]:border-omni-accent-1",
           ]}
         >
-          <form phx-change="change" phx-submit="submit" phx-target={@myself}>
+          <form phx-change="change" phx-submit={JS.dispatch("omni:before-update") |> JS.push("submit")} phx-target={@myself}>
             <div class="relative">
               <textarea
                 name="input"
@@ -103,7 +103,15 @@ defmodule OmniUI.UserMessage do
   end
 
   def handle_event("submit", _, socket) do
-    # Phase 2 — will send edit to parent LiveView
-    {:noreply, socket}
+    input = String.trim(socket.assigns.input)
+
+    if input == "" do
+      {:noreply, socket}
+    else
+      content = [%Omni.Content.Text{text: input}]
+      message = Omni.message(role: :user, content: content)
+      send(self(), {:edit_message, socket.assigns.turn_id, message})
+      {:noreply, assign(socket, editing: false, input: "")}
+    end
   end
 end

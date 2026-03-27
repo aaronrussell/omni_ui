@@ -163,31 +163,31 @@ defmodule OmniUI.TreeTest do
     end
   end
 
-  describe "clear/1" do
+  describe "navigate/2 with nil" do
     test "clears active path but preserves nodes" do
       tree = %Tree{}
       {_, tree} = Tree.push_node(tree, msg("a"))
       {_, tree} = Tree.push_node(tree, msg("b"))
 
-      tree = Tree.clear(tree)
+      {:ok, tree} = Tree.navigate(tree, nil)
 
       assert tree.path == []
       assert map_size(tree.nodes) == 2
     end
 
-    test "push after clear creates a new root" do
+    test "push after navigate to nil creates a new root" do
       tree = %Tree{}
       {_, tree} = Tree.push_node(tree, msg("a"))
 
-      tree = Tree.clear(tree)
+      {:ok, tree} = Tree.navigate(tree, nil)
       {2, tree} = Tree.push_node(tree, msg("b"))
 
       assert tree.nodes[2].parent_id == nil
       assert tree.path == [2]
     end
 
-    test "clearing an already empty path is idempotent" do
-      tree = Tree.clear(%Tree{})
+    test "navigating to nil on empty tree is idempotent" do
+      {:ok, tree} = Tree.navigate(%Tree{}, nil)
 
       assert tree.path == []
       assert tree.nodes == %{}
@@ -211,11 +211,11 @@ defmodule OmniUI.TreeTest do
       assert Tree.messages(%Tree{}) == []
     end
 
-    test "returns empty list after clear" do
+    test "returns empty list after navigate to nil" do
       tree = %Tree{}
       {_, tree} = Tree.push_node(tree, msg("a"))
 
-      tree = Tree.clear(tree)
+      {:ok, tree} = Tree.navigate(tree, nil)
 
       assert Tree.messages(tree) == []
     end
@@ -384,10 +384,10 @@ defmodule OmniUI.TreeTest do
       tree = %Tree{}
       {1, tree} = Tree.push_node(tree, msg("a"))
 
-      tree = Tree.clear(tree)
+      {:ok, tree} = Tree.navigate(tree, nil)
       {2, tree} = Tree.push_node(tree, msg("b"))
 
-      tree = Tree.clear(tree)
+      {:ok, tree} = Tree.navigate(tree, nil)
       {3, tree} = Tree.push_node(tree, msg("c"))
 
       assert Tree.siblings(tree, 1) == [2, 3]
@@ -427,14 +427,14 @@ defmodule OmniUI.TreeTest do
       assert Tree.roots(tree) == [1]
     end
 
-    test "returns multiple roots after clear + push cycles" do
+    test "returns multiple roots after navigate to nil + push cycles" do
       tree = %Tree{}
       {1, tree} = Tree.push_node(tree, msg("a"))
 
-      tree = Tree.clear(tree)
+      {:ok, tree} = Tree.navigate(tree, nil)
       {2, tree} = Tree.push_node(tree, msg("b"))
 
-      tree = Tree.clear(tree)
+      {:ok, tree} = Tree.navigate(tree, nil)
       {3, tree} = Tree.push_node(tree, msg("c"))
 
       assert Tree.roots(tree) == [1, 2, 3]
