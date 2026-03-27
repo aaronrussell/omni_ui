@@ -19,10 +19,15 @@ defmodule OmniUI.Components do
       "omni-ui flex flex-col h-full [interpolate-size:allow-keywords]",
       "bg-omni-bg text-omni-text",
     ]}>
-      <div id="scroll-lock" class="flex-auto overflow-y-scroll">
-        <div class="max-w-3xl mx-auto flex flex-col gap-16 px-12 py-16 min-h-[var(--scroll-lock,auto)]">
+      <div id="scroll-lock" class="flex-auto overflow-y-scroll" style="overflow-anchor: none">
+        <div
+          class={[
+            "max-w-3xl mx-auto flex flex-col px-12 py-16",
+            "min-h-[var(--scroll-lock,auto)] [&:has(>:first-child>*)]:gap-24"
+          ]}>
           {render_slot(@inner_block)}
           {render_slot(@current_turn)}
+          <div id="sentinel" class="h-px" style="overflow-anchor: auto;"></div>
         </div>
       </div>
 
@@ -52,11 +57,9 @@ defmodule OmniUI.Components do
 
   def message_list(assigns) do
     ~H"""
-    <div class="flex flex-col gap-24" style="overflow-anchor: none" {@rest}>
+    <div class="flex flex-col gap-24" {@rest}>
       {render_slot(@inner_block)}
     </div>
-
-    <div id="sentinel" class="h-0" style="overflow-anchor: auto;"></div>
     """
   end
 
@@ -214,6 +217,10 @@ defmodule OmniUI.Components do
       </button>
 
       <button
+        phx-click={
+          JS.dispatch("omni-ui:scroll-lock", to: "#scroll-lock")
+          |> JS.push("regenerate", value: %{turn_id: @turn_id})
+        }
         class={[
           "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
           "text-omni-text-3 hover:text-omni-accent-1"

@@ -49,8 +49,8 @@ defmodule OmniUI.AgentLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    # tree = %OmniUI.Tree{}
-    tree = OmniUI.TreeFaker.generate()
+    tree = %OmniUI.Tree{}
+    #tree = OmniUI.TreeFaker.generate()
 
     turns = OmniUI.Turn.all(tree)
     usage = OmniUI.Tree.usage(tree)
@@ -140,6 +140,46 @@ defmodule OmniUI.AgentLive do
     {:noreply, socket}
   end
 
+  def handle_event("regenerate", %{"turn_id" => turn_id}, socket) do
+    turn = OmniUI.Turn.get(socket.assigns.tree, turn_id)
+
+    # Navigate tree so head = user message node (new response branches from here)
+    {:ok, tree} = OmniUI.Tree.navigate(socket.assigns.tree, turn_id)
+
+    # Sync agent context to messages BEFORE the user message
+    # (Agent.prompt will re-add the user message)
+    messages = OmniUI.Tree.messages(tree) |> Enum.drop(-1)
+
+    :ok =
+      Omni.Agent.set_state(socket.assigns.agent, :context, fn ctx ->
+        Map.put(ctx, :messages, messages)
+      end)
+
+    # Reset stream with all turns except the one being regenerated
+    turns = OmniUI.Turn.all(tree) |> Enum.drop(-1)
+
+    # Build current_turn from original user message data
+    current_turn = %OmniUI.Turn{
+      id: turn_id,
+      status: :streaming,
+      user_text: turn.user_text,
+      user_attachments: turn.user_attachments,
+      user_timestamp: turn.user_timestamp
+    }
+
+    # Prompt agent with original user content
+    content = turn.user_text ++ turn.user_attachments
+    :ok = Omni.Agent.prompt(socket.assigns.agent, content)
+
+    socket =
+      socket
+      |> assign(tree: tree, current_turn: current_turn)
+      |> stream(:turns, turns, reset: true)
+      |> push_event("omni-ui:observe-scroll-lock", %{})
+
+    {:noreply, socket}
+  end
+
   def handle_event("select_thinking", %{"value" => value}, socket) do
     thinking = String.to_existing_atom(value)
     :ok = Omni.Agent.set_state(socket.assigns.agent, :opts, &Keyword.put(&1, :thinking, thinking))
@@ -148,16 +188,18 @@ defmodule OmniUI.AgentLive do
 
   @impl true
   def handle_info({:new_message, message}, socket) do
+    {id, tree} = OmniUI.Tree.push_node(socket.assigns.tree, message)
     :ok = Omni.Agent.prompt(socket.assigns.agent, message.content)
 
     current_turn = %OmniUI.Turn{
+      id: id,
       status: :streaming,
       user_text: Enum.filter(message.content, &match?(%Omni.Content.Text{}, &1)),
       user_attachments: Enum.filter(message.content, &match?(%Omni.Content.Attachment{}, &1)),
       user_timestamp: message.timestamp
     }
 
-    socket = assign(socket, current_turn: current_turn)
+    socket = assign(socket, tree: tree, current_turn: current_turn)
 
     {:noreply, socket}
   end
@@ -210,13 +252,13 @@ defmodule OmniUI.AgentLive do
   end
 
   def handle_info({:agent, _pid, :done, response}, socket) do
-    {[user_node_id | rest_ids], tree} =
-      tree_push_all(socket.assigns.tree, response.messages, response.usage)
+    [_user_msg | rest_msgs] = response.messages
+    {[res_id | _], tree} = tree_push_all(socket.assigns.tree, rest_msgs, response.usage)
 
-    res_id = hd(rest_ids)
+    user_node_id = socket.assigns.current_turn.id
     parent_id = tree.nodes[user_node_id].parent_id
     edits = OmniUI.Tree.children(tree, parent_id)
-    regens = [res_id]
+    regens = OmniUI.Tree.children(tree, user_node_id)
 
     turn = OmniUI.Turn.new(user_node_id, response.messages, response.usage)
     turn = %{turn | res_id: res_id, edits: edits, regens: regens}
