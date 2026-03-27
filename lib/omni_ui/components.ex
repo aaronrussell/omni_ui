@@ -1,7 +1,6 @@
 defmodule OmniUI.Components do
   use Phoenix.Component
   import OmniUI.Helpers
-  alias OmniUI.Icons
   alias Phoenix.LiveView.JS
 
   slot :inner_block, required: true
@@ -65,17 +64,15 @@ defmodule OmniUI.Components do
   def turn(assigns) do
     ~H"""
     <div class="flex flex-col gap-24" {@rest}>
-      <div class="flex flex-col items-end gap-6">
-        <.user_message
-          text={@turn.user_text}
-          attachments={@turn.user_attachments} />
-
-        <.user_message_actions
-          turn_id={@turn.id}
-          versions={@turn.edits}
-          status={@turn.status}
-          timestamp={@turn.user_timestamp} />
-      </div>
+      <.live_component
+        module={OmniUI.UserMessage}
+        id={"user-message-#{@turn.id}"}
+        turn_id={@turn.id}
+        text={@turn.user_text}
+        attachments={@turn.user_attachments}
+        versions={@turn.edits}
+        status={@turn.status}
+        timestamp={@turn.user_timestamp} />
 
       <div class="flex flex-col gap-6">
         <.assistant_message
@@ -126,6 +123,7 @@ defmodule OmniUI.Components do
   attr :versions, :list, required: true
   attr :status, :atom, required: true
   attr :timestamp, DateTime, required: true
+  attr :on_edit, Phoenix.LiveView.JS, default: nil
 
   def user_message_actions(assigns) do
     ~H"""
@@ -153,7 +151,8 @@ defmodule OmniUI.Components do
       </button>
 
       <button
-        :if={@status == :complete}
+        :if={@status == :complete and @on_edit}
+        phx-click={@on_edit}
         class={[
           "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
           "text-omni-text-3 hover:text-omni-accent-1"

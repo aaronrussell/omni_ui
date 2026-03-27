@@ -1,6 +1,5 @@
 defmodule OmniUI.MessageEditor do
   use Phoenix.LiveComponent
-  alias OmniUI.Icons
   import OmniUI.Components
 
   slot :toolbar
@@ -31,7 +30,7 @@ defmodule OmniUI.MessageEditor do
               "block w-full max-h-64 p-4 pr-16 outline-none overflow-y-auto",
               "field-sizing-content resize-none",
               "bg-transparent text-omni-text-3 focus:text-omni-text-1 placeholder-omni-text-4"
-              ]}
+            ]}
             placeholder="Type your message here..."
             rows="1">{@input}</textarea>
 
@@ -90,28 +89,6 @@ defmodule OmniUI.MessageEditor do
             </label>
 
             {render_slot(@toolbar)}
-
-            <!--
-            <%= for item <- @toolbar, item.align != "end" do %>
-              <div class={[
-                "flex items-center gap-4",
-                "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
-              ]}>
-                {render_slot(item)}
-              </div>
-            <% end %>
-
-            <div class="flex-auto flex items-center justify-end gap-4">
-              <%= for item <- @toolbar, item.align == "end" do %>
-                <div class={[
-                  "flex items-center gap-4",
-                  "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2 first:before:content-none"
-                ]}>
-                  {render_slot(item)}
-                </div>
-              <% end %>
-            </div>
-             -->
           </div>
         </div>
       </form>

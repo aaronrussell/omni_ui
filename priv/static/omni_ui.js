@@ -16,6 +16,7 @@ class OmniUI {
     this.#initClipboard();
     this.#initAutoScroll();
     this.#initScrollLock();
+    this.#initAutoFocus();
   }
 
   #initClipboard() {
@@ -71,6 +72,13 @@ class OmniUI {
     });
 
     if (this.$sentinel) observer.observe(this.$sentinel);
+  }
+
+  #initAutoFocus() {
+    document.addEventListener("omni:focus", (e) => {
+      console.log('focus')
+      e.target.focus();
+    });
   }
 }
 
