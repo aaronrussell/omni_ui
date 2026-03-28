@@ -28,7 +28,7 @@ defmodule OmniUI.Components do
 
       <div class={["shrink-0", if(@footer == [], do: "pb-8", else: "pb-6")]}>
         <div class="max-w-3xl mx-auto flex flex-col items-center gap-6">
-          <.live_component id="editor" module={OmniUI.MessageEditor}>
+          <.live_component id="editor" module={OmniUI.EditorComponent}>
             <:toolbar :for={item <- @toolbar} align={item[:align]}>
               {render_slot(item)}
             </:toolbar>

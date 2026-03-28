@@ -4,6 +4,7 @@ defmodule OmniUI.TurnComponent do
 
   alias Phoenix.LiveView.JS
 
+  @impl true
   def render(assigns) do
     ~H"""
     <div id={@id}>
@@ -103,16 +104,14 @@ defmodule OmniUI.TurnComponent do
     """
   end
 
+  @impl true
   def mount(socket) do
     {:ok, assign(socket, editing: false, input: "")}
   end
 
-  def update(assigns, socket) do
-    {:ok, assign(socket, assigns)}
-  end
-
   # Local events
 
+  @impl true
   def handle_event("edit", _, socket) do
     input =
       socket.assigns.turn.user_text

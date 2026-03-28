@@ -1,9 +1,30 @@
-defmodule OmniUI.MessageEditor do
+defmodule OmniUI.EditorComponent do
+  @moduledoc """
+  A LiveComponent for composing and submitting user messages.
+
+  Provides a textarea for text input, file attachment via click-to-attach and
+  drag-and-drop, and a submit button. On submit, builds an `Omni.Message` with
+  text and base64-encoded attachments, then sends it to the parent LiveView as
+  `{:new_message, Omni.Message.t()}` via `send/2`.
+
+  ## Upload constraints
+
+    * Accepted types: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.pdf`
+    * Max entries: 10
+    * Max file size: 20 MB
+
+  ## Slots
+
+    * `:toolbar` — optional slot rendered in the bottom bar alongside the
+      attach button. Used by `AgentLive` for model/thinking selectors.
+  """
+
   use Phoenix.LiveComponent
   import OmniUI.Components
 
   slot :toolbar
 
+  @impl true
   def render(assigns) do
     ~H"""
     <div
@@ -54,7 +75,7 @@ defmodule OmniUI.MessageEditor do
             <.attachment
               :for={entry <- @uploads.attachments.entries}
               name={entry.client_name}
-              media_type={entry.client_name}>
+              media_type={entry.client_type}>
 
               <:image :if={match?("image/" <> _, entry.client_type)}>
                 <.live_img_preview entry={entry} />
@@ -96,6 +117,7 @@ defmodule OmniUI.MessageEditor do
     """
   end
 
+  @impl true
   def mount(socket) do
     socket =
       socket
@@ -109,6 +131,7 @@ defmodule OmniUI.MessageEditor do
     {:ok, socket}
   end
 
+  @impl true
   def handle_event("change", %{"input" => input}, socket) do
     {:noreply, assign(socket, input: input)}
   end
