@@ -58,34 +58,18 @@ defmodule OmniUI.Components do
     """
   end
 
-  attr :turn, OmniUI.Turn, required: true
   attr :rest, :global
+  slot :user, required: true
+  slot :assistant
 
   def turn(assigns) do
     ~H"""
     <div class="flex flex-col gap-24" {@rest}>
-      <.live_component
-        module={OmniUI.UserMessage}
-        id={"user-message-#{@turn.id}"}
-        turn_id={@turn.id}
-        text={@turn.user_text}
-        attachments={@turn.user_attachments}
-        versions={@turn.edits}
-        status={@turn.status}
-        timestamp={@turn.user_timestamp} />
-
-      <div class="flex flex-col gap-6">
-        <.assistant_message
-          content={@turn.content}
-          tool_results={@turn.tool_results}
-          streaming={@turn.status == :streaming} />
-
-        <.assistant_message_actions
-          :if={@turn.status == :complete}
-          turn_id={@turn.id}
-          node_id={@turn.res_id}
-          versions={@turn.regens}
-          usage={@turn.usage} />
+      <div class="flex flex-col items-end gap-6">
+        {render_slot(@user)}
+      </div>
+      <div :if={@assistant != []} class="flex flex-col gap-6">
+        {render_slot(@assistant)}
       </div>
     </div>
     """
@@ -121,23 +105,17 @@ defmodule OmniUI.Components do
 
   attr :turn_id, :integer, required: true
   attr :versions, :list, required: true
-  attr :status, :atom, required: true
   attr :timestamp, DateTime, required: true
-  attr :on_edit, Phoenix.LiveView.JS, default: nil
+  attr :target, :any, default: nil
 
   def user_message_actions(assigns) do
     ~H"""
     <div class="flex items-center gap-4">
-      <time
-        class="text-xs text-omni-text-4"
-        datetime={Calendar.strftime(@timestamp, "%c")}
-        title={Calendar.strftime(@timestamp, "%c")}>
-        {Calendar.strftime(@timestamp, "%I:%M%P")}
-      </time>
+      <.timestamp time={@timestamp} />
 
       <button
         phx-click={
-          JS.push("copy_message", value: %{turn_id: @turn_id, role: "user"})
+          JS.push("copy_message", value: %{role: "user"}, target: @target)
           |> JS.transition("success", time: 2000)
         }
         class={[
@@ -151,8 +129,7 @@ defmodule OmniUI.Components do
       </button>
 
       <button
-        :if={@status == :complete and @on_edit}
-        phx-click={@on_edit}
+        phx-click={JS.push("edit", target: @target)}
         class={[
           "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
           "text-omni-text-3 hover:text-omni-accent-1"
@@ -193,13 +170,14 @@ defmodule OmniUI.Components do
   attr :node_id, :integer, required: true
   attr :versions, :list, required: true
   attr :usage, Omni.Usage, required: true
+  attr :target, :any, default: nil
 
   def assistant_message_actions(assigns) do
     ~H"""
     <div class="flex items-center gap-4">
       <button
         phx-click={
-          JS.push("copy_message", value: %{turn_id: @turn_id, role: "assistant"})
+          JS.push("copy_message", value: %{role: "assistant"}, target: @target)
           |> JS.transition("success", time: 2000)
         }
         class={[
@@ -417,6 +395,21 @@ defmodule OmniUI.Components do
         }>
         <Lucideicons.chevron_down class="size-4 -rotate-90" />
       </button>
+    </div>
+    """
+  end
+
+  attr :time, DateTime, required: true
+
+  def timestamp(assigns) do
+    ~H"""
+    <div>
+      <time
+        class="text-xs text-omni-text-4"
+        datetime={Calendar.strftime(@time, "%c")}
+        title={Calendar.strftime(@time, "%c")}>
+        {Calendar.strftime(@time, "%I:%M%P")}
+      </time>
     </div>
     """
   end

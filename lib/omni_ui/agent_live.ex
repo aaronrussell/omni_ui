@@ -13,13 +13,25 @@ defmodule OmniUI.AgentLive do
       <div class="h-full w-full">
         <.chat_interface>
           <.message_list id="turns" phx-update="stream">
-            <.turn
+            <.live_component
               :for={{dom_id, turn} <- @streams.turns}
+              module={OmniUI.TurnComponent}
               id={dom_id}
               turn={turn} />
           </.message_list>
 
-          <.turn :if={@current_turn} turn={@current_turn} />
+          <.turn :if={@current_turn} id="current-turn">
+            <:user>
+              <.user_message text={@current_turn.user_text} attachments={@current_turn.user_attachments} />
+              <.timestamp time={@current_turn.user_timestamp} />
+            </:user>
+            <:assistant>
+              <.assistant_message
+                content={@current_turn.content}
+                tool_results={@current_turn.tool_results}
+                streaming={true} />
+            </:assistant>
+          </.turn>
 
           <:toolbar>
             <.toolbar
@@ -48,7 +60,7 @@ defmodule OmniUI.AgentLive do
   @impl true
   def mount(_params, _session, socket) do
     tree = %OmniUI.Tree{}
-    # tree = OmniUI.TreeFaker.generate()
+    tree = OmniUI.TreeFaker.generate()
 
     turns = OmniUI.Turn.all(tree)
     usage = OmniUI.Tree.usage(tree)
@@ -121,10 +133,10 @@ defmodule OmniUI.AgentLive do
     {:noreply, assign(socket, model: model)}
   end
 
-  def handle_event("copy_message", %{"turn_id" => turn_id, "role" => role}, socket) do
-    turn = OmniUI.Turn.get(socket.assigns.tree, turn_id)
-    text = OmniUI.Turn.get_text(turn, String.to_existing_atom(role))
-    {:noreply, push_event(socket, "omni:clipboard", %{text: text})}
+  def handle_event("select_thinking", %{"value" => value}, socket) do
+    thinking = String.to_existing_atom(value)
+    :ok = Omni.Agent.set_state(socket.assigns.agent, :opts, &Keyword.put(&1, :thinking, thinking))
+    {:noreply, assign(socket, thinking: thinking)}
   end
 
   def handle_event("navigate", %{"node_id" => node_id}, socket) do
@@ -179,12 +191,6 @@ defmodule OmniUI.AgentLive do
       |> push_event("omni:updated", %{})
 
     {:noreply, socket}
-  end
-
-  def handle_event("select_thinking", %{"value" => value}, socket) do
-    thinking = String.to_existing_atom(value)
-    :ok = Omni.Agent.set_state(socket.assigns.agent, :opts, &Keyword.put(&1, :thinking, thinking))
-    {:noreply, assign(socket, thinking: thinking)}
   end
 
   @impl true
