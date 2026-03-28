@@ -4,10 +4,23 @@ defmodule OmniUI.Tree do
 
   Each node holds a message and an optional parent pointer, forming a tree where
   linear conversations are the common case and branches represent alternate replies
-  or edits. An **active path** acts as a cursor through the tree — `push/3` always
-  appends to the head of this path, and `navigate/2` moves it to a different branch.
+  or edits.
 
-  Implements `Enumerable`, yielding the nodes along the active path in order.
+  ## Active path and cursors
+
+  An **active path** acts as a cursor through the tree — `push/3` always appends
+  to the head of this path, and `navigate/2` moves it to a different branch.
+
+  Both `push/3` and `navigate/2` record a **cursor** for the parent node, tracking
+  which child was most recently selected. `extend/1` follows these cursors to walk
+  from the current head to a leaf, reconstructing a full path after navigating to
+  a mid-tree branch point.
+
+  ## Enumerable
+
+  Implements `Enumerable`, yielding tree nodes (maps with `:id`, `:parent_id`,
+  `:message`, and `:usage` keys) along the active path in root-to-leaf order.
+  `Enum.count/1` returns the active path length.
   """
 
   alias Omni.{Message, Usage}
@@ -70,14 +83,23 @@ defmodule OmniUI.Tree do
 
   # Mutate
 
-  @doc "Appends a message to the head of the active path. Pipe-safe."
+  @doc """
+  Appends a message to the head of the active path. Pipe-safe.
+
+  Also sets the cursor for the parent node to point at the new node, so that
+  `extend/1` will follow this branch by default.
+  """
   @spec push(t(), Message.t(), Usage.t() | nil) :: t()
   def push(%__MODULE__{} = tree, %Message{} = message, usage \\ nil) do
     {_id, tree} = push_node(tree, message, usage)
     tree
   end
 
-  @doc "Like `push/3`, but returns `{node_id, tree}` for when you need the new node's ID."
+  @doc """
+  Like `push/3`, but returns `{node_id, tree}` for when you need the new node's ID.
+
+  Sets the cursor for the parent node, same as `push/3`.
+  """
   @spec push_node(t(), Message.t(), Usage.t() | nil) :: {node_id(), t()}
   def push_node(
         %__MODULE__{nodes: nodes, path: path, cursors: cursors} = tree,
@@ -100,6 +122,11 @@ defmodule OmniUI.Tree do
 
   @doc """
   Sets the active path by walking parent pointers from `node_id` back to root.
+
+  Also sets the cursor for the parent node to point at `node_id`, so that
+  `extend/1` will follow this branch by default.
+
+  Passing `nil` clears the active path without modifying cursors.
 
   Returns `{:error, :not_found}` if the node ID doesn't exist in the tree.
   """

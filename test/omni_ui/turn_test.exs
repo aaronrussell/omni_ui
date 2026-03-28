@@ -88,6 +88,31 @@ defmodule OmniUI.TurnTest do
       assert turn.regens == []
       assert turn.res_id == nil
     end
+
+    test "separates attachments from text content" do
+      user =
+        Message.new(
+          role: :user,
+          content: [
+            %Content.Text{text: "look at this"},
+            %Content.Attachment{media_type: "image/png", source: {:base64, "data"}}
+          ]
+        )
+
+      turn = Turn.new(1, [user, assistant("nice image")], %Usage{})
+
+      assert [%Content.Text{text: "look at this"}] = turn.user_text
+      assert [%Content.Attachment{media_type: "image/png"}] = turn.user_attachments
+    end
+
+    test "captures user_timestamp from user message" do
+      ts = ~U[2026-01-15 10:30:00Z]
+      user = %{Message.new("hello") | timestamp: ts}
+
+      turn = Turn.new(1, [user, assistant("hi")], %Usage{})
+
+      assert turn.user_timestamp == ts
+    end
   end
 
   describe "all/1" do
@@ -196,16 +221,19 @@ defmodule OmniUI.TurnTest do
       assert turn.regens == [2]
     end
 
-    test "leading assistant message without a user message is skipped" do
-      # If the path starts with an assistant node (edge case), it should be dropped
-      {_, tree} = Tree.push_node(%Tree{}, Message.new(role: :assistant, content: "orphan"))
-      {_, tree} = Tree.push_node(tree, msg("hello"))
-      {_, tree} = Tree.push_node(tree, assistant("hi"))
+    test "includes incomplete turn with no assistant response" do
+      tree =
+        %Tree{}
+        |> Tree.push(msg("hello"))
 
-      turns = Turn.all(tree)
+      [turn] = Turn.all(tree)
 
-      assert length(turns) == 1
-      assert hd(turns).id == 2
+      assert turn.id == 1
+      assert turn.res_id == nil
+      assert [%Content.Text{text: "hello"}] = turn.user_text
+      assert turn.content == []
+      assert turn.regens == []
+      assert turn.edits == [1]
     end
   end
 
@@ -323,6 +351,30 @@ defmodule OmniUI.TurnTest do
       turn = Turn.get(tree, 1)
 
       assert turn.regens == [2, 3]
+    end
+
+    test "returns the last turn without bleeding beyond path end" do
+      tree =
+        %Tree{}
+        |> Tree.push(msg("first"))
+        |> Tree.push(assistant("response 1"), usage(10, 20))
+        |> Tree.push(msg("second"))
+        |> Tree.push(assistant("response 2"), usage(30, 40))
+
+      turn = Turn.get(tree, 3)
+
+      assert turn.id == 3
+      assert turn.res_id == 4
+      assert [%Content.Text{text: "response 2"}] = turn.content
+    end
+
+    test "returns nil for node_id not on the active path" do
+      tree =
+        %Tree{}
+        |> Tree.push(msg("hello"))
+        |> Tree.push(assistant("hi"))
+
+      assert Turn.get(tree, 99) == nil
     end
 
     test "matches all/1 output for each turn" do

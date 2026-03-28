@@ -146,6 +146,16 @@ defmodule OmniUI.TreeTest do
       assert {:error, :not_found} = Tree.navigate(%Tree{}, 99)
     end
 
+    test "navigate sets cursor for parent node" do
+      tree = example_tree()
+
+      {:ok, tree} = Tree.navigate(tree, 5)
+      assert tree.cursors[4] == 5
+
+      {:ok, tree} = Tree.navigate(tree, 9)
+      assert tree.cursors[4] == 9
+    end
+
     test "navigate then push creates a branch" do
       tree = %Tree{}
       {1, tree} = Tree.push_node(tree, msg("a"))
@@ -205,6 +215,18 @@ defmodule OmniUI.TreeTest do
 
       assert length(messages) == 3
       assert [%{role: :user}, %{role: :assistant}, %{role: :user}] = messages
+    end
+
+    test "returns messages with correct content" do
+      tree =
+        %Tree{}
+        |> Tree.push(msg("hello"))
+        |> Tree.push(assistant("world"))
+
+      [user_msg, assistant_msg] = Tree.messages(tree)
+
+      assert hd(user_msg.content).text == "hello"
+      assert hd(assistant_msg.content).text == "world"
     end
 
     test "returns empty list for empty tree" do
@@ -335,6 +357,15 @@ defmodule OmniUI.TreeTest do
     test "returns nil for non-existent ID" do
       assert Tree.get_node(%Tree{}, 99) == nil
     end
+
+    test "includes usage when present" do
+      {_, tree} = Tree.push_node(%Tree{}, msg("hello"))
+      {_, tree} = Tree.push_node(tree, assistant("hi"), usage(100, 50))
+
+      node = Tree.get_node(tree, 2)
+
+      assert node.usage == %Usage{input_tokens: 100, output_tokens: 50}
+    end
   end
 
   describe "children/2" do
@@ -359,6 +390,12 @@ defmodule OmniUI.TreeTest do
 
       assert Tree.children(tree, 1) == [2]
       assert Tree.children(tree, 7) == [8]
+    end
+
+    test "returns empty list for non-existent node" do
+      tree = example_tree()
+
+      assert Tree.children(tree, 99) == []
     end
   end
 
