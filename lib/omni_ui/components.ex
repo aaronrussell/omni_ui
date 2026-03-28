@@ -1,18 +1,99 @@
 defmodule OmniUI.Components do
+  @moduledoc """
+  Function components for building agent chat interfaces.
+
+  All components use the semantic color tokens defined in `priv/static/omni_ui.css`
+  and are designed to be composed within a `chat_interface/1` root.
+
+  ## Layout
+
+    * `chat_interface/1` — root wrapper, provides scroll container, editor, and
+      markdown typography styles
+    * `message_list/1` — vertical list of turns
+    * `turn/1` — pairs a `:user` slot with an optional `:assistant` slot
+
+  ## Messages
+
+    * `user_message/1` — renders user text and attachment content blocks
+    * `assistant_message/1` — renders assistant content blocks with streaming support
+    * `user_message_actions/1` — copy, edit, and version navigation for user messages
+    * `assistant_message_actions/1` — copy, redo, version navigation, and usage display
+
+  ## Content blocks
+
+    * `content_block/1` — pattern-matched renderer for `Text`, `Thinking`,
+      `ToolUse`, and `Attachment` content types
+    * `markdown/1` — converts markdown text to styled HTML via MDEx
+    * `attachment/1` — thumbnail tile for images and file icons
+
+  ## UI primitives
+
+    * `expandable/1` — collapsible section with icon and toggle
+    * `version_nav/1` — prev/next navigation with position display
+    * `timestamp/1` — formatted time display
+    * `usage_block/1` — compact token count and cost display
+    * `toolbar/1` — model selector, thinking toggle, and usage summary
+    * `select/1` — dropdown select with grouped options
+  """
+
   use Phoenix.Component
   import OmniUI.Helpers
   alias Phoenix.LiveView.JS
 
+  # Markdown typography styles applied at the chat_interface level via descendant
+  # selectors targeting the `.md` class. This keeps the markdown component's HTML
+  # minimal while defining styles once in the DOM.
+  @markdown_styles [
+    "[&_.md>*:first-child]:mt-0! [&_.md>*:last-child]:mb-0!",
+    "[&_.md_p,ul,ol,h1,h2,h3,h4,h5,h6]:mb-4 [&_.md_p,ul,ol,h1,h2,h3,h4,h5,h6]:max-w-prose",
+    "[&_.md_h1,h2]:mt-12 [&_.md_h3]:mt-6",
+    "[&_.md_h1,h2,h4,h5,h6]:font-bold [&_.md_h3,h5]:italic",
+    "[&_.md_h1]:text-3xl [&_.md_h1]:font-black",
+    "[&_.md_h2]:text-2xl [&_.md_h2]:font-bold",
+    "[&_.md_h3]:text-xl [&_.md_h3]:font-bold",
+    "[&_.md_h4]:text-lg [&_.md_h4]:font-bold",
+    "[&_.md_h5]:font-bold",
+    "[&_.md_h6]:font-medium [&_.md_h6]:italic",
+    "[&_.md_ul]:list-disc [&_.md_ul]:pl-5",
+    "[&_.md_ol]:list-decimal [&_.md_ol]:pl-5",
+    "[&_.md_li]:my-0.5",
+    "[&_.md_table,pre,img,hr]:my-6",
+    "[&_.md_table]:w-full [&_.md_table]:table-fixed [&_.md_table]:text-sm",
+    "[&_.md_table]:border [&_.md_table]:border-separate [&_.md_table]:border-spacing-0 [&_.md_table]:rounded-xl",
+    "[&_.md_table]:border-omni-border-3",
+    "[&_.md_thead_th]:border-b [&_.md_thead_th]:border-omni-border-3",
+    "[&_.md_th,td]:text-left [&_.md_th,td]:p-2.5",
+    "[&_.md_tbody>tr]:odd:bg-omni-bg-2",
+    "[&_.md_pre]:-mx-6 [&_.md_pre]:px-6 [&_.md_pre]:py-5 [&_.md_pre]:rounded-xl [&_.md_pre]:overflow-y-scroll",
+    "[&_.md_hr]:h-px [&_.md_hr]:bg-omni-border-2 [&_.md_hr]:border-none",
+    "[&_.md_a]:font-medium [&_.md_a]:hover:underline [&_.md_a]:transition-colors",
+    "[&_.md_a]:text-omni-accent-1 [&_.md_a]:hover:text-omni-accent-2",
+    "[&_.md_code]:text-sm [&_.md_code]:leading-[1.625] [&_.md_code]:font-mono",
+    "[&_.md_:not(pre)>code]:px-1 [&_.md_:not(pre)>code]:py-0.5 [&_.md_:not(pre)>code]:rounded-sm",
+    "[&_.md_:not(pre)>code]:bg-omni-bg-1"
+  ]
+
+  # ── Layout ──────────────────────────────────────────────────────
+
+  @doc """
+  Root layout for the chat interface.
+
+  Provides the scroll container, message editor, and markdown typography
+  styles. All other components are designed to be rendered within this root.
+  """
   slot :inner_block, required: true
   slot :toolbar
   slot :footer
 
   def chat_interface(assigns) do
+    assigns = assign(assigns, :markdown_styles, @markdown_styles)
+
     ~H"""
     <div
       class={[
         "omni-ui flex flex-col h-full [interpolate-size:allow-keywords]",
-        "bg-omni-bg text-omni-text",
+        "bg-omni-bg text-omni-text"
+        | @markdown_styles
       ]}>
       <div id="omni-view" class="flex-auto overflow-y-scroll">
         <div
@@ -47,6 +128,7 @@ defmodule OmniUI.Components do
     """
   end
 
+  @doc "Vertical list container for turns."
   attr :rest, :global
   slot :inner_block, required: true
 
@@ -58,6 +140,7 @@ defmodule OmniUI.Components do
     """
   end
 
+  @doc "Pairs a `:user` slot with an optional `:assistant` slot."
   attr :rest, :global
   slot :user, required: true
   slot :assistant
@@ -75,6 +158,9 @@ defmodule OmniUI.Components do
     """
   end
 
+  # ── Messages ────────────────────────────────────────────────────
+
+  @doc "Renders user text and attachment content blocks in a styled bubble."
   attr :text, :list, required: true
   attr :attachments, :list, required: true
 
@@ -103,6 +189,7 @@ defmodule OmniUI.Components do
     """
   end
 
+  @doc "Copy, edit, and version navigation actions for a user message."
   attr :turn_id, :integer, required: true
   attr :versions, :list, required: true
   attr :timestamp, DateTime, required: true
@@ -146,6 +233,7 @@ defmodule OmniUI.Components do
     """
   end
 
+  @doc "Renders assistant content blocks with streaming support."
   attr :content, :list, required: true
   attr :tool_results, :map, required: true
   attr :streaming, :boolean, required: true
@@ -166,6 +254,7 @@ defmodule OmniUI.Components do
     """
   end
 
+  @doc "Copy, redo, version navigation, and usage display for an assistant message."
   attr :turn_id, :integer, required: true
   attr :node_id, :integer, required: true
   attr :versions, :list, required: true
@@ -215,6 +304,14 @@ defmodule OmniUI.Components do
     """
   end
 
+  # ── Content blocks ──────────────────────────────────────────────
+
+  @doc """
+  Pattern-matched renderer for content types.
+
+  Dispatches on the struct type of the `:content` assign to render `Text`,
+  `Thinking`, `ToolUse`, or `Attachment` blocks.
+  """
   attr :content, :map, required: true
   attr :tool_results, :map, default: %{}
   attr :streaming, :boolean, default: false
@@ -241,6 +338,8 @@ defmodule OmniUI.Components do
     """
   end
 
+  # TODO: Pass actual filename once Omni.Content.Attachment includes one.
+  # Currently falls back to media_type as the display name.
   def content_block(%{content: %Omni.Content.Attachment{}} = assigns) do
     ~H"""
     <.attachment name={@content.media_type} media_type={@content.media_type}>
@@ -298,6 +397,13 @@ defmodule OmniUI.Components do
     """
   end
 
+  @doc """
+  Thumbnail tile for file attachments.
+
+  Renders an image preview via the `:image` slot, or a file icon fallback
+  for non-image types. The `:action` slot is used for overlay controls
+  (e.g. a cancel button in the editor).
+  """
   attr :name, :string, required: true
   attr :media_type, :string, required: true
   attr :rest, :global
@@ -328,6 +434,9 @@ defmodule OmniUI.Components do
     """
   end
 
+  # ── UI primitives ───────────────────────────────────────────────
+
+  @doc "Compact display of token counts and cost."
   attr :usage, Omni.Usage, required: true
 
   def usage_block(assigns) do
@@ -357,6 +466,7 @@ defmodule OmniUI.Components do
     """
   end
 
+  @doc "Prev/next navigation with position indicator (e.g. \"2/3\")."
   attr :version_id, :integer, required: true
   attr :versions, :list, required: true
 
@@ -365,7 +475,7 @@ defmodule OmniUI.Components do
 
     assigns =
       assigns
-      |> assign(:prev_id, Enum.at(assigns.versions, idx - 1))
+      |> assign(:prev_id, if(idx > 0, do: Enum.at(assigns.versions, idx - 1)))
       |> assign(:next_id, Enum.at(assigns.versions, idx + 1))
 
     ~H"""
@@ -399,6 +509,7 @@ defmodule OmniUI.Components do
     """
   end
 
+  @doc "Formatted time display with tooltip showing full date."
   attr :time, DateTime, required: true
 
   def timestamp(assigns) do
@@ -414,19 +525,94 @@ defmodule OmniUI.Components do
     """
   end
 
-  attr :model_options, :list
-  attr :model, Omni.Model
-  attr :thinking_options, :list
-  attr :thinking, :atom
-  attr :usage, Omni.Usage
+  @doc """
+  Collapsible section with an icon and optional toggle label.
+
+  The `:icon` slot is shown when collapsed and replaced by a chevron on
+  hover or when expanded. The `:toggle` slot overrides the text label.
+  """
+  attr :label, :string, default: nil
+  slot :icon, required: true
+  slot :toggle
+  slot :inner_block, required: true
+
+  def expandable(assigns) do
+    ~H"""
+    <div class="group/expandable">
+      <div
+        class="group/toggle inline-flex items-center gap-1.5 cursor-pointer"
+        phx-click={JS.toggle_class("active", to: {:closest, ".group\\/expandable"})}>
+        <div class="group-hover/toggle:hidden group-[.active]/expandable:hidden">
+          {render_slot(@icon)}
+        </div>
+        <div class="hidden group-hover/toggle:block group-[.active]/expandable:block">
+          <Lucideicons.chevron_down class={cls([
+            "size-4 transition-all group-[.active]/expandable:rotate-180",
+            "text-omni-text-4 group-hover/toggle:text-omni-text-3"
+          ])} />
+        </div>
+        <div class={[
+          "text-sm transition-colors",
+          "text-omni-text-3 group-hover/toggle:text-omni-text-2"
+        ]}>
+          {render_slot(@toggle) || @label || "Expand"}
+        </div>
+      </div>
+
+      <div class={[
+        "ml-4 opacity-0 h-0 invisible overflow-hidden transition-all",
+        "group-[.active]/expandable:opacity-100 group-[.active]/expandable:h-auto group-[.active]/expandable:visible"
+      ]}>
+        <div class="p-1.5">
+          {render_slot(@inner_block)}
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Converts markdown text to styled HTML.
+
+  Rendering is handled by `OmniUI.Helpers.to_md/2`. Typography styles are
+  applied via descendant selectors on `chat_interface/1` targeting the `.md`
+  class — see `@markdown_styles`.
+  """
+  attr :text, :string, required: true
+  attr :streaming, :boolean, default: false
+  attr :rest, :global
+
+  def markdown(assigns) do
+    ~H"""
+    <div class={["md leading-[1.5]", @rest.class]}>
+      <%= to_md(@text, streaming: @streaming) %>
+    </div>
+    """
+  end
+
+  # ── Toolbar ─────────────────────────────────────────────────────
+
+  @doc """
+  Toolbar with model selector, thinking toggle, and usage summary.
+
+  All attrs are optional — sections are only rendered when their data is
+  provided, allowing consumers to show a subset of controls.
+  """
+  attr :model_options, :list, default: nil
+  attr :model, Omni.Model, default: nil
+  attr :thinking_options, :list, default: nil
+  attr :thinking, :atom, default: nil
+  attr :usage, Omni.Usage, default: nil
 
   def toolbar(assigns) do
     ~H"""
     <div class="flex flex-auto items-center gap-4">
-      <div class={[
-        "flex items-center gap-4",
-        "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
-      ]}>
+      <div
+        :if={@model_options && @model}
+        class={[
+          "flex items-center gap-4",
+          "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
+        ]}>
         <.select
           id="model-select"
           options={@model_options}
@@ -434,12 +620,13 @@ defmodule OmniUI.Components do
           event="select_model" />
       </div>
 
-      <div class={[
-        "flex items-center gap-4",
-        "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
-      ]}>
+      <div
+        :if={@thinking_options && @model && @model.reasoning}
+        class={[
+          "flex items-center gap-4",
+          "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
+        ]}>
         <.select
-          :if={@model.reasoning}
           id="thinking-select"
           options={@thinking_options}
           value={to_string(@thinking)}
@@ -447,13 +634,14 @@ defmodule OmniUI.Components do
           prompt="Thinking" />
       </div>
 
-      <div class="flex-auto flex items-center justify-end">
+      <div :if={@usage} class="flex-auto flex items-center justify-end">
         <.usage_block usage={@usage} />
       </div>
     </div>
     """
   end
 
+  @doc "Dropdown select with support for grouped options."
   attr :id, :string, required: true
   attr :options, :list, required: true
   attr :value, :string, default: nil
@@ -559,87 +747,5 @@ defmodule OmniUI.Components do
       %{options: items} ->
         Enum.find_value(items, fn %{value: v, label: label} -> if(v == value, do: label) end)
     end)
-  end
-
-  attr :label, :string
-  slot :icon, required: true
-  slot :toggle
-  slot :inner_block, required: true
-
-  def expandable(assigns) do
-    ~H"""
-    <div class="group/expandable">
-      <div
-        class="group/toggle inline-flex items-center gap-1.5 cursor-pointer"
-        phx-click={JS.toggle_class("active", to: {:closest, ".group\\/expandable"})}>
-        <div class="group-hover/toggle:hidden group-[.active]/expandable:hidden">
-          {render_slot(@icon)}
-        </div>
-        <div class="hidden group-hover/toggle:block group-[.active]/expandable:block">
-          <Lucideicons.chevron_down class={cls([
-            "size-4 transition-all group-[.active]/expandable:rotate-180",
-            "text-omni-text-4 group-hover/toggle:text-omni-text-3"
-          ])} />
-        </div>
-        <div class={[
-          "text-sm transition-colors",
-          "text-omni-text-3 group-hover/toggle:text-omni-text-2"
-        ]}>
-          {render_slot(@toggle) || @label || "Expand"}
-        </div>
-      </div>
-
-      <div class={[
-        "ml-4 opacity-0 h-0 invisible overflow-hidden transition-all",
-        "group-[.active]/expandable:opacity-100 group-[.active]/expandable:h-auto group-[.active]/expandable:visible"
-      ]}>
-        <div class="p-1.5">
-          {render_slot(@inner_block)}
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  attr :text, :string, required: true
-  attr :streaming, :boolean, default: false
-  attr :rest, :global
-
-  def markdown(assigns) do
-    ~H"""
-    <div class={[
-      "leading-[1.5]",
-      "[&>*:first-child]:mt-0! [&>*:last-child]:mb-0!",
-      "[&_p,ul,ol,h1,h2,h3,h4,h5,h6]:mb-4 [&_p,ul,ol,h1,h2,h3,h4,h5,h6]:max-w-prose",
-      "[&_h1,h2]:mt-12 [&_h3]:mt-6",
-      "[&_h1,h2,h4,h5,h6]:font-bold [&_h3,h5]:italic",
-      "[&_h1]:text-3xl [&_h1]:font-black",
-      "[&_h2]:text-2xl [&_h2]:font-bold",
-      "[&_h3]:text-xl [&_h3]:font-bold",
-      "[&_h4]:text-lg [&_h4]:font-bold",
-      "[&_h5]:font-bold",
-      "[&_h6]:font-medium [&_h6]:italic",
-      "[&_ul]:list-disc [&_ul]:pl-5",
-      "[&_ol]:list-decimal [&_ol]:pl-5",
-      "[&_li]:my-0.5",
-      "[&_table,pre,img,hr]:my-6",
-      "[&_table]:w-full [&_table]:table-fixed [&_table]:text-sm",
-      "[&_table]:border [&_table]:border-separate [&_table]:border-spacing-0 [&_table]:rounded-xl",
-      "[&_table]:border-omni-border-3",
-      "[&_thead_th]:border-b [&_thead_th]:border-omni-border-3",
-      "[&_th,td]:text-left [&_th,td]:p-2.5",
-      "[&_tbody>tr]:odd:bg-omni-bg-2",
-      "[&_pre]:-mx-6 [&_pre]:px-6 [&_pre]:py-5 [&_pre]:rounded-xl [&_pre]:overflow-y-scroll",
-      "[&_hr]:h-px [&_hr]:bg-omni-border-2 [&_hr]:border-none",
-      "[&_a]:font-medium [&_a]:hover:underline [&_a]:transition-colors",
-      "[&_a]:text-omni-accent-1 [&_a]:hover:text-omni-accent-2",
-      "[&_code]:text-sm [&_code]:leading-[1.625] [&_code]:font-mono",
-      "[&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-0.5 [&_:not(pre)>code]:rounded-sm",
-      "[&_:not(pre)>code]:bg-omni-bg-1",
-      @rest.class
-    ]}>
-      <%= to_md(@text, streaming: @streaming) %>
-    </div>
-    """
   end
 end
