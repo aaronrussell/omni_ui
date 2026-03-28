@@ -59,8 +59,8 @@ defmodule OmniUI.AgentLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    tree = %OmniUI.Tree{}
-    # tree = OmniUI.TreeFaker.generate()
+    # tree = %OmniUI.Tree{}
+    tree = OmniUI.TreeFaker.generate()
 
     turns = OmniUI.Turn.all(tree)
     usage = OmniUI.Tree.usage(tree)
