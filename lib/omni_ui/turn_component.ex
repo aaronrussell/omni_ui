@@ -1,7 +1,40 @@
 defmodule OmniUI.TurnComponent do
+  @moduledoc """
+  A LiveComponent that renders a completed conversation turn.
+
+  Displays the user message and assistant response for a single `OmniUI.Turn`,
+  with support for:
+
+    * **Inline editing** — the user can edit their message, which sends
+      `{:edit_message, turn_id, Omni.Message.t()}` to the parent LiveView
+      to create a new conversation branch.
+    * **Branch navigation** — when a turn has multiple edits or regenerations,
+      version navigation arrows are shown (delegated to `version_nav` in
+      `OmniUI.Components`).
+    * **Copy to clipboard** — pushes an `"omni:clipboard"` event to the client
+      with the text content for a given role.
+
+  ## Events
+
+  Events handled locally:
+
+    * `"edit"` — enters edit mode, populating the textarea with current text.
+    * `"cancel"` — exits edit mode.
+    * `"change"` — tracks textarea input.
+    * `"copy_message"` — pushes clipboard event to client.
+
+  Events forwarded to parent via `send/2`:
+
+    * `"submit"` — sends `{:edit_message, turn_id, message}` to parent.
+
+  Events forwarded to parent via `phx-click` (no component handling):
+
+    * `"navigate"` — branch navigation, handled by parent's `handle_event`.
+    * `"regenerate"` — response regeneration, handled by parent's `handle_event`.
+  """
+
   use Phoenix.LiveComponent
   import OmniUI.Components
-
   alias Phoenix.LiveView.JS
 
   @impl true
@@ -42,10 +75,13 @@ defmodule OmniUI.TurnComponent do
     """
   end
 
-  attr :input, :string
-  attr :target, :any, default: nil
+  # Inline edit form — extracted as a function component for readability,
+  # not for reuse. Lives here rather than in OmniUI.Components because it's
+  # tightly coupled to this component's event handling.
+  attr :input, :string, required: true
+  attr :target, :any, required: true
 
-  def user_edit_form(assigns) do
+  defp user_edit_form(assigns) do
     ~H"""
     <div
       class={[
