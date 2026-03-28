@@ -17,7 +17,6 @@ defmodule OmniUI.TurnComponent do
             <.user_message_actions
               turn_id={@turn.id}
               versions={@turn.edits}
-              status={@turn.status}
               timestamp={@turn.user_timestamp}
               target={@myself} />
           <% end %>

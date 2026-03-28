@@ -116,7 +116,7 @@ defmodule OmniUI.Components do
       <button
         phx-click={
           JS.push("copy_message", value: %{role: "user"}, target: @target)
-          |> JS.transition("success", time: 2000)
+          |> JS.transition("success", time: 2000, blocking: false)
         }
         class={[
           "group flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
@@ -178,7 +178,7 @@ defmodule OmniUI.Components do
       <button
         phx-click={
           JS.push("copy_message", value: %{role: "assistant"}, target: @target)
-          |> JS.transition("success", time: 2000)
+          |> JS.transition("success", time: 2000, blocking: false)
         }
         class={[
           "group flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
