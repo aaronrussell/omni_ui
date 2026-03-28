@@ -221,7 +221,7 @@ defmodule OmniUI.Components do
 
   def content_block(%{content: %Omni.Content.Text{}} = assigns) do
     ~H"""
-    <.markdown text={@content.text} class="text-base" />
+    <.markdown text={@content.text} streaming={@streaming} class="text-base" />
     """
   end
 
@@ -602,6 +602,7 @@ defmodule OmniUI.Components do
   end
 
   attr :text, :string, required: true
+  attr :streaming, :boolean, default: false
   attr :rest, :global
 
   def markdown(assigns) do
@@ -637,7 +638,7 @@ defmodule OmniUI.Components do
       "[&_:not(pre)>code]:bg-omni-bg-1",
       @rest.class
     ]}>
-      <%= to_md(@text) %>
+      <%= to_md(@text, streaming: @streaming) %>
     </div>
     """
   end
