@@ -282,7 +282,7 @@ defmodule OmniUI.Components do
       <button
         phx-click={
           JS.dispatch("omni:before-update")
-          |> JS.push("regenerate", value: %{turn_id: @turn_id})
+          |> JS.push("omni:regenerate", value: %{turn_id: @turn_id})
         }
         class={[
           "flex items-center gap-1.5 text-xs transition-colors cursor-pointer",
@@ -488,7 +488,7 @@ defmodule OmniUI.Components do
         disabled={hd(@versions) == @version_id}
         phx-click={
           JS.dispatch("omni:before-update")
-          |> JS.push("navigate", value: %{node_id: @prev_id})
+          |> JS.push("omni:navigate", value: %{node_id: @prev_id})
         }>
         <Lucideicons.chevron_down class="size-4 rotate-90" />
       </button>
@@ -501,7 +501,7 @@ defmodule OmniUI.Components do
         disabled={List.last(@versions) == @version_id}
         phx-click={
           JS.dispatch("omni:before-update")
-          |> JS.push("navigate", value: %{node_id: @next_id})
+          |> JS.push("omni:navigate", value: %{node_id: @next_id})
         }>
         <Lucideicons.chevron_down class="size-4 -rotate-90" />
       </button>
@@ -617,7 +617,7 @@ defmodule OmniUI.Components do
           id="model-select"
           options={@model_options}
           value={model_key(@model)}
-          event="select_model" />
+          event="omni:select_model" />
       </div>
 
       <div
@@ -630,7 +630,7 @@ defmodule OmniUI.Components do
           id="thinking-select"
           options={@thinking_options}
           value={to_string(@thinking)}
-          event="select_thinking"
+          event="omni:select_thinking"
           prompt="Thinking" />
       </div>
 

@@ -5,7 +5,7 @@ defmodule OmniUI.EditorComponent do
   Provides a textarea for text input, file attachment via click-to-attach and
   drag-and-drop, and a submit button. On submit, builds an `Omni.Message` with
   text and base64-encoded attachments, then sends it to the parent LiveView as
-  `{:new_message, Omni.Message.t()}` via `send/2`.
+  `{OmniUI, :new_message, Omni.Message.t()}` via `send/2`.
 
   ## Upload constraints
 
@@ -160,7 +160,7 @@ defmodule OmniUI.EditorComponent do
     if content == [] do
       {:noreply, socket}
     else
-      send(self(), {:new_message, Omni.message(role: :user, content: content)})
+      send(self(), {OmniUI, :new_message, Omni.message(role: :user, content: content)})
       {:noreply, assign(socket, input: "")}
     end
   end

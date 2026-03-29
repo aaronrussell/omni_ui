@@ -6,7 +6,7 @@ defmodule OmniUI.TurnComponent do
   with support for:
 
     * **Inline editing** — the user can edit their message, which sends
-      `{:edit_message, turn_id, Omni.Message.t()}` to the parent LiveView
+      `{OmniUI, :edit_message, turn_id, Omni.Message.t()}` to the parent LiveView
       to create a new conversation branch.
     * **Branch navigation** — when a turn has multiple edits or regenerations,
       version navigation arrows are shown (delegated to `version_nav` in
@@ -25,12 +25,12 @@ defmodule OmniUI.TurnComponent do
 
   Events forwarded to parent via `send/2`:
 
-    * `"submit"` — sends `{:edit_message, turn_id, message}` to parent.
+    * `"submit"` — sends `{OmniUI, :edit_message, turn_id, message}` to parent.
 
   Events forwarded to parent via `phx-click` (no component handling):
 
-    * `"navigate"` — branch navigation, handled by parent's `handle_event`.
-    * `"regenerate"` — response regeneration, handled by parent's `handle_event`.
+    * `"omni:navigate"` — branch navigation, handled by parent's `handle_event`.
+    * `"omni:regenerate"` — response regeneration, handled by parent's `handle_event`.
   """
 
   use Phoenix.LiveComponent
@@ -180,7 +180,7 @@ defmodule OmniUI.TurnComponent do
     else
       content = [%Omni.Content.Text{text: input}]
       message = Omni.message(role: :user, content: content)
-      send(self(), {:edit_message, socket.assigns.turn.id, message})
+      send(self(), {OmniUI, :edit_message, socket.assigns.turn.id, message})
       {:noreply, assign(socket, editing: false, input: "")}
     end
   end
