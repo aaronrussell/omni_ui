@@ -41,7 +41,7 @@ defmodule OmniUI.Components do
   alias Phoenix.LiveView.JS
 
   # Markdown typography styles applied at the chat_interface level via descendant
-  # selectors targeting the `.md` class. This keeps the markdown component's HTML
+  # selectors targeting the `.mdex` class. This keeps the markdown component's HTML
   # minimal while defining styles once in the DOM.
   @markdown_styles ~w"""
   [&_.mdex>*:first-child]:mt-0! [&_.mdex>*:last-child]:mb-0!
