@@ -220,4 +220,61 @@ defmodule OmniUI.Helpers do
     )
     |> Phoenix.HTML.raw()
   end
+
+  @doc """
+  Formats a list of `Omni.Model` structs into grouped select options.
+
+  Groups models by provider name, sorts both groups and models alphabetically,
+  and returns a list of `%{label: provider, options: [%{value: key, label: name}]}` maps
+  suitable for the `select` component. Returns `nil` for `nil` or empty input.
+  """
+  @spec format_model_options([Omni.Model.t()] | nil) :: [map()] | nil
+  def format_model_options(nil), do: nil
+  def format_model_options([]), do: nil
+
+  def format_model_options(models) do
+    models
+    |> Enum.group_by(&(&1.provider |> Module.split() |> List.last()))
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.map(fn {provider_name, provider_models} ->
+      %{
+        label: provider_name,
+        options:
+          provider_models
+          |> Enum.sort_by(& &1.name)
+          |> Enum.map(&%{value: model_key(&1), label: &1.name})
+      }
+    end)
+  end
+
+  @doc """
+  Finds the label for a value in a flat or grouped options list.
+
+  Searches through options of the form `%{value: v, label: l}` or grouped
+  options `%{options: [%{value: v, label: l}]}`. Returns the matching label
+  or `nil` if not found.
+
+  ## Examples
+
+      iex> options = [%{value: "a", label: "Alpha"}, %{value: "b", label: "Beta"}]
+      iex> OmniUI.Helpers.find_option_label(options, "b")
+      "Beta"
+
+      iex> grouped = [%{label: "Group", options: [%{value: "x", label: "X-ray"}]}]
+      iex> OmniUI.Helpers.find_option_label(grouped, "x")
+      "X-ray"
+
+      iex> OmniUI.Helpers.find_option_label([%{value: "a", label: "A"}], "z")
+      nil
+  """
+  @spec find_option_label([map()], String.t() | nil) :: String.t() | nil
+  def find_option_label(options, value) do
+    Enum.find_value(options, fn
+      %{value: v, label: label} ->
+        if(v == value, do: label)
+
+      %{options: items} ->
+        Enum.find_value(items, fn %{value: v, label: label} -> if(v == value, do: label) end)
+    end)
+  end
 end

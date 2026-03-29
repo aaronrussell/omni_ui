@@ -129,56 +129,41 @@ defmodule OmniUI.Handlers do
     {:noreply, socket}
   end
 
-  # ── Agent streaming events ───────────────────────────────────────
+  # ── Agent events (return socket, not {:noreply, socket}) ─────────
 
-  def handle_info({:agent, _pid, :thinking_start, _data}, socket) do
-    socket =
-      update(socket, :current_turn, fn turn ->
-        OmniUI.Turn.push_content(turn, %Omni.Content.Thinking{text: ""})
-      end)
-
-    {:noreply, socket}
+  @doc false
+  def handle_agent_event(:thinking_start, _data, socket) do
+    update(socket, :current_turn, fn turn ->
+      OmniUI.Turn.push_content(turn, %Omni.Content.Thinking{text: ""})
+    end)
   end
 
-  def handle_info({:agent, _pid, :text_start, _data}, socket) do
-    socket =
-      update(socket, :current_turn, fn turn ->
-        OmniUI.Turn.push_content(turn, %Omni.Content.Text{text: ""})
-      end)
-
-    {:noreply, socket}
+  def handle_agent_event(:text_start, _data, socket) do
+    update(socket, :current_turn, fn turn ->
+      OmniUI.Turn.push_content(turn, %Omni.Content.Text{text: ""})
+    end)
   end
 
-  def handle_info({:agent, _pid, delta_type, %{delta: delta}}, socket)
+  def handle_agent_event(delta_type, %{delta: delta}, socket)
       when delta_type in [:thinking_delta, :text_delta] do
-    # TODO - debounce this
-    socket =
-      update(socket, :current_turn, fn turn ->
-        OmniUI.Turn.push_delta(turn, delta)
-      end)
-
-    {:noreply, socket}
+    update(socket, :current_turn, fn turn ->
+      OmniUI.Turn.push_delta(turn, delta)
+    end)
   end
 
-  def handle_info({:agent, _pid, :tool_use_end, %{content: tool_use}}, socket) do
-    socket =
-      update(socket, :current_turn, fn turn ->
-        OmniUI.Turn.push_content(turn, tool_use)
-      end)
-
-    {:noreply, socket}
+  def handle_agent_event(:tool_use_end, %{content: tool_use}, socket) do
+    update(socket, :current_turn, fn turn ->
+      OmniUI.Turn.push_content(turn, tool_use)
+    end)
   end
 
-  def handle_info({:agent, _pid, :tool_result, tool_result}, socket) do
-    socket =
-      update(socket, :current_turn, fn turn ->
-        OmniUI.Turn.put_tool_result(turn, tool_result)
-      end)
-
-    {:noreply, socket}
+  def handle_agent_event(:tool_result, tool_result, socket) do
+    update(socket, :current_turn, fn turn ->
+      OmniUI.Turn.put_tool_result(turn, tool_result)
+    end)
   end
 
-  def handle_info({:agent, _pid, :done, response}, socket) do
+  def handle_agent_event(:done, response, socket) do
     [_user_msg | rest_msgs] = response.messages
     {[res_id | _], tree} = tree_push_all(socket.assigns.tree, rest_msgs, response.usage)
 
@@ -190,33 +175,25 @@ defmodule OmniUI.Handlers do
     turn = OmniUI.Turn.new(user_node_id, response.messages, response.usage)
     turn = %{turn | res_id: res_id, edits: edits, regens: regens}
 
-    socket =
-      socket
-      |> assign(current_turn: nil, tree: tree)
-      |> update(:usage, &Omni.Usage.add(&1, response.usage))
-      |> stream_insert(:turns, turn)
-
-    {:noreply, socket}
+    socket
+    |> assign(current_turn: nil, tree: tree)
+    |> update(:usage, &Omni.Usage.add(&1, response.usage))
+    |> stream_insert(:turns, turn)
   end
 
-  def handle_info({:agent, _pid, :error, reason}, socket) do
+  def handle_agent_event(:error, reason, socket) do
     Logger.error("Agent error: #{inspect(reason)}")
 
     turn = Map.put(socket.assigns.current_turn, :status, :error)
 
-    socket =
-      socket
-      |> assign(current_turn: nil)
-      |> stream_insert(:turns, turn)
-      |> put_flash(:error, "Something went wrong")
-
-    {:noreply, socket}
+    socket
+    |> assign(current_turn: nil)
+    |> stream_insert(:turns, turn)
+    |> put_flash(:error, "Something went wrong")
   end
 
-  # Catch-all
-  def handle_info({:agent, _pid, _type, _data}, socket) do
-    {:noreply, socket}
-  end
+  # Catch-all for unhandled agent events
+  def handle_agent_event(_event, _data, socket), do: socket
 
   # ── Helpers ──────────────────────────────────────────────────────
 

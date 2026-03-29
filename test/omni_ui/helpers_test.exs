@@ -186,6 +186,60 @@ defmodule OmniUI.HelpersTest do
     end
   end
 
+  # ── format_model_options/1 ────────────────────────────────────────
+
+  describe "format_model_options/1" do
+    test "returns nil for nil" do
+      assert Helpers.format_model_options(nil) == nil
+    end
+
+    test "returns nil for empty list" do
+      assert Helpers.format_model_options([]) == nil
+    end
+
+    test "groups models by provider and sorts alphabetically" do
+      {:ok, models} = Omni.list_models(:anthropic)
+      result = Helpers.format_model_options(models)
+
+      assert [%{label: "Anthropic", options: options}] = result
+      labels = Enum.map(options, & &1.label)
+      assert labels == Enum.sort(labels)
+    end
+
+    test "option values use model_key format" do
+      {:ok, [model | _]} = Omni.list_models(:anthropic)
+
+      [%{options: [%{value: value} | _]}] = Helpers.format_model_options([model])
+
+      assert value == Helpers.model_key(model)
+    end
+  end
+
+  # ── find_option_label/2 ─────────────────────────────────────────
+
+  describe "find_option_label/2" do
+    test "finds label in flat options" do
+      options = [%{value: "a", label: "Alpha"}, %{value: "b", label: "Beta"}]
+
+      assert Helpers.find_option_label(options, "b") == "Beta"
+    end
+
+    test "finds label in grouped options" do
+      options = [
+        %{label: "Group 1", options: [%{value: "x", label: "X-ray"}]},
+        %{label: "Group 2", options: [%{value: "y", label: "Yankee"}]}
+      ]
+
+      assert Helpers.find_option_label(options, "y") == "Yankee"
+    end
+
+    test "returns nil when value not found" do
+      options = [%{value: "a", label: "Alpha"}]
+
+      assert Helpers.find_option_label(options, "z") == nil
+    end
+  end
+
   # ── to_md/1 ──────────────────────────────────────────────────────
 
   describe "to_md/1" do

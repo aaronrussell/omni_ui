@@ -1,12 +1,12 @@
 # Architecture Decisions
 
-Decisions made during the Phase 1 build-out of the chat UI. This supplements `vision.md` — where they conflict, this document takes precedence.
+Architectural decisions and current design. Covers the data model, component hierarchy, streaming flow, and the `use OmniUI` macro.
 
 ---
 
 ## Source of Truth
 
-The app owns conversation state. `OmniUI.Tree` is the authoritative store — a branching tree of messages held in the LiveView's assigns. The `Omni.Agent` GenServer is a downstream consumer: before each prompt the app syncs the agent's context to match the tree via `Omni.Agent.set_state/3`. This ensures that after edits, regenerations, or branch switches the agent always works with the correct message history.
+The LiveView owns conversation state. `OmniUI.Tree` is the authoritative store — a branching tree of messages held in the socket's assigns. The `Omni.Agent` GenServer is a downstream consumer: before each prompt the macro's handlers sync the agent's context to match the tree via `Omni.Agent.set_state/3`. This ensures that after edits, regenerations, or branch switches the agent always works with the correct message history.
 
 Turns are computed views over the tree, never stored. `Turn.all/1` reduces the active path into a list of renderable turns on demand — after navigation, edits, or initial mount.
 
@@ -95,12 +95,33 @@ Helper functions `push_content/2`, `push_delta/2`, and `put_tool_result/2` handl
 
 ---
 
+## `use OmniUI` Macro
+
+The macro adds agent chat capabilities to any LiveView. The developer writes `use OmniUI`, implements `render/1` and `mount/3`, and gets full streaming, tree operations, and event handling injected automatically.
+
+**What the macro injects:**
+
+- `handle_event/3` clauses for `"omni:*"` events (navigate, regenerate, select_model, select_thinking)
+- `handle_info/2` clauses for `{OmniUI, ...}` component messages and `{:agent, ...}` streaming events
+- Default `agent_event/3` callback (pass-through) if the developer doesn't define one
+- Imports: `OmniUI.Components`, `start_agent/2`, `update_agent/2`
+
+**Coexistence with developer handlers:** Uses `@before_compile` with `defoverridable` — OmniUI events are dispatched first, unrecognised events fall through to the developer's clauses via `super`. The wrapping is transparent.
+
+**`agent_event/3` callback:** Fires for every agent event after OmniUI's default handling. Receives the event atom, event data, and already-updated socket. The developer can observe any event — streaming deltas, completions, errors — and mutate the socket further.
+
+**Key modules:**
+
+- `OmniUI` — macro, behaviour, `start_agent/2`, `update_agent/2`
+- `OmniUI.Handlers` — pure functions for all event/message handling. `handle_event/3` for UI events, `handle_info/2` for component messages, `handle_agent_event/3` for all agent streaming events.
+- `OmniUI.AgentLive` — reference implementation built with the macro. Just render + mount (~70 lines).
+
 ## Naming: AgentLive + chat_interface
 
-- **`OmniUI.AgentLive`** — the mountable LiveView. The batteries-included "just give me an agent" entry point. Wires up the agent, manages the tree, includes artifacts panel.
+- **`OmniUI.AgentLive`** — the mountable LiveView. The batteries-included "just give me an agent" entry point. Built with `use OmniUI`.
 - **`chat_interface/1`** — function component composing the message stream, streaming turn, and editor. The reusable chat UI that doesn't care what drives it.
 
-"Agent" is the product (tools, artifacts, the works). "Chat" is the UI pattern (messages, editor, streaming). A developer who wants the full package mounts `AgentLive`. A developer who wants just chat in their own LiveView uses `chat_interface/1`.
+"Agent" is the product (tools, artifacts, the works). "Chat" is the UI pattern (messages, editor, streaming). A developer who wants the full package mounts `AgentLive`. A developer who wants just chat in their own LiveView writes `use OmniUI` and composes the components in their own template.
 
 ---
 
@@ -140,8 +161,8 @@ AgentLive (LiveView)
 
 **Two LiveComponents:**
 
-- **`TurnComponent`** — renders a completed turn from the `:turns` stream. Owns inline editing state (textarea input, edit mode toggle) and handles copy-to-clipboard. Forwards `navigate` and `regenerate` events to the parent via `phx-click`; sends `{:edit_message, turn_id, message}` to the parent on edit submit.
-- **`EditorComponent`** — owns composition state (textarea input, file uploads via `allow_upload/3`). Supports click-to-attach and drag-and-drop. On submit, base64-encodes files into `Omni.Content.Attachment` structs, builds an `Omni.Message`, and sends `{:new_message, message}` to the parent. High-frequency keystroke and upload state stays isolated from the parent.
+- **`TurnComponent`** — renders a completed turn from the `:turns` stream. Owns inline editing state (textarea input, edit mode toggle) and handles copy-to-clipboard. Forwards `"omni:navigate"` and `"omni:regenerate"` events to the parent via `phx-click`; sends `{OmniUI, :edit_message, turn_id, message}` to the parent on edit submit.
+- **`EditorComponent`** — owns composition state (textarea input, file uploads via `allow_upload/3`). Supports click-to-attach and drag-and-drop. On submit, base64-encodes files into `Omni.Content.Attachment` structs, builds an `Omni.Message`, and sends `{OmniUI, :new_message, message}` to the parent. High-frequency keystroke and upload state stays isolated from the parent.
 
 **The streaming turn is a function component**, not a LiveComponent. The LiveView keeps `@current_turn` in its assigns and renders it with the same `turn/1` component used inside `TurnComponent`. LiveView's change tracking means only the template block referencing `@current_turn` re-evaluates on each delta — the stream of completed turns is untouched. The DOM diff sent over the wire is small (just appended text).
 
@@ -151,10 +172,10 @@ If streaming performance becomes an issue, two non-architectural fixes are avail
 
 ## Streaming Architecture
 
-1. **User submits** → `EditorComponent` sends `{:new_message, message}` → `AgentLive` pushes message to tree, prompts agent, sets `@current_turn` (with `status: :streaming`)
-2. **Agent streaming events** → `handle_info` updates `@current_turn` via `Turn.push_content/2`, `push_delta/2`, `put_tool_result/2`
-3. **Agent `:done`** → pushes all response messages to tree → computes `edits`/`regens` from tree children → builds completed turn via `Turn.new/3` → `stream_insert(:turns, turn)` → clears `@current_turn`
-4. **Agent `:error`** → `stream_insert` the current turn with `status: :error` → clears `@current_turn`
+1. **User submits** → `EditorComponent` sends `{OmniUI, :new_message, message}` → macro's injected `handle_info` delegates to `OmniUI.Handlers` → pushes message to tree, prompts agent, sets `@current_turn` (with `status: :streaming`)
+2. **Agent streaming events** → injected `handle_info` calls `Handlers.handle_agent_event/3` → updates `@current_turn` via `Turn.push_content/2`, `push_delta/2`, `put_tool_result/2` → calls `agent_event/3` on the consuming module
+3. **Agent `:done`** → pushes all response messages to tree → computes `edits`/`regens` from tree children → builds completed turn via `Turn.new/3` → `stream_insert(:turns, turn)` → clears `@current_turn` → calls `agent_event(:done, response, socket)`
+4. **Agent `:error`** → `stream_insert` the current turn with `status: :error` → clears `@current_turn` → calls `agent_event(:error, reason, socket)`
 
 Streaming state is determined by `@current_turn != nil` — no separate boolean flag.
 
@@ -168,15 +189,15 @@ Both operations create new branches in the tree.
 
 **Editing a user message:**
 
-1. `TurnComponent` sends `{:edit_message, turn_id, message}` to parent
-2. `AgentLive` navigates tree to the **parent** of the edited message (so `push_node` creates a sibling)
+1. `TurnComponent` sends `{OmniUI, :edit_message, turn_id, message}` to parent
+2. Macro's injected handler navigates tree to the **parent** of the edited message (so `push_node` creates a sibling)
 3. Pushes new user message → new branch from the same parent
 4. Syncs agent context to tree messages *before* the new user message
 5. Prompts agent with new content, resets `:turns` stream
 
 **Regenerating a response:**
 
-1. `AgentLive` receives `"regenerate"` event with `turn_id`
+1. Macro's injected handler receives `"omni:regenerate"` event with `turn_id`
 2. Navigates tree so head = the user message node (new response branches from here)
 3. Syncs agent context to tree messages *before* the user message
 4. Prompts agent with original user content, resets `:turns` stream

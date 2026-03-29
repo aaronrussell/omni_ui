@@ -1,10 +1,10 @@
 defmodule OmniUI.AgentLive do
   use Phoenix.LiveView
-  import OmniUI.Components
+  use OmniUI
 
   attr :current_turn, OmniUI.Turn
   attr :usage, Omni.Usage, required: true
-  @impl true
+  @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
     <div class="relative size-full flex">
@@ -54,20 +54,19 @@ defmodule OmniUI.AgentLive do
     """
   end
 
-  @impl true
+  @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
-    {:ok,
-     OmniUI.start_agent(socket,
-       model: {:ollama, "qwen3.5:4b"},
-       tree: OmniUI.TreeFaker.generate()
-     )}
+    {:ok, models1} = Omni.list_models(:anthropic)
+    {:ok, models2} = Omni.list_models(:ollama)
+
+    socket =
+      socket
+      |> assign(model_options: models1 ++ models2)
+      |> start_agent(
+        tree: OmniUI.TreeFaker.generate(),
+        model: {:ollama, "qwen3.5:4b"}
+      )
+
+    {:ok, socket}
   end
-
-  @impl true
-  def handle_event(event, params, socket),
-    do: OmniUI.Handlers.handle_event(event, params, socket)
-
-  @impl true
-  def handle_info(message, socket),
-    do: OmniUI.Handlers.handle_info(message, socket)
 end

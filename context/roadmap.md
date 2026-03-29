@@ -12,7 +12,7 @@ Three layers — developers pick their entry point based on how much control the
 2. **`use OmniUI` Macro** (Layer 2) — adds agent capabilities to any LiveView. Injects streaming plumbing, state management, and init so the developer owns their template entirely while OmniUI handles the wiring.
 3. **`OmniUI.AgentLive`** (Layer 3) — mountable LiveView. The "just give me an agent" entry point. A reference implementation built with Layers 1 and 2.
 
-Layer 1 is complete. Layer 3 exists as a hand-wired implementation. Layer 2 is the next major piece — extracting the macro from the working code.
+All three layers are built. Layer 2 was extracted from the working Layer 3 code — `AgentLive` is now the first consumer of the macro.
 
 See `architecture.md` for the current component hierarchy, data structures, and streaming flow.
 
@@ -32,7 +32,6 @@ See `architecture.md` for the current component hierarchy, data structures, and 
 
 **What's not built:**
 
-- `use OmniUI` macro (Layer 2)
 - Persistence (conversations, settings)
 - Artifacts panel and advanced tooling
 - Error retry mechanism
@@ -42,23 +41,19 @@ See `architecture.md` for the current component hierarchy, data structures, and 
 
 ## Workstreams
 
-### 1. `use OmniUI` Macro
+### 1. `use OmniUI` Macro (done)
 
-**Status:** Requires design exercise before implementation.
+Extracted the streaming plumbing from `AgentLive` into a macro. A developer writes `use OmniUI`, implements `render/1` and `mount/3` (calling `start_agent/2`), and gets full agent chat capabilities.
 
-Extract the streaming plumbing from `AgentLive` into a macro that any LiveView can `use`. The goal: a developer writes `use OmniUI` and gets agent chat capabilities without reimplementing the event handling, state management, or tree operations.
+**What was built:**
 
-**Key design questions:**
-
-- **What state does the macro manage?** Currently `AgentLive` holds: `tree`, `current_turn`, `agent`, `model`, `thinking`, `usage`, plus the `:turns` stream. Which of these are the macro's responsibility vs the developer's?
-- **What gets injected?** The `handle_info` clauses for agent events are the obvious candidate. But what about `handle_event` for `navigate`, `regenerate`? Those feel like they belong to the macro too — they're tree operations, not app-specific logic.
-- **What's the init API?** `OmniUI.init(socket, opts)` needs to set up the tree, agent, and stream. What options does it accept? Model, provider, tools, system prompt, thinking mode, existing conversation (for restore)?
-- **What callbacks does the developer get?** Hooks for: message submitted (before prompt), turn completed (after stream insert), error occurred? Or is `handle_info` passthrough sufficient?
-- **How does the developer extend behaviour?** If the developer also needs `handle_info` for their own messages, how do macro-injected clauses and developer clauses coexist? `__before_compile__` vs `defoverridable` vs explicit delegation?
-- **Where do tree mutations live?** Editing and regeneration involve tree navigation, agent context sync, and stream resets. These are complex multi-step operations. Should they be macro-injected `handle_info`/`handle_event` clauses, or public API functions the developer calls?
-- **Template ownership:** The developer owns their template entirely. The macro provides assigns, the developer renders them. But should the macro provide any helper functions for common template patterns?
-
-**Approach:** Extract from working code. `AgentLive` becomes the first consumer of the macro — refactored to `use OmniUI` as proof that the extraction works. If `AgentLive` can be cleanly rebuilt on the macro, the API is right.
+- `OmniUI` behaviour with `agent_event/3` callback — fires for every agent event after default handling, letting developers observe/react to streaming events, completions, and errors
+- `__using__/1` macro — registers `@before_compile`, imports components and `start_agent/2`/`update_agent/2`
+- `__before_compile__/1` — injects `handle_event/3` and `handle_info/2` clauses with `defoverridable` wrapping so developer handlers coexist transparently
+- `OmniUI.Handlers` — all event/message handling as pure functions, with `handle_agent_event/3` as single dispatch point for all agent streaming events
+- `start_agent/2` — initialises agent process, tree, stream, and assigns in mount
+- `update_agent/2` — partial updates to model, thinking, system, tools with agent sync
+- `AgentLive` refactored to ~70 lines: just `use OmniUI`, render, and mount
 
 ### 2. Persistence
 
@@ -74,7 +69,7 @@ The Tree structure changes the persistence question. It's not about serializing 
 - **Session management:** Multiple conversations, switching between them, creating new ones. This is UI work (conversation list, new chat button) plus state management (swapping trees, resetting agent context).
 - **Default adapter:** Ship a filesystem adapter for development. ETS or database adapters left to the community or documented as examples.
 
-**Dependency:** The macro design (Workstream 1) affects where persistence hooks live. Design persistence after the macro API stabilises but before advanced tooling — so the Store behaviour is in place when artifacts need storage.
+**Hooks:** The `agent_event/3` callback provides the natural persistence hook — the developer can save after each completed turn via `agent_event(:done, response, socket)`.
 
 ### 3. Advanced Tooling
 
@@ -120,7 +115,7 @@ Smaller items that don't require major design work but need to happen before a p
 
 The workstreams are sequential where it matters:
 
-1. **Macro** — critical path. Defines the developer-facing API and state model that everything else builds on.
+1. ~~**Macro**~~ — done.
 2. **Conversation persistence** — tree serialization, Store behaviour, session management, settings. Builds on the macro's state model while the problem is relatively bounded. Gets the infrastructure in place before the complexity of tooling.
 3. **Advanced tooling** — artifacts, code sandbox. With persistence already in place, artifact storage becomes an extension of an existing pattern. Design can focus on the interesting interaction and rendering problems rather than fighting infrastructure.
 4. **Polish** items can be picked up incrementally at any point.

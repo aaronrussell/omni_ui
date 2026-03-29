@@ -653,24 +653,6 @@ defmodule OmniUI.Components do
     """
   end
 
-  defp format_model_options(nil), do: nil
-  defp format_model_options([]), do: nil
-
-  defp format_model_options(models) do
-    models
-    |> Enum.group_by(&(&1.provider |> Module.split() |> List.last()))
-    |> Enum.sort_by(&elem(&1, 0))
-    |> Enum.map(fn {provider_name, provider_models} ->
-      %{
-        label: provider_name,
-        options:
-          provider_models
-          |> Enum.sort_by(& &1.name)
-          |> Enum.map(&%{value: model_key(&1), label: &1.name})
-      }
-    end)
-  end
-
   defp format_thinking_options do
     Enum.map(@thinking_levels, fn val ->
       value = to_string(val)
@@ -777,13 +759,4 @@ defmodule OmniUI.Components do
     """
   end
 
-  defp find_option_label(options, value) do
-    Enum.find_value(options, fn
-      %{value: v, label: label} ->
-        if(v == value, do: label)
-
-      %{options: items} ->
-        Enum.find_value(items, fn %{value: v, label: label} -> if(v == value, do: label) end)
-    end)
-  end
 end

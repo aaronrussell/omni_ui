@@ -2,12 +2,165 @@ defmodule OmniUI do
   @moduledoc """
   OmniUI adds agent chat capabilities to any LiveView.
 
-  Provides `start_agent/2` for initialising the agent system in `mount/3`,
-  and `update_agent/2` for modifying agent configuration at runtime.
+  ## Usage
+
+      defmodule MyAppWeb.ChatLive do
+        use Phoenix.LiveView
+        use OmniUI
+
+        def render(assigns) do
+          ~H\"\"\"
+          <.chat_interface>
+            ...
+          </.chat_interface>
+          \"\"\"
+        end
+
+        def mount(_params, _session, socket) do
+          {:ok, start_agent(socket, model: {:anthropic, "claude-sonnet-4-20250514"})}
+        end
+
+        # Optional: observe agent events after default handling
+        @impl OmniUI
+        def agent_event(:done, response, socket) do
+          MyApp.Analytics.track(response.usage)
+          socket
+        end
+
+        def agent_event(_event, _data, socket), do: socket
+      end
+
+  The macro:
+
+  - Imports `OmniUI.Components` and `start_agent/2` / `update_agent/2`
+  - Injects `handle_event/3` clauses for OmniUI-namespaced events
+  - Injects `handle_info/2` clauses for agent streaming and component messages
+  - Wraps developer-defined handlers via `defoverridable` so OmniUI events
+    are dispatched first and unrecognised events fall through
+  - Injects a default `agent_event/3` pass-through if the developer doesn't define one
   """
 
   import Phoenix.Component
   import Phoenix.LiveView, only: [stream: 3]
+  import Omni.Util, only: [maybe_put: 3]
+
+  # ── Behaviour ─────────────────────────────────────────────────────
+
+  @doc """
+  Called after OmniUI's default handling for `:done` and `:error` agent events.
+
+  Receives the event type, event data, and the already-updated socket.
+  Must return the socket (possibly with additional assign mutations).
+  """
+  @callback agent_event(event :: atom(), data :: term(), Phoenix.LiveView.Socket.t()) ::
+              Phoenix.LiveView.Socket.t()
+
+  # ── Macro ──────────────────────────────────────────────────────────
+
+  defmacro __using__(_opts) do
+    quote do
+      @before_compile OmniUI
+      @behaviour OmniUI
+      import OmniUI.Components
+      import OmniUI, only: [start_agent: 2, update_agent: 2]
+    end
+  end
+
+  defmacro __before_compile__(env) do
+    has_handle_event = Module.defines?(env.module, {:handle_event, 3})
+    has_handle_info = Module.defines?(env.module, {:handle_info, 2})
+    has_agent_event = Module.defines?(env.module, {:agent_event, 3})
+
+    event_clauses = inject_handle_event(has_handle_event)
+    info_clauses = inject_handle_info(has_handle_info)
+    agent_event_clause = unless has_agent_event, do: inject_default_agent_event()
+
+    quote do
+      unquote(event_clauses)
+      unquote(info_clauses)
+      unquote(agent_event_clause)
+    end
+  end
+
+  defp inject_handle_event(has_existing) do
+    overridable =
+      if has_existing do
+        quote do
+          defoverridable handle_event: 3
+        end
+      end
+
+    fallthrough =
+      if has_existing do
+        quote do
+          def handle_event(event, params, socket), do: super(event, params, socket)
+        end
+      end
+
+    quote do
+      unquote(overridable)
+
+      def handle_event("omni:" <> _ = event, params, socket) do
+        OmniUI.Handlers.handle_event(event, params, socket)
+      end
+
+      unquote(fallthrough)
+    end
+  end
+
+  defp inject_handle_info(has_existing) do
+    overridable =
+      if has_existing do
+        quote do
+          defoverridable handle_info: 2
+        end
+      end
+
+    fallthrough =
+      if has_existing do
+        quote do
+          def handle_info(message, socket), do: super(message, socket)
+        end
+      end
+
+    quote do
+      unquote(overridable)
+
+      def handle_info({OmniUI, :new_message, _message} = msg, socket) do
+        OmniUI.Handlers.handle_info(msg, socket)
+      end
+
+      def handle_info({OmniUI, :edit_message, _turn_id, _message} = msg, socket) do
+        OmniUI.Handlers.handle_info(msg, socket)
+      end
+
+      def handle_info({:agent, _pid, event, data}, socket) do
+        socket = OmniUI.Handlers.handle_agent_event(event, data, socket)
+
+        socket =
+          case __MODULE__.agent_event(event, data, socket) do
+            %Phoenix.LiveView.Socket{} = s ->
+              s
+
+            other ->
+              raise "#{inspect(__MODULE__)}.agent_event/3 must return a socket, got: #{inspect(other)}"
+          end
+
+        {:noreply, socket}
+      end
+
+      unquote(fallthrough)
+    end
+  end
+
+  defp inject_default_agent_event do
+    quote do
+      @impl OmniUI
+      def agent_event(_event, _data, socket), do: socket
+    end
+  end
+
+  # ── Public API ─────────────────────────────────────────────────────
 
   @doc """
   Initialises the OmniUI agent system on a socket.
@@ -22,8 +175,6 @@ defmodule OmniUI do
     * `:thinking` — thinking mode: `false | :low | :medium | :high | :max` (default: `false`)
     * `:system` — system prompt string (default: `nil`)
     * `:tools` — list of tool modules (default: `[]`)
-    * `:model_options` — list of `%Omni.Model{}` structs for the model selector (default: `[]`)
-
   ## Example
 
       def mount(_params, _session, socket) do
@@ -41,8 +192,6 @@ defmodule OmniUI do
     thinking = Keyword.get(opts, :thinking, false)
     system = Keyword.get(opts, :system)
     tools = Keyword.get(opts, :tools, [])
-    model_options = Keyword.get(opts, :model_options, [])
-
     agent_opts =
       [model: model, messages: OmniUI.Tree.messages(tree), opts: [thinking: thinking]]
       |> maybe_put(:system, system)
@@ -59,7 +208,6 @@ defmodule OmniUI do
       tree: tree,
       current_turn: nil,
       model: model,
-      model_options: model_options,
       thinking: thinking,
       usage: usage
     )
@@ -78,8 +226,6 @@ defmodule OmniUI do
     * `:thinking` — updates both socket assign and agent opts
     * `:system` — updates agent context only (not surfaced in UI)
     * `:tools` — updates agent context only
-    * `:model_options` — updates socket assign only
-
   ## Example
 
       OmniUI.update_agent(socket, model: {:anthropic, "claude-opus-4-20250514"})
@@ -105,13 +251,10 @@ defmodule OmniUI do
       {:tools, tools}, socket ->
         :ok = Omni.Agent.set_state(agent, :context, &%{&1 | tools: tools})
         socket
-
-      {:model_options, model_options}, socket ->
-        assign(socket, :model_options, model_options)
     end)
   end
 
-  # -- Private ---------------------------------------------------------------
+  # ── Private ────────────────────────────────────────────────────────
 
   defp resolve_model!(%Omni.Model{} = model), do: model
 
@@ -122,7 +265,4 @@ defmodule OmniUI do
     end
   end
 
-  defp maybe_put(opts, _key, nil), do: opts
-  defp maybe_put(opts, _key, []), do: opts
-  defp maybe_put(opts, key, value), do: Keyword.put(opts, key, value)
 end
