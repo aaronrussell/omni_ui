@@ -597,38 +597,50 @@ defmodule OmniUI.Components do
 
   All attrs are optional — sections are only rendered when their data is
   provided, allowing consumers to show a subset of controls.
+
+  `model_options` accepts a list of `%Omni.Model{}` structs; the toolbar
+  groups them by provider for the select dropdown. The thinking selector
+  renders when `thinking` is not nil and the current model supports reasoning.
   """
   attr :model_options, :list, default: nil
   attr :model, Omni.Model, default: nil
-  attr :thinking_options, :list, default: nil
   attr :thinking, :atom, default: nil
   attr :usage, Omni.Usage, default: nil
 
+  @thinking_levels [:max, :high, :medium, :low, false]
+
   def toolbar(assigns) do
+    assigns =
+      assigns
+      |> assign_new(:formatted_model_options, fn ->
+        format_model_options(assigns.model_options)
+      end)
+      |> assign_new(:formatted_thinking_options, fn -> format_thinking_options() end)
+
     ~H"""
     <div class="flex flex-auto items-center gap-4">
       <div
-        :if={@model_options && @model}
+        :if={@formatted_model_options && @model}
         class={[
           "flex items-center gap-4",
           "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
         ]}>
         <.select
           id="model-select"
-          options={@model_options}
+          options={@formatted_model_options}
           value={model_key(@model)}
           event="omni:select_model" />
       </div>
 
       <div
-        :if={@thinking_options && @model && @model.reasoning}
+        :if={@thinking != nil && @model && @model.reasoning}
         class={[
           "flex items-center gap-4",
           "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
         ]}>
         <.select
           id="thinking-select"
-          options={@thinking_options}
+          options={@formatted_thinking_options}
           value={to_string(@thinking)}
           event="omni:select_thinking"
           prompt="Thinking" />
@@ -639,6 +651,32 @@ defmodule OmniUI.Components do
       </div>
     </div>
     """
+  end
+
+  defp format_model_options(nil), do: nil
+  defp format_model_options([]), do: nil
+
+  defp format_model_options(models) do
+    models
+    |> Enum.group_by(&(&1.provider |> Module.split() |> List.last()))
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.map(fn {provider_name, provider_models} ->
+      %{
+        label: provider_name,
+        options:
+          provider_models
+          |> Enum.sort_by(& &1.name)
+          |> Enum.map(&%{value: model_key(&1), label: &1.name})
+      }
+    end)
+  end
+
+  defp format_thinking_options do
+    Enum.map(@thinking_levels, fn val ->
+      value = to_string(val)
+      label = if val == false, do: "Off", else: String.capitalize(value)
+      %{value: value, label: label}
+    end)
   end
 
   @doc "Dropdown select with support for grouped options."

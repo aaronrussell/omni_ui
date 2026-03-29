@@ -10,15 +10,11 @@ defmodule OmniUI.Handlers do
 
   def handle_event("omni:select_model", %{"value" => value}, socket) do
     [provider, model_id] = String.split(value, ":", parts: 2)
-    {:ok, model} = Omni.get_model(String.to_existing_atom(provider), model_id)
-    :ok = Omni.Agent.set_state(socket.assigns.agent, :model, model)
-    {:noreply, assign(socket, model: model)}
+    {:noreply, OmniUI.update_agent(socket, model: {String.to_existing_atom(provider), model_id})}
   end
 
   def handle_event("omni:select_thinking", %{"value" => value}, socket) do
-    thinking = String.to_existing_atom(value)
-    :ok = Omni.Agent.set_state(socket.assigns.agent, :opts, &Keyword.put(&1, :thinking, thinking))
-    {:noreply, assign(socket, thinking: thinking)}
+    {:noreply, OmniUI.update_agent(socket, thinking: String.to_existing_atom(value))}
   end
 
   def handle_event("omni:navigate", %{"node_id" => node_id}, socket) do

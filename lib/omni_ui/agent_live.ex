@@ -36,7 +36,6 @@ defmodule OmniUI.AgentLive do
               model={@model}
               model_options={@model_options}
               thinking={@thinking}
-              thinking_options={@thinking_options}
               usage={@usage} />
           </:toolbar>
 
@@ -57,70 +56,11 @@ defmodule OmniUI.AgentLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    # tree = %OmniUI.Tree{}
-    tree = OmniUI.TreeFaker.generate()
-
-    turns = OmniUI.Turn.all(tree)
-    usage = OmniUI.Tree.usage(tree)
-
-    {:ok, model} = Omni.get_model(:ollama, "qwen3.5:4b")
-
-    {:ok, agent} =
-      Omni.Agent.start_link(
-        model: model,
-        context: Omni.context(messages: OmniUI.Tree.messages(tree)),
-        opts: [
-          thinking: false
-        ]
-      )
-
-    model_options =
-      :persistent_term.get({Omni, :provider_ids}, %{})
-      |> Map.values()
-      |> Enum.sort()
-      |> Enum.map(fn provider_id ->
-        {:ok, models} = Omni.list_models(provider_id)
-
-        provider_name =
-          models
-          |> hd()
-          |> Map.get(:provider)
-          |> Module.split()
-          |> List.last()
-
-        %{
-          label: provider_name,
-          options:
-            models
-            |> Enum.sort_by(& &1.name)
-            |> Enum.map(&%{value: "#{provider_id}:#{&1.id}", label: &1.name})
-        }
-      end)
-
-    thinking_options =
-      [false, :low, :medium, :high, :max]
-      |> Enum.reverse()
-      |> Enum.map(fn val ->
-        value = to_string(val)
-        label = if val == false, do: "Off", else: String.capitalize(value)
-        %{value: value, label: label}
-      end)
-
-    socket =
-      socket
-      |> assign(
-        agent: agent,
-        tree: tree,
-        current_turn: nil,
-        model: model,
-        model_options: model_options,
-        thinking: false,
-        thinking_options: thinking_options,
-        usage: usage
-      )
-      |> stream(:turns, turns)
-
-    {:ok, socket}
+    {:ok,
+     OmniUI.start_agent(socket,
+       model: {:ollama, "qwen3.5:4b"},
+       tree: OmniUI.TreeFaker.generate()
+     )}
   end
 
   @impl true
