@@ -703,4 +703,73 @@ defmodule OmniUI.TreeTest do
       assert tree.path == [1, 2, 3, 4, 7, 8]
     end
   end
+
+  describe "new/1" do
+    test "round-trips a linear tree" do
+      tree =
+        %Tree{}
+        |> Tree.push(msg("a"))
+        |> Tree.push(assistant("b"))
+        |> Tree.push(msg("c"))
+
+      reconstructed =
+        Tree.new(nodes: Map.values(tree.nodes), path: tree.path, cursors: tree.cursors)
+
+      assert reconstructed == tree
+    end
+
+    test "round-trips a branching tree" do
+      tree = example_tree()
+
+      reconstructed =
+        Tree.new(nodes: Map.values(tree.nodes), path: tree.path, cursors: tree.cursors)
+
+      assert reconstructed == tree
+      assert Tree.messages(reconstructed) == Tree.messages(tree)
+    end
+
+    test "preserves cursors" do
+      tree = example_tree()
+
+      reconstructed =
+        Tree.new(nodes: Map.values(tree.nodes), path: tree.path, cursors: tree.cursors)
+
+      assert reconstructed.cursors == tree.cursors
+    end
+
+    test "empty nodes list creates a valid empty tree" do
+      tree = Tree.new(nodes: [])
+
+      assert tree.nodes == %{}
+      assert tree.path == []
+      assert tree.cursors == %{}
+    end
+
+    test "defaults path to empty list" do
+      original = Tree.push(%Tree{}, msg("hello"))
+      tree = Tree.new(nodes: Map.values(original.nodes))
+
+      assert tree.path == []
+      assert tree.nodes == original.nodes
+    end
+
+    test "defaults cursors to empty map" do
+      original = Tree.push(%Tree{}, msg("hello"))
+      tree = Tree.new(nodes: Map.values(original.nodes), path: [1])
+
+      assert tree.cursors == %{}
+    end
+  end
+
+  describe "OmniUI.Store behaviour" do
+    test "defines all expected callbacks" do
+      callbacks = OmniUI.Store.behaviour_info(:callbacks)
+
+      assert {:save_tree, 3} in callbacks
+      assert {:save_metadata, 3} in callbacks
+      assert {:load, 2} in callbacks
+      assert {:list, 1} in callbacks
+      assert {:delete, 2} in callbacks
+    end
+  end
 end

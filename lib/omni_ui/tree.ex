@@ -45,6 +45,20 @@ defmodule OmniUI.Tree do
 
   defstruct nodes: %{}, path: [], cursors: %{}
 
+  @doc """
+  Creates a new tree from a keyword list, or map.
+  """
+  @spec new(Enumerable.t()) :: t()
+  def new(attrs) do
+    attrs
+    |> Map.new()
+    |> Map.update(:nodes, %{}, fn
+      nodes when is_map(nodes) -> nodes
+      nodes when is_list(nodes) -> Map.new(nodes, &{&1.id, &1})
+    end)
+    |> then(&struct!(__MODULE__, &1))
+  end
+
   # Query
 
   @doc "Returns a flat list of all messages along the active path, in order."
