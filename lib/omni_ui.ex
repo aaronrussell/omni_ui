@@ -57,10 +57,13 @@ defmodule OmniUI do
 
   # ── Macro ──────────────────────────────────────────────────────────
 
-  defmacro __using__(_opts) do
+  defmacro __using__(opts) do
+    store = Keyword.get(opts, :store)
+
     quote do
-      @before_compile OmniUI
       @behaviour OmniUI
+      @before_compile OmniUI
+      @__omni_store__ unquote(store) || Application.compile_env(:omni, [__MODULE__, :store])
       import OmniUI.Components
       import OmniUI, only: [start_agent: 2, update_agent: 2]
     end
@@ -70,15 +73,18 @@ defmodule OmniUI do
     has_handle_event = Module.defines?(env.module, {:handle_event, 3})
     has_handle_info = Module.defines?(env.module, {:handle_info, 2})
     has_agent_event = Module.defines?(env.module, {:agent_event, 3})
+    store = Module.get_attribute(env.module, :__omni_store__)
 
     event_clauses = inject_handle_event(has_handle_event)
     info_clauses = inject_handle_info(has_handle_info)
     agent_event_clause = unless has_agent_event, do: inject_default_agent_event()
+    store_clauses = inject_store_functions(store)
 
     quote do
       unquote(event_clauses)
       unquote(info_clauses)
       unquote(agent_event_clause)
+      unquote(store_clauses)
     end
   end
 
@@ -160,6 +166,50 @@ defmodule OmniUI do
     end
   end
 
+  defp inject_store_functions(nil) do
+    quote do
+      @doc false
+      def save_tree(_session_id, _tree, _opts \\ []), do: :ok
+      @doc false
+      def save_metadata(_session_id, _metadata, _opts \\ []), do: :ok
+      @doc false
+      def load_session(_session_id, _opts \\ []), do: {:error, :no_store}
+      @doc false
+      def list_sessions(_opts \\ []), do: {:ok, []}
+      @doc false
+      def delete_session(_session_id, _opts \\ []), do: :ok
+    end
+  end
+
+  defp inject_store_functions(store) do
+    quote do
+      @doc false
+      def save_tree(session_id, tree, opts \\ []) do
+        unquote(store).save_tree(session_id, tree, opts)
+      end
+
+      @doc false
+      def save_metadata(session_id, metadata, opts \\ []) do
+        unquote(store).save_metadata(session_id, metadata, opts)
+      end
+
+      @doc false
+      def load_session(session_id, opts \\ []) do
+        unquote(store).load(session_id, opts)
+      end
+
+      @doc false
+      def list_sessions(opts \\ []) do
+        unquote(store).list(opts)
+      end
+
+      @doc false
+      def delete_session(session_id, opts \\ []) do
+        unquote(store).delete(session_id, opts)
+      end
+    end
+  end
+
   # ── Public API ─────────────────────────────────────────────────────
 
   @doc """
@@ -192,6 +242,7 @@ defmodule OmniUI do
     thinking = Keyword.get(opts, :thinking, false)
     system = Keyword.get(opts, :system)
     tools = Keyword.get(opts, :tools, [])
+
     agent_opts =
       [model: model, messages: OmniUI.Tree.messages(tree), opts: [thinking: thinking]]
       |> maybe_put(:system, system)
@@ -264,5 +315,4 @@ defmodule OmniUI do
       {:error, reason} -> raise ArgumentError, "failed to resolve model: #{inspect(reason)}"
     end
   end
-
 end

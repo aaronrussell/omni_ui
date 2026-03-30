@@ -758,5 +758,4 @@ defmodule OmniUI.Components do
     </button>
     """
   end
-
 end
