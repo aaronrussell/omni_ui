@@ -25,6 +25,9 @@ omni_ui-*.tar
 # Ignore local claude settings
 /.claude/settings.local.json
 
+# Omni sessions
+priv/omni/sessions
+
 # Environment variables
 .env
 .envrc

@@ -2,6 +2,8 @@ defmodule OmniUI.AgentLive do
   use Phoenix.LiveView
   use OmniUI
 
+  @default_model {:ollama, "qwen3.5:4b"}
+
   attr :current_turn, OmniUI.Turn
   attr :usage, Omni.Usage, required: true
   @impl Phoenix.LiveView
@@ -58,15 +60,74 @@ defmodule OmniUI.AgentLive do
   def mount(_params, _session, socket) do
     {:ok, models1} = Omni.list_models(:anthropic)
     {:ok, models2} = Omni.list_models(:ollama)
+    models = models1 ++ models2
 
     socket =
       socket
-      |> assign(model_options: models1 ++ models2)
-      |> start_agent(
-        tree: OmniUI.TreeFaker.generate(),
-        model: {:ollama, "qwen3.5:4b"}
-      )
+      |> assign(session_id: nil, model_options: models)
+      |> start_agent(model: @default_model)
 
     {:ok, socket}
+  end
+
+  # Re-entry guard: push_patch triggers handle_params with the same session_id
+  @impl Phoenix.LiveView
+  def handle_params(%{"session_id" => id}, _uri, socket) when socket.assigns.session_id == id do
+    {:noreply, socket}
+  end
+
+  # Load existing session
+  def handle_params(%{"session_id" => session_id}, _uri, socket) do
+    if connected?(socket) do
+      case load_session(session_id) do
+        {:ok, tree, metadata} ->
+          model = Keyword.get(metadata, :model, @default_model)
+          thinking = Keyword.get(metadata, :thinking, false)
+
+          socket =
+            socket
+            |> assign(session_id: session_id)
+            |> update_agent(tree: tree, model: model, thinking: thinking)
+
+          {:noreply, socket}
+
+        {:error, _} ->
+          {:noreply, push_navigate(socket, to: "/")}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # New session: generate ID and patch URL
+  def handle_params(_params, _uri, socket) do
+    if connected?(socket) do
+      session_id = generate_session_id()
+
+      socket =
+        socket
+        |> assign(session_id: session_id)
+        |> push_patch(to: "/?session_id=#{session_id}", replace: true)
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl OmniUI
+  def agent_event(:done, _response, socket) do
+    %{session_id: session_id, tree: tree, model: model, thinking: thinking} = socket.assigns
+
+    save_tree(session_id, tree)
+    save_metadata(session_id, model: Omni.Model.to_ref(model), thinking: thinking)
+
+    socket
+  end
+
+  def agent_event(_event, _data, socket), do: socket
+
+  defp generate_session_id do
+    :crypto.strong_rand_bytes(12) |> Base.url_encode64(padding: false)
   end
 end

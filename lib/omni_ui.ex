@@ -41,7 +41,7 @@ defmodule OmniUI do
   """
 
   import Phoenix.Component
-  import Phoenix.LiveView, only: [stream: 3]
+  import Phoenix.LiveView, only: [stream: 3, stream: 4]
   import Omni.Util, only: [maybe_put: 3]
 
   # ── Behaviour ─────────────────────────────────────────────────────
@@ -166,46 +166,46 @@ defmodule OmniUI do
     end
   end
 
-  defp inject_store_functions(nil) do
-    quote do
-      @doc false
-      def save_tree(_session_id, _tree, _opts \\ []), do: :ok
-      @doc false
-      def save_metadata(_session_id, _metadata, _opts \\ []), do: :ok
-      @doc false
-      def load_session(_session_id, _opts \\ []), do: {:error, :no_store}
-      @doc false
-      def list_sessions(_opts \\ []), do: {:ok, []}
-      @doc false
-      def delete_session(_session_id, _opts \\ []), do: :ok
-    end
-  end
-
   defp inject_store_functions(store) do
     quote do
       @doc false
       def save_tree(session_id, tree, opts \\ []) do
-        unquote(store).save_tree(session_id, tree, opts)
+        case unquote(store) do
+          nil -> :ok
+          store -> apply(store, :save_tree, [session_id, tree, opts])
+        end
       end
 
       @doc false
       def save_metadata(session_id, metadata, opts \\ []) do
-        unquote(store).save_metadata(session_id, metadata, opts)
+        case unquote(store) do
+          nil -> :ok
+          store -> apply(store, :save_metadata, [session_id, metadata, opts])
+        end
       end
 
       @doc false
       def load_session(session_id, opts \\ []) do
-        unquote(store).load(session_id, opts)
+        case unquote(store) do
+          nil -> {:error, :no_store}
+          store -> apply(store, :load, [session_id, opts])
+        end
       end
 
       @doc false
       def list_sessions(opts \\ []) do
-        unquote(store).list(opts)
+        case unquote(store) do
+          nil -> {:ok, []}
+          store -> apply(store, :list, [opts])
+        end
       end
 
       @doc false
       def delete_session(session_id, opts \\ []) do
-        unquote(store).delete(session_id, opts)
+        case unquote(store) do
+          nil -> :ok
+          store -> apply(store, :delete, [session_id, opts])
+        end
       end
     end
   end
@@ -302,6 +302,14 @@ defmodule OmniUI do
       {:tools, tools}, socket ->
         :ok = Omni.Agent.set_state(agent, :context, &%{&1 | tools: tools})
         socket
+
+      {:tree, tree}, socket ->
+        :ok = Omni.Agent.set_state(agent, :context, &%{&1 | messages: OmniUI.Tree.messages(tree)})
+        :ok = Omni.Agent.set_state(agent, :meta, %{})
+
+        socket
+        |> assign(tree: tree, current_turn: nil, usage: OmniUI.Tree.usage(tree))
+        |> stream(:turns, OmniUI.Turn.all(tree), reset: true)
     end)
   end
 

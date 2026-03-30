@@ -32,7 +32,7 @@ See `architecture.md` for the current component hierarchy, data structures, and 
 
 **What's not built:**
 
-- Persistence (conversations, settings)
+- Persistence follow-ups (incremental saves, JSON format, session browser, metadata-only saves)
 - Artifacts panel and advanced tooling
 - Error retry mechanism
 - Package polish (public API surface, docs, hex publishing)
@@ -55,23 +55,30 @@ Extracted the streaming plumbing from `AgentLive` into a macro. A developer writ
 - `update_agent/2` — partial updates to model, thinking, system, tools with agent sync
 - `AgentLive` refactored to ~70 lines: just `use OmniUI`, render, and mount
 
-### 2. Persistence
+### 2. Persistence (done)
 
-**Status:** Design needed, follows macro extraction.
+Pluggable session persistence with URL-based session management. See `persistence.md` for the full design spec.
 
-The Tree structure changes the persistence question. It's not about serializing a flat message list — it's about saving and restoring `OmniUI.Tree` with all branches, cursors, and usage data.
+**What was built:**
 
-**Key design questions:**
+- `OmniUI.Store` behaviour — five callbacks (`save_tree`, `save_metadata`, `load`, `list`, `delete`) with scoping via opts and adapter-managed timestamps
+- `OmniUI.Store.Filesystem` — ETF-based development adapter, two files per session (`tree.etf`, `meta.etf`), scoped and unscoped paths
+- `Tree.new/1` — reconstructs a tree from saved parts (nodes, path, cursors), for future non-ETF adapters
+- Macro injects store functions (`save_tree`, `save_metadata`, `load_session`, `list_sessions`, `delete_session`) resolved from `use OmniUI, store: Module` or app config; no-ops when unconfigured
+- `update_agent/2` extended with `:tree` option — resets agent context, rebuilds turns stream, syncs assigns
+- `AgentLive` uses `handle_params/3` for session routing (`/?session_id=abc`), persists tree + metadata in `agent_event(:done)`
 
-- **What gets persisted?** The tree (conversation history with branches), settings (model, thinking mode), and potentially artifacts. These may be separate concerns with separate storage.
-- **Behaviour API:** A `Store` behaviour with `save_conversation/2`, `load_conversation/1`, `list_conversations/0` as the starting point. What are the argument/return types? Does the store receive the raw tree or a serialization-friendly representation?
-- **Who triggers persistence?** The macro (auto-save after each turn)? The developer (explicit save calls)? Configurable? Auto-save is convenient but may not suit all use cases.
-- **Session management:** Multiple conversations, switching between them, creating new ones. This is UI work (conversation list, new chat button) plus state management (swapping trees, resetting agent context).
-- **Default adapter:** Ship a filesystem adapter for development. ETS or database adapters left to the community or documented as examples.
+### 3. Persistence Follow-ups
 
-**Hooks:** The `agent_event/3` callback provides the natural persistence hook — the developer can save after each completed turn via `agent_event(:done, response, socket)`.
+**Status:** Future enhancements documented in `persistence.md` § "Future Work".
 
-### 3. Advanced Tooling
+- **Incremental saves** — buffer new node IDs and pass as `:new_node_ids` to `save_tree`, so adapters can append rather than full-overwrite. The API already accepts the opt; adapters ignore it for now.
+- **JSON serialization** — human-readable storage format replacing opaque ETF. Requires `Omni.Message`/`Omni.Content.*` serialization in the `omni` package.
+- **Session browser component** — UI for listing and switching sessions. Needs to work both router-mounted (push_patch) and embedded (events). `update_agent(tree: ...)` already handles the session switch.
+- **Save on metadata-only changes** — model/thinking/navigation changes aren't persisted yet. Options: developer overrides `handle_event`, new `ui_event/3` callback, or AgentLive handles directly.
+- **Error handling in saves** — current implementation is fire-and-forget. Logging, retry, flash notifications are the developer's concern via `agent_event/3`.
+
+### 4. Advanced Tooling
 
 **Status:** Requires design exercise before implementation.
 
@@ -99,7 +106,7 @@ Two interrelated pieces: an artifacts system for rendering rich tool output, and
 
 **Approach:** Start with the simplest useful thing — an HTML artifact renderer (iframe) triggered by a tool result. This proves the artifact UI, tool integration, and panel layout without solving sandboxing. Code execution is a separate step that builds on the artifact surface.
 
-### 4. Polish & Release
+### 5. Polish & Release
 
 Smaller items that don't require major design work but need to happen before a public release.
 
@@ -116,16 +123,15 @@ Smaller items that don't require major design work but need to happen before a p
 The workstreams are sequential where it matters:
 
 1. ~~**Macro**~~ — done.
-2. **Conversation persistence** — tree serialization, Store behaviour, session management, settings. Builds on the macro's state model while the problem is relatively bounded. Gets the infrastructure in place before the complexity of tooling.
-3. **Advanced tooling** — artifacts, code sandbox. With persistence already in place, artifact storage becomes an extension of an existing pattern. Design can focus on the interesting interaction and rendering problems rather than fighting infrastructure.
-4. **Polish** items can be picked up incrementally at any point.
+2. ~~**Persistence**~~ — done. Store behaviour, filesystem adapter, macro integration, AgentLive session management.
+3. **Persistence follow-ups** — incremental saves, JSON format, session browser, metadata-only saves. Can be picked up as needed.
+4. **Advanced tooling** — artifacts, code sandbox. With persistence in place, artifact storage extends the existing Store pattern.
+5. **Polish** items can be picked up incrementally at any point.
 
-Artifact *storage* specifically is hard to design before knowing what an artifact is — that part of persistence will naturally emerge from the tooling work and extend the Store behaviour established in step 2.
+Artifact *storage* specifically is hard to design before knowing what an artifact is — that part will naturally emerge from the tooling work and extend the Store behaviour.
 
 ---
 
 ## Open Questions
 
-- **Persistence shape** — how does save/load interact with the tree-based data model? Serializing `OmniUI.Tree` directly vs a normalized format? How do branches serialize?
-- **Agent API gaps** — does `Omni.Agent` need new callbacks for persistence hooks, lifecycle events, or state snapshots? This is a key output of building the macro.
 - **Artifact identity** — if artifacts are versioned and editable, they need their own data model. How does this relate to the conversation tree? Is an artifact a node in the tree, a side structure, or something else entirely?
