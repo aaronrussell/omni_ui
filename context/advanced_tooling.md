@@ -71,10 +71,16 @@ tool = OmniUI.Artifacts.Tool.new(session_id: session_id)
 
 ### HTTP Serving (ArtifactPlug)
 
-`OmniUI.Artifacts.Plug` serves artifact files over HTTP. The developer mounts it in their router:
+`OmniUI.Artifacts.Plug` serves artifact files over HTTP. The developer mounts it in their router **outside** the `:browser` pipeline — the Plug handles its own headers and doesn't need sessions, CSRF protection, or layouts. Mounting inside `pipe_through :browser` will break cross-artifact script loading (CSRF protection blocks cross-origin JS from sandboxed iframes) and `put_secure_browser_headers` sets `x-frame-options` which blocks iframe rendering.
 
 ```elixir
+# Must be outside pipe_through :browser
 forward "/omni_artifacts", OmniUI.Artifacts.Plug
+
+scope "/" do
+  pipe_through :browser
+  live "/", MyAppWeb.AgentLive
+end
 ```
 
 Routes:
@@ -112,28 +118,34 @@ The Plug:
 
 ### UI
 
-Side panel, similar to Claude's artifacts panel.
+Side panel, similar to Claude's artifacts panel. Implemented as a self-contained LiveComponent (`OmniUI.Artifacts.PanelComponent`) that manages all artifact state internally — AgentLive has zero artifact assigns.
 
-**Assigns:**
+**PanelComponent assigns (internal):**
 
 | Assign | Type | Purpose |
 |--------|------|---------|
-| `@artifacts` | `%{filename => %Artifact{}}` | Metadata map, recovered from disk |
+| `@artifacts` | `%{filename => %Artifact{}}` | Metadata map, scanned from disk |
 | `@active_artifact` | `String.t() \| nil` | Currently viewed artifact filename |
-| `@artifacts_open` | `boolean` | Panel visibility |
+| `@content` | `Phoenix.HTML.safe() \| nil` | Pre-rendered HTML for code view mode |
+| `@token` | `String.t() \| nil` | Signed Phoenix.Token, cached per session |
 
-**Panel components:**
-- **Artifacts button** — visible when artifacts exist, toggles panel open/closed
-- **Artifact list** — sidebar within the panel listing all artifacts by name
-- **Artifact viewer** — renders the active artifact in the appropriate mode
+**Assigns from parent (AgentLive):**
+
+| Assign | Type | Purpose |
+|--------|------|---------|
+| `session_id` | `String.t()` | Current session ID — triggers rescan on change |
+
+**Communication:** AgentLive notifies the component of artifact changes via `send_update(PanelComponent, id: "artifacts-panel", action: :rescan)` in its `agent_event(:tool_result, ...)` callback.
+
+**Panel layout:** Index/detail single-view pattern. When `@active_artifact` is nil, shows a list of all artifacts sorted by filename. When set, shows the artifact viewer with a back button. No sub-sidebar within the panel.
 
 **Rendering modes** (determined by `mime_type`):
 
 | Mode | MIME types | How |
 |------|-----------|-----|
 | Preview | `text/html`, `image/svg+xml` | `<iframe src="/omni_artifacts/{token}/{file}">` with `sandbox="allow-scripts"` |
-| View | `text/*`, `application/json`, other text-like types | Syntax-highlighted code viewer |
-| Download | `image/*`, `application/*` (binary), other | Download link to the Plug route (+ image preview for `image/*` types) |
+| View | `text/*`, `application/json` | Syntax-highlighted code via `Lumis.highlight!/2` with `catppuccin_macchiato` theme (inline styles, no external CSS needed) |
+| Download | everything else | Download link to the Plug route (+ inline image preview for `image/*` types) |
 
 No special React/JSX rendering — JSX files are displayed as code. If the agent wants a rendered React component, it creates its own HTML artifact that loads React via CDN and references the JSX file. Cross-artifact references make this work naturally (the HTML file can load the JSX file via relative path). Native React rendering could be added later as an enhancement.
 
@@ -254,15 +266,15 @@ Artifact and sandbox tools need a `session_id`, which comes from `handle_params`
 
 **Flow:**
 
-1. `mount/3` — `start_agent(socket, model: model)` with any session-independent tools. Assigns `artifacts: %{}`.
-2. `handle_params/3` — session_id is determined. Create artifact/sandbox tools with `Tool.new(session_id: session_id)`. Replace all tools via `update_agent(socket, tools: [tool])`. Scan for existing artifacts on session load.
-3. Session switch (new `handle_params`) — replace all tools with new session_id. Rescan artifacts.
+1. `mount/3` — `start_agent(socket, model: model)` with any session-independent tools.
+2. `handle_params/3` — session_id is determined. Create artifact/sandbox tools with `Tool.new(session_id: session_id)`. Replace all tools via `update_agent(socket, tools: [tool])`. PanelComponent receives the new `session_id` and scans for existing artifacts automatically.
+3. Session switch (new `handle_params`) — replace all tools with new session_id. PanelComponent detects the session change in `update/2` and rescans.
 
 The agent doesn't have artifact/sandbox tools until `handle_params` runs. In practice this is fine — the user can't submit a message until the page is connected and `handle_params` has executed.
 
 **Syncing assigns after tool execution:**
 
-The tool handlers run in the Agent process (not the LiveView process). When a tool executes, the LiveView receives an `{:agent, pid, :tool_result, result}` event. `AgentLive`'s `agent_event(:tool_result, %{name: "artifacts"}, socket)` callback matches on the tool name and rescans the artifacts directory to update `@artifacts`. This lives in `AgentLive`, not in the macro or Handlers — tooling is not baked into the shared infrastructure.
+The tool handlers run in the Agent process (not the LiveView process). When a tool executes, the LiveView receives an `{:agent, pid, :tool_result, result}` event. `AgentLive`'s `agent_event(:tool_result, %{name: "artifacts"}, socket)` callback matches on the tool name and sends `send_update(PanelComponent, action: :rescan)`. The component rescans the artifacts directory internally. This lives in `AgentLive`, not in the macro or Handlers — tooling is not baked into the shared infrastructure.
 
 ---
 
@@ -321,8 +333,8 @@ Artifact data structures, filesystem operations, and Omni tool. No UI or agent w
 Connect the artifact tool to the agent lifecycle and keep assigns in sync.
 
 4. **`handle_params` integration in `AgentLive`** — create tool with `Tool.new(session_id: session_id)` when session_id is known. Replace all tools via `update_agent(socket, tools: [tool])`. On session switch, replace tools with new session_id.
-5. **Session load** — scan the artifacts directory when loading an existing session via `FileSystem.list(session_id: session_id)`, populate `@artifacts` assign (a `%{filename => %Artifact{}}` map).
-6. **Artifact sync in `AgentLive.agent_event/3`** — `agent_event(:tool_result, %{name: "artifacts"}, socket)` rescans the artifacts directory and updates `@artifacts`. Lives in AgentLive, not in Handlers or the macro — tooling is application-level, not framework-level.
+5. **Session load** — PanelComponent scans the artifacts directory automatically when it receives a new `session_id` via its `update/2` callback.
+6. **Artifact sync** — `AgentLive.agent_event(:tool_result, %{name: "artifacts"}, socket)` sends `send_update(PanelComponent, action: :rescan)`. The component rescans internally. Tooling is application-level, not framework-level.
 
 ### Phase 3: Artifact Serving ✓
 
@@ -332,15 +344,16 @@ Enable HTTP access to artifacts for iframe rendering and downloads.
 8. **`OmniUI.Artifacts.Plug`** — Plug module that verifies signed tokens, resolves files via `FileSystem.artifacts_dir/1`, performs path containment checks, and serves files with `send_file/3`. Sets Content-Type, Content-Disposition (inline vs attachment), and `Cache-Control: no-store`.
 9. **Developer integration** — developer adds `forward "/omni_artifacts", OmniUI.Artifacts.Plug` to their router.
 
-### Phase 4: Artifact UI
+### Phase 4: Artifact UI ✓
 
-Build the panel and rendering components.
+Built the panel as a self-contained LiveComponent. Moved all artifact state out of AgentLive.
 
-10. **Artifact panel component** — panel layout with artifact list and viewer area. Panel toggle button. Assigns: `@artifacts`, `@active_artifact`, `@artifacts_open`.
-11. **Iframe preview mode** — `<iframe>` loading from ArtifactPlug route. `sandbox="allow-scripts"` attribute.
-12. **Code viewer mode** — syntax-highlighted `<pre>` block for text/code artifacts. Load content on demand (read from disk when artifact is selected).
-13. **Download mode** — download link to ArtifactPlug route for binary types. Image preview for image types.
-14. **Panel events** — `handle_event` clauses for opening/closing panel, selecting artifacts. These are UI-only events (no agent involvement).
+10. **`OmniUI.Artifacts.PanelComponent`** — LiveComponent receiving only `session_id` from AgentLive. Owns `@artifacts`, `@active_artifact`, `@content`, `@token`. Custom `update/2` handles session changes (full reset + rescan + token sign), rescan actions (via `send_update`), and no-op re-renders. Index/detail single-view pattern.
+11. **Iframe preview mode** — `<iframe>` loading from ArtifactPlug route with `sandbox="allow-scripts"`. URLs built from cached signed token.
+12. **Code viewer mode** — syntax-highlighted via `Lumis.highlight!/2` with `catppuccin_macchiato` theme (inline styles). Content loaded on demand from disk when artifact is selected.
+13. **Download mode** — download link to ArtifactPlug route for binary types. Inline image preview for `image/*` types.
+14. **AgentLive simplification** — removed `@artifacts` assign, `scan_artifacts/1` helper, artifact scanning from `handle_params`. `agent_event(:tool_result, ...)` now does `send_update(PanelComponent, action: :rescan)`.
+15. **Router requirement** — ArtifactPlug must be mounted outside `pipe_through :browser` to avoid CSRF and x-frame-options conflicts with sandboxed iframes.
 
 ### Phase 5: Code Sandbox
 
@@ -372,9 +385,10 @@ Connect the sandbox to the artifact system.
 
 ### Phase 7: Polish
 
-21. **Inline artifact indicators** — when a `content_block` renders an artifact tool use, show a richer UI (artifact name, type icon, preview thumbnail) instead of raw JSON.
-22. **Error handling** — graceful handling of disk errors, missing files, sandbox crashes.
-23. **Documentation** — developer-facing docs for setting up artifacts and sandbox.
+21. **Inline artifact indicators** — when a `content_block` renders an artifact tool use, show a richer UI (artifact name, type icon, preview thumbnail) instead of raw JSON. This is the broader question of custom components per tool type — may be a rabbit hole, scope carefully.
+22. **Panel visibility toggle** — the panel is currently always visible. Decide on: `@artifacts_open` boolean, toggle button, and auto-open behaviour (auto-open on first artifact creation vs manual-only vs notification badge). See Open Question #3.
+23. **Error handling** — graceful handling of disk errors, missing files, sandbox crashes.
+24. **Documentation** — developer-facing docs for setting up artifacts and sandbox. Must include the router requirement (ArtifactPlug outside `:browser` pipeline).
 
 ---
 

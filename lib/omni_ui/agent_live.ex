@@ -10,7 +10,7 @@ defmodule OmniUI.AgentLive do
   def render(assigns) do
     ~H"""
     <div class="relative size-full flex">
-      <div class="h-full w-full">
+      <div class="h-full w-1/2">
         <.chat_interface>
           <.message_list id="turns" phx-update="stream">
             <.live_component
@@ -47,10 +47,12 @@ defmodule OmniUI.AgentLive do
         </.chat_interface>
       </div>
 
-      <!-- TODO : artifacts button -->
-
-      <div class="h-full hidden">
-        <!-- TODO : artifacts panel -->
+      <div class="h-full w-1/2 p-4 bg-omni-bg-1 border-l border-omni-border-2">
+        <.live_component
+          module={OmniUI.Artifacts.PanelComponent}
+          id="artifacts-panel"
+          session_id={@session_id}
+        />
       </div>
     </div>
     """
@@ -64,7 +66,7 @@ defmodule OmniUI.AgentLive do
 
     socket =
       socket
-      |> assign(session_id: nil, model_options: models, artifacts: %{})
+      |> assign(session_id: nil, model_options: models)
       |> start_agent(model: @default_model)
 
     {:ok, socket}
@@ -87,10 +89,7 @@ defmodule OmniUI.AgentLive do
 
           socket =
             socket
-            |> assign(
-              session_id: session_id,
-              artifacts: scan_artifacts(session_id)
-            )
+            |> assign(session_id: session_id)
             |> update_agent(tree: tree, model: model, thinking: thinking, tools: [tool])
 
           {:noreply, socket}
@@ -111,7 +110,7 @@ defmodule OmniUI.AgentLive do
 
       socket =
         socket
-        |> assign(session_id: session_id, artifacts: %{})
+        |> assign(session_id: session_id)
         |> update_agent(tools: [tool])
         |> push_patch(to: "/?session_id=#{session_id}", replace: true)
 
@@ -123,7 +122,8 @@ defmodule OmniUI.AgentLive do
 
   @impl OmniUI
   def agent_event(:tool_result, %{name: "artifacts"}, socket) do
-    assign(socket, :artifacts, scan_artifacts(socket.assigns.session_id))
+    send_update(OmniUI.Artifacts.PanelComponent, id: "artifacts-panel", action: :rescan)
+    socket
   end
 
   def agent_event(:done, _response, socket) do
@@ -139,10 +139,5 @@ defmodule OmniUI.AgentLive do
 
   defp generate_session_id do
     :crypto.strong_rand_bytes(12) |> Base.url_encode64(padding: false)
-  end
-
-  defp scan_artifacts(session_id) do
-    {:ok, artifacts} = OmniUI.Artifacts.FileSystem.list(session_id: session_id)
-    Map.new(artifacts, &{&1.filename, &1})
   end
 end
