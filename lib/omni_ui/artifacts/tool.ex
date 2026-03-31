@@ -7,10 +7,11 @@ defmodule OmniUI.Artifacts.Tool do
 
   ## Usage
 
-      artifacts_path = Path.join([base_path, "sessions", session_id, "artifacts"])
-      tool = OmniUI.Artifacts.Tool.new(artifacts_path)
+      tool = OmniUI.Artifacts.Tool.new(session_id: session_id)
 
   Then add the tool to the agent via `Omni.Agent.add_tools/2`.
+
+  Path resolution and configuration are handled by `OmniUI.Artifacts.FileSystem`.
   """
 
   # NOTE: When the sandbox tool is added (Phase 5), revisit this description to
@@ -74,32 +75,35 @@ defmodule OmniUI.Artifacts.Tool do
   end
 
   @impl Omni.Tool
-  def init(dir), do: dir
+  def init(opts) do
+    _session_id = Keyword.fetch!(opts, :session_id)
+    opts
+  end
 
   @impl Omni.Tool
-  def call(%{command: "write", filename: filename, content: content}, dir) do
-    case FileSystem.write(dir, filename, content) do
+  def call(%{command: "write", filename: filename, content: content}, opts) do
+    case FileSystem.write(filename, content, opts) do
       {:ok, artifact} -> "Wrote #{filename} (#{artifact.size} bytes)"
       {:error, reason} -> raise reason
     end
   end
 
-  def call(%{command: "patch", filename: filename, search: search, replace: replace}, dir) do
-    case FileSystem.patch(dir, filename, search, replace) do
+  def call(%{command: "patch", filename: filename, search: search, replace: replace}, opts) do
+    case FileSystem.patch(filename, search, replace, opts) do
       {:ok, artifact} -> "Patched #{filename} (#{artifact.size} bytes)"
       {:error, reason} -> raise reason
     end
   end
 
-  def call(%{command: "get", filename: filename}, dir) do
-    case FileSystem.read(dir, filename) do
+  def call(%{command: "get", filename: filename}, opts) do
+    case FileSystem.read(filename, opts) do
       {:ok, content} -> content
       {:error, reason} -> raise reason
     end
   end
 
-  def call(%{command: "list"}, dir) do
-    {:ok, artifacts} = FileSystem.list(dir)
+  def call(%{command: "list"}, opts) do
+    {:ok, artifacts} = FileSystem.list(opts)
 
     case artifacts do
       [] ->
@@ -112,8 +116,8 @@ defmodule OmniUI.Artifacts.Tool do
     end
   end
 
-  def call(%{command: "delete", filename: filename}, dir) do
-    case FileSystem.delete(dir, filename) do
+  def call(%{command: "delete", filename: filename}, opts) do
+    case FileSystem.delete(filename, opts) do
       :ok -> "Deleted #{filename}"
       {:error, reason} -> raise reason
     end

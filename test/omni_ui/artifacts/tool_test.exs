@@ -1,20 +1,23 @@
 defmodule OmniUI.Artifacts.ToolTest do
   use ExUnit.Case, async: true
 
-  alias OmniUI.Artifacts.Tool
+  alias OmniUI.Artifacts.{FileSystem, Tool}
 
   @moduletag :tmp_dir
 
-  defp dir(%{tmp_dir: tmp_dir}), do: Path.join(tmp_dir, "artifacts")
+  defp tool_opts(%{tmp_dir: tmp_dir}), do: [session_id: "test", base_path: tmp_dir]
+
+  defp dir(%{tmp_dir: tmp_dir}),
+    do: FileSystem.artifacts_dir(session_id: "test", base_path: tmp_dir)
 
   defp call(ctx, input) do
-    tool = Tool.new(dir(ctx))
+    tool = Tool.new(tool_opts(ctx))
     tool.handler.(input)
   end
 
   describe "schema/0" do
     test "returns a valid schema map" do
-      tool = Tool.new("/tmp/unused")
+      tool = Tool.new(session_id: "unused", base_path: "/tmp")
 
       assert %{type: "object", properties: props, required: [:command]} = tool.input_schema
       assert %{enum: ["write", "patch", "get", "list", "delete"]} = props.command

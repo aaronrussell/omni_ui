@@ -22,7 +22,7 @@ A file created by the agent, persisted in the session. Examples: HTML pages, dat
 ```
 
 - Artifact **content** lives on disk (not in assigns).
-- Artifact **metadata** lives in assigns as `%{filename => %Artifact{}}` — a lightweight cached view of what's on disk.
+- Artifact **metadata** lives in assigns as `%{filename => %Artifact{}}` — a lightweight cached view of what's on disk. Owned by `AgentLive`, not the macro.
 - Metadata is **recovered by scanning** the session's artifacts directory on load. No separate metadata persistence needed.
 - `mime_type` is derived from the file extension via the `mime` library (transitive dep via `plug`). Unknown extensions fall back to `"application/octet-stream"` — rendering falls back to download mode.
 - `new/1` auto-derives `mime_type` from `filename` and defaults `updated_at` to now if not provided.
@@ -60,13 +60,13 @@ A single Omni tool (`OmniUI.Artifacts.Tool`) with a `command` discriminator. The
 
 **`patch`** is a targeted find-replace edit. More token-efficient than `write` for small changes to large files. Replaces only the first occurrence. The tool description strongly encourages the agent to prefer `patch` over `write` for edits.
 
-Implemented as a **stateful Omni tool module** — `init/1` receives the session's artifacts directory path, `call/2` performs filesystem operations and returns text results. Errors raise (caught by `Omni.Tool.Runner`, returned to the agent with `is_error: true`).
+Implemented as a **stateful Omni tool module** — `init/1` receives a keyword list (must include `:session_id`), validates it, and passes it through as state. `call/2` delegates to `OmniUI.Artifacts.FileSystem` functions, passing the opts through. Errors raise (caught by `Omni.Tool.Runner`, returned to the agent with `is_error: true`).
 
 The tool description includes structured guidance on commands, "prefer patch over write" directive, filename rules, and HTML artifact best practices (self-contained, CDN imports, explicit backgrounds).
 
 ```elixir
 # Created when session_id is known:
-tool = OmniUI.Artifacts.Tool.new(artifacts_path)
+tool = OmniUI.Artifacts.Tool.new(session_id: session_id)
 ```
 
 ### HTTP Serving (ArtifactPlug)
@@ -74,7 +74,7 @@ tool = OmniUI.Artifacts.Tool.new(artifacts_path)
 `OmniUI.Artifacts.Plug` serves artifact files over HTTP. The developer mounts it in their router:
 
 ```elixir
-forward "/omni_artifacts", OmniUI.Artifacts.Plug, base_path: "priv/omni/sessions"
+forward "/omni_artifacts", OmniUI.Artifacts.Plug
 ```
 
 Routes:
@@ -83,8 +83,10 @@ Routes:
 GET /omni_artifacts/{session_id}/{filename}
 ```
 
+The Plug uses `OmniUI.Artifacts.FileSystem.artifacts_dir/1` to resolve the file path from the session_id in the URL. It shares the same base path configuration as the rest of the artifact system (`config :omni_ui, OmniUI.Artifacts, base_path: "..."`).
+
 The Plug:
-- Reads the file from disk
+- Resolves the artifacts directory via `FileSystem.artifacts_dir(session_id: session_id)`
 - Sets `Content-Type` from `MIME.from_path/1`
 - Sets `Content-Disposition: attachment` for binary types (triggers download in browser)
 - Returns 404 for missing files
@@ -235,19 +237,19 @@ This is a personal-use tool, not a secure multi-tenant sandbox. Documented as: *
 
 OmniUI does not auto-register any tools. The developer explicitly adds tools in their LiveView callbacks — some tools may go in `mount/3` (if they don't need session context), others in `handle_params/3` (if they depend on session_id or URL params).
 
-Artifact and sandbox tools need the session's filesystem path, which depends on `session_id`. Since `session_id` comes from `handle_params`, these tools are added there:
+Artifact and sandbox tools need a `session_id`, which comes from `handle_params`. The tools are created there:
 
 **Flow:**
 
-1. `mount/3` — `start_agent(socket, model: model)` with any session-independent tools
-2. `handle_params/3` — session_id is determined. Create artifact/sandbox tools with the correct path. Add them to the agent via `Omni.Agent.add_tools/2`.
-3. Session switch (new `handle_params`) — remove old tools, add new ones with the updated path.
+1. `mount/3` — `start_agent(socket, model: model)` with any session-independent tools. Assigns `artifacts: %{}`.
+2. `handle_params/3` — session_id is determined. Create artifact/sandbox tools with `Tool.new(session_id: session_id)`. Replace all tools via `update_agent(socket, tools: [tool])`. Scan for existing artifacts on session load.
+3. Session switch (new `handle_params`) — replace all tools with new session_id. Rescan artifacts.
 
 The agent doesn't have artifact/sandbox tools until `handle_params` runs. In practice this is fine — the user can't submit a message until the page is connected and `handle_params` has executed.
 
 **Syncing assigns after tool execution:**
 
-The tool handlers run in the Agent process (not the LiveView process). When a tool executes, the LiveView receives an `{:agent, pid, :tool_result, result}` event. OmniUI's handler checks the tool name: if it's the artifacts or sandbox tool, it rescans the artifacts directory to update `@artifacts`.
+The tool handlers run in the Agent process (not the LiveView process). When a tool executes, the LiveView receives an `{:agent, pid, :tool_result, result}` event. `AgentLive`'s `agent_event(:tool_result, %{name: "artifacts"}, socket)` callback matches on the tool name and rescans the artifacts directory to update `@artifacts`. This lives in `AgentLive`, not in the macro or Handlers — tooling is not baked into the shared infrastructure.
 
 ---
 
@@ -274,6 +276,7 @@ The tool handlers run in the Agent process (not the LiveView process). When a to
 - Sandbox state persistence between executions
 - Artifact collaboration / real-time sync
 - Macro-managed tool registration (developer manages all tools explicitly)
+- Scope-aware artifact paths (use separate `base_path` per tenant instead)
 
 ---
 
@@ -284,27 +287,29 @@ The tool handlers run in the Agent process (not the LiveView process). When a to
 Artifact data structures, filesystem operations, and Omni tool. No UI or agent wiring.
 
 1. **`OmniUI.Artifacts.Artifact` struct** — `filename`, `mime_type`, `size`, `updated_at`. `new/1` auto-derives `mime_type` and `updated_at`; `new/2` builds from filename + `File.Stat`.
-2. **`OmniUI.Artifacts.FileSystem` module** — filesystem operations:
-   - `write(dir, filename, content)` — write file (mkdir_p if needed), return `{:ok, %Artifact{}}`
-   - `read(dir, filename)` — read file content
-   - `patch(dir, filename, search, replace)` — find-replace (first occurrence only)
-   - `list(dir)` — scan directory, return sorted `[%Artifact{}]` (ignores dotfiles/subdirs)
-   - `delete(dir, filename)` — remove file
+2. **`OmniUI.Artifacts.FileSystem` module** — filesystem operations with path resolution:
+   - `artifacts_dir(opts)` — resolves `{base_path}/{session_id}/artifacts/` from opts, app config, or default
+   - `write(filename, content, opts)` — write file (mkdir_p if needed), return `{:ok, %Artifact{}}`
+   - `read(filename, opts)` — read file content
+   - `patch(filename, search, replace, opts)` — find-replace (first occurrence only)
+   - `list(opts)` — scan directory, return sorted `[%Artifact{}]` (ignores dotfiles/subdirs)
+   - `delete(filename, opts)` — remove file
+   - All functions accept `opts` keyword list as final argument with required `:session_id` and optional `:base_path`
    - Filename validation (reject `/`, `\`, `..`, null bytes, dotfiles, empty)
+   - Configuration: `config :omni_ui, OmniUI.Artifacts, base_path: "..."` (defaults to `priv/omni/sessions`, same as `Store.Filesystem`)
 3. **`OmniUI.Artifacts.Tool` module** — Omni tool (stateful):
    - Flat schema: `command`, `filename`, `content`, `search`, `replace`
-   - `init/1` receives artifacts directory path
-   - `call/2` dispatches on command, delegates to FileSystem, raises on errors
+   - `init/1` receives keyword opts (validates `:session_id`, passes through as state)
+   - `call/2` dispatches on command, delegates to FileSystem (passing opts through), raises on errors
    - Detailed tool description with "prefer patch over write" guidance and HTML artifact best practices
 
-### Phase 2: Artifact Wiring
+### Phase 2: Artifact Wiring ✓
 
 Connect the artifact tool to the agent lifecycle and keep assigns in sync.
 
-4. **Tool lifecycle helpers** — functions to create artifact (and later sandbox) tools with the correct session path. Called from `handle_params`.
-5. **`handle_params` integration** — add tools when session_id is known, update on session change. Initially in `AgentLive`; later consider whether the macro should handle this.
-6. **Artifact sync in Handlers** — when `:tool_result` fires for the artifacts tool, rescan the artifacts directory and update `@artifacts` assign.
-7. **Session load** — scan the artifacts directory when loading an existing session, populate `@artifacts`.
+4. **`handle_params` integration in `AgentLive`** — create tool with `Tool.new(session_id: session_id)` when session_id is known. Replace all tools via `update_agent(socket, tools: [tool])`. On session switch, replace tools with new session_id.
+5. **Session load** — scan the artifacts directory when loading an existing session via `FileSystem.list(session_id: session_id)`, populate `@artifacts` assign (a `%{filename => %Artifact{}}` map).
+6. **Artifact sync in `AgentLive.agent_event/3`** — `agent_event(:tool_result, %{name: "artifacts"}, socket)` rescans the artifacts directory and updates `@artifacts`. Lives in AgentLive, not in Handlers or the macro — tooling is application-level, not framework-level.
 
 ### Phase 3: Artifact Serving
 
@@ -361,20 +366,15 @@ Connect the sandbox to the artifact system.
 
 ## Open Questions
 
-To be resolved during implementation:
+### 1. Artifact base path configuration ✓ (Resolved)
 
-### 1. Artifact base path configuration
+**Decision:** Independent config on `OmniUI.Artifacts` with the same default as `Store.Filesystem`:
 
-Currently proposed: derive from `Store.Filesystem`'s configured `base_path`, adding `/artifacts` under each session directory. This co-locates artifacts with session data, which is clean.
+```elixir
+config :omni_ui, OmniUI.Artifacts, base_path: "/custom/path"
+```
 
-But this couples the artifact system to the filesystem adapter's path convention. If a developer uses a custom store adapter, or wants artifacts stored elsewhere, this doesn't work.
-
-Options:
-- **A.** Follow Store.Filesystem config (simple, co-located, coupled)
-- **B.** Independent config: `config :omni_ui, OmniUI.Artifacts, base_path: "..."` (flexible, separate)
-- **C.** Pass as option when creating the tool (explicit, per-LiveView)
-
-Leaning toward **A** as default with **B** as override. Since the developer creates the tool explicitly and passes the path to `new/1`, they have full control regardless.
+Defaults to `priv/omni/sessions`. Path resolution lives in `OmniUI.Artifacts.FileSystem.artifacts_dir/1`, which all FileSystem functions and the Plug use internally. The developer can also pass `:base_path` at runtime in opts. This decouples artifacts from the Store adapter while co-locating by default.
 
 ### 2. Sandbox result format
 
@@ -387,3 +387,17 @@ Whether the artifact panel opens automatically when the first artifact is create
 ### 4. Inline artifact indicators
 
 Whether `content_block/1` should render artifact tool uses differently from generic tool uses (eg show artifact name, type icon, "View" button). Deferred to Phase 7 polish — the default tool use rendering works as a starting point.
+
+### 5. Artifact Plug URL prefix ✓ (Resolved)
+
+**Decision:** Configurable on the same `OmniUI.Artifacts` config key, with a convention-based default:
+
+```elixir
+config :omni_ui, OmniUI.Artifacts, url_prefix: "/omni_artifacts"
+```
+
+Components read `url_prefix` from config when building iframe `src` URLs. Zero-config works if the developer follows the documented convention of mounting the Plug at `/omni_artifacts`.
+
+### 6. Scope support ✓ (Resolved)
+
+**Decision:** Not supported in the artifact system for now. If a developer uses scope for multi-tenancy, they can configure a different `base_path` per tenant. Scope can be revisited as a first-class concern later if real demand shows up.

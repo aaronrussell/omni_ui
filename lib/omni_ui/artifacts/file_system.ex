@@ -2,19 +2,48 @@ defmodule OmniUI.Artifacts.FileSystem do
   @moduledoc """
   Filesystem operations for session artifacts.
 
-  All functions take `dir` (the artifacts directory path) as the first argument.
-  Filenames are validated to prevent directory traversal and other unsafe paths.
+  All functions accept an `opts` keyword list as the final argument with:
+
+    * `:session_id` (required) — the session identifier
+    * `:base_path` — override base path (default: app config or `priv/omni/sessions`)
+
+  The full artifacts directory is resolved as `{base_path}/{session_id}/artifacts/`.
+
+  ## Configuration
+
+  The base path defaults to `priv/omni/sessions` within the `:omni_ui`
+  application directory (the same default as `OmniUI.Store.Filesystem`).
+  Override with:
+
+      config :omni_ui, OmniUI.Artifacts, base_path: "/custom/path"
   """
 
   alias OmniUI.Artifacts.Artifact
+
+  @doc """
+  Returns the resolved artifacts directory path for a session.
+
+  ## Options
+
+    * `:session_id` (required) — the session identifier
+    * `:base_path` — override base path (default: app config or `priv/omni/sessions`)
+  """
+  @spec artifacts_dir(keyword()) :: String.t()
+  def artifacts_dir(opts) do
+    session_id = Keyword.fetch!(opts, :session_id)
+    base = base_path(opts)
+    Path.join([base, session_id, "artifacts"])
+  end
 
   @doc """
   Writes content to an artifact file (upsert).
 
   Creates the artifacts directory if it doesn't exist.
   """
-  @spec write(String.t(), String.t(), String.t()) :: {:ok, Artifact.t()} | {:error, String.t()}
-  def write(dir, filename, content) do
+  @spec write(String.t(), String.t(), keyword()) :: {:ok, Artifact.t()} | {:error, String.t()}
+  def write(filename, content, opts) do
+    dir = artifacts_dir(opts)
+
     with :ok <- validate_filename(filename),
          :ok <- File.mkdir_p(dir),
          :ok <- File.write(Path.join(dir, filename), content) do
@@ -26,8 +55,10 @@ defmodule OmniUI.Artifacts.FileSystem do
   end
 
   @doc "Reads the content of an artifact file."
-  @spec read(String.t(), String.t()) :: {:ok, binary()} | {:error, String.t()}
-  def read(dir, filename) do
+  @spec read(String.t(), keyword()) :: {:ok, binary()} | {:error, String.t()}
+  def read(filename, opts) do
+    dir = artifacts_dir(opts)
+
     with :ok <- validate_filename(filename) do
       case File.read(Path.join(dir, filename)) do
         {:ok, _content} = ok -> ok
@@ -43,14 +74,16 @@ defmodule OmniUI.Artifacts.FileSystem do
   Replaces only the first occurrence of `search`. Returns an error if the
   search string is not found in the file.
   """
-  @spec patch(String.t(), String.t(), String.t(), String.t()) ::
+  @spec patch(String.t(), String.t(), String.t(), keyword()) ::
           {:ok, Artifact.t()} | {:error, String.t()}
-  def patch(dir, filename, search, replace) do
+  def patch(filename, search, replace, opts) do
+    dir = artifacts_dir(opts)
+
     with :ok <- validate_filename(filename),
-         {:ok, content} <- read(dir, filename) do
+         {:ok, content} <- read_file(dir, filename) do
       if String.contains?(content, search) do
         updated = String.replace(content, search, replace, global: false)
-        write(dir, filename, updated)
+        write_file(dir, filename, updated)
       else
         {:error, "search string not found in #{filename}"}
       end
@@ -63,8 +96,10 @@ defmodule OmniUI.Artifacts.FileSystem do
   Ignores dotfiles and subdirectories. Returns `{:ok, []}` if the directory
   doesn't exist yet.
   """
-  @spec list(String.t()) :: {:ok, [Artifact.t()]}
-  def list(dir) do
+  @spec list(keyword()) :: {:ok, [Artifact.t()]}
+  def list(opts) do
+    dir = artifacts_dir(opts)
+
     case File.ls(dir) do
       {:ok, entries} ->
         artifacts =
@@ -87,14 +122,50 @@ defmodule OmniUI.Artifacts.FileSystem do
   end
 
   @doc "Deletes an artifact file."
-  @spec delete(String.t(), String.t()) :: :ok | {:error, String.t()}
-  def delete(dir, filename) do
+  @spec delete(String.t(), keyword()) :: :ok | {:error, String.t()}
+  def delete(filename, opts) do
+    dir = artifacts_dir(opts)
+
     with :ok <- validate_filename(filename) do
       case File.rm(Path.join(dir, filename)) do
         :ok -> :ok
         {:error, :enoent} -> {:error, "artifact not found: #{filename}"}
         {:error, posix} -> {:error, "failed to delete #{filename}: #{posix}"}
       end
+    end
+  end
+
+  # ── Private ────────────────────────────────────────────────────────
+
+  # Direct file operations used internally by patch to avoid
+  # double path resolution.
+
+  defp read_file(dir, filename) do
+    case File.read(Path.join(dir, filename)) do
+      {:ok, _content} = ok -> ok
+      {:error, :enoent} -> {:error, "artifact not found: #{filename}"}
+      {:error, posix} -> {:error, "failed to read #{filename}: #{posix}"}
+    end
+  end
+
+  defp write_file(dir, filename, content) do
+    case File.write(Path.join(dir, filename), content) do
+      :ok -> {:ok, Artifact.new(filename: filename, size: byte_size(content))}
+      {:error, posix} -> {:error, "failed to write #{filename}: #{posix}"}
+    end
+  end
+
+  defp base_path(opts) do
+    Keyword.get_lazy(opts, :base_path, fn ->
+      Application.get_env(:omni_ui, OmniUI.Artifacts, [])
+      |> Keyword.get(:base_path, default_base_path())
+    end)
+  end
+
+  defp default_base_path do
+    case :code.priv_dir(:omni_ui) do
+      {:error, :bad_name} -> Path.join("priv", "omni/sessions")
+      dir -> Path.join(to_string(dir), "omni/sessions")
     end
   end
 

@@ -64,7 +64,7 @@ defmodule OmniUI.AgentLive do
 
     socket =
       socket
-      |> assign(session_id: nil, model_options: models)
+      |> assign(session_id: nil, model_options: models, artifacts: %{})
       |> start_agent(model: @default_model)
 
     {:ok, socket}
@@ -83,11 +83,15 @@ defmodule OmniUI.AgentLive do
         {:ok, tree, metadata} ->
           model = Keyword.get(metadata, :model, @default_model)
           thinking = Keyword.get(metadata, :thinking, false)
+          tool = OmniUI.Artifacts.Tool.new(session_id: session_id)
 
           socket =
             socket
-            |> assign(session_id: session_id)
-            |> update_agent(tree: tree, model: model, thinking: thinking)
+            |> assign(
+              session_id: session_id,
+              artifacts: scan_artifacts(session_id)
+            )
+            |> update_agent(tree: tree, model: model, thinking: thinking, tools: [tool])
 
           {:noreply, socket}
 
@@ -103,10 +107,12 @@ defmodule OmniUI.AgentLive do
   def handle_params(_params, _uri, socket) do
     if connected?(socket) do
       session_id = generate_session_id()
+      tool = OmniUI.Artifacts.Tool.new(session_id: session_id)
 
       socket =
         socket
-        |> assign(session_id: session_id)
+        |> assign(session_id: session_id, artifacts: %{})
+        |> update_agent(tools: [tool])
         |> push_patch(to: "/?session_id=#{session_id}", replace: true)
 
       {:noreply, socket}
@@ -116,6 +122,10 @@ defmodule OmniUI.AgentLive do
   end
 
   @impl OmniUI
+  def agent_event(:tool_result, %{name: "artifacts"}, socket) do
+    assign(socket, :artifacts, scan_artifacts(socket.assigns.session_id))
+  end
+
   def agent_event(:done, _response, socket) do
     %{session_id: session_id, tree: tree, model: model, thinking: thinking} = socket.assigns
 
@@ -129,5 +139,10 @@ defmodule OmniUI.AgentLive do
 
   defp generate_session_id do
     :crypto.strong_rand_bytes(12) |> Base.url_encode64(padding: false)
+  end
+
+  defp scan_artifacts(session_id) do
+    {:ok, artifacts} = OmniUI.Artifacts.FileSystem.list(session_id: session_id)
+    Map.new(artifacts, &{&1.filename, &1})
   end
 end

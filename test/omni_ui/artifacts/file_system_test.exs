@@ -5,160 +5,168 @@ defmodule OmniUI.Artifacts.FileSystemTest do
 
   @moduletag :tmp_dir
 
-  defp dir(%{tmp_dir: tmp_dir}), do: Path.join(tmp_dir, "artifacts")
+  defp opts(%{tmp_dir: tmp_dir}), do: [session_id: "test", base_path: tmp_dir]
+  defp dir(%{tmp_dir: tmp_dir}), do: Path.join([tmp_dir, "test", "artifacts"])
+
+  describe "artifacts_dir/1" do
+    test "builds path from session_id and base_path" do
+      assert FileSystem.artifacts_dir(session_id: "abc123", base_path: "/data/sessions") ==
+               "/data/sessions/abc123/artifacts"
+    end
+
+    test "requires session_id" do
+      assert_raise KeyError, ~r/:session_id/, fn ->
+        FileSystem.artifacts_dir(base_path: "/tmp")
+      end
+    end
+
+    test "falls back to default base_path when not provided" do
+      dir = FileSystem.artifacts_dir(session_id: "test")
+      assert dir =~ "omni/sessions/test/artifacts"
+    end
+  end
 
   describe "write/3" do
     test "creates file and returns artifact", ctx do
-      dir = dir(ctx)
-
-      assert {:ok, %Artifact{} = artifact} = FileSystem.write(dir, "report.html", "<h1>Hi</h1>")
+      assert {:ok, %Artifact{} = artifact} =
+               FileSystem.write("report.html", "<h1>Hi</h1>", opts(ctx))
 
       assert artifact.filename == "report.html"
       assert artifact.mime_type == "text/html"
       assert artifact.size == byte_size("<h1>Hi</h1>")
       assert %DateTime{} = artifact.updated_at
-      assert File.read!(Path.join(dir, "report.html")) == "<h1>Hi</h1>"
+      assert File.read!(Path.join(dir(ctx), "report.html")) == "<h1>Hi</h1>"
     end
 
     test "creates directory if it doesn't exist", ctx do
-      dir = Path.join(dir(ctx), "nested")
+      dir = dir(ctx)
       refute File.dir?(dir)
 
-      assert {:ok, _} = FileSystem.write(dir, "test.txt", "hello")
+      assert {:ok, _} = FileSystem.write("test.txt", "hello", opts(ctx))
       assert File.dir?(dir)
     end
 
     test "upserts — overwrites existing file", ctx do
-      dir = dir(ctx)
-
-      assert {:ok, _} = FileSystem.write(dir, "data.json", ~s({"v":1}))
-      assert {:ok, artifact} = FileSystem.write(dir, "data.json", ~s({"v":2}))
+      assert {:ok, _} = FileSystem.write("data.json", ~s({"v":1}), opts(ctx))
+      assert {:ok, artifact} = FileSystem.write("data.json", ~s({"v":2}), opts(ctx))
 
       assert artifact.size == byte_size(~s({"v":2}))
-      assert File.read!(Path.join(dir, "data.json")) == ~s({"v":2})
+      assert File.read!(Path.join(dir(ctx), "data.json")) == ~s({"v":2})
     end
   end
 
   describe "read/2" do
     test "returns file content", ctx do
-      dir = dir(ctx)
-      FileSystem.write(dir, "hello.txt", "world")
+      FileSystem.write("hello.txt", "world", opts(ctx))
 
-      assert {:ok, "world"} = FileSystem.read(dir, "hello.txt")
+      assert {:ok, "world"} = FileSystem.read("hello.txt", opts(ctx))
     end
 
     test "error on missing file", ctx do
-      assert {:error, "artifact not found: nope.txt"} = FileSystem.read(dir(ctx), "nope.txt")
+      assert {:error, "artifact not found: nope.txt"} = FileSystem.read("nope.txt", opts(ctx))
     end
   end
 
   describe "patch/4" do
     test "replaces search string and returns updated artifact", ctx do
-      dir = dir(ctx)
-      FileSystem.write(dir, "page.html", "<h1>Old Title</h1><p>content</p>")
+      FileSystem.write("page.html", "<h1>Old Title</h1><p>content</p>", opts(ctx))
 
       assert {:ok, %Artifact{} = artifact} =
-               FileSystem.patch(dir, "page.html", "Old Title", "New Title")
+               FileSystem.patch("page.html", "Old Title", "New Title", opts(ctx))
 
       assert artifact.filename == "page.html"
-      assert File.read!(Path.join(dir, "page.html")) == "<h1>New Title</h1><p>content</p>"
+      assert File.read!(Path.join(dir(ctx), "page.html")) == "<h1>New Title</h1><p>content</p>"
     end
 
     test "replaces only the first occurrence", ctx do
-      dir = dir(ctx)
-      FileSystem.write(dir, "data.txt", "aaa")
+      FileSystem.write("data.txt", "aaa", opts(ctx))
 
-      assert {:ok, _} = FileSystem.patch(dir, "data.txt", "a", "b")
-      assert File.read!(Path.join(dir, "data.txt")) == "baa"
+      assert {:ok, _} = FileSystem.patch("data.txt", "a", "b", opts(ctx))
+      assert File.read!(Path.join(dir(ctx), "data.txt")) == "baa"
     end
 
     test "error when search string not found", ctx do
-      dir = dir(ctx)
-      FileSystem.write(dir, "file.txt", "hello world")
+      FileSystem.write("file.txt", "hello world", opts(ctx))
 
       assert {:error, "search string not found in file.txt"} =
-               FileSystem.patch(dir, "file.txt", "missing", "replacement")
+               FileSystem.patch("file.txt", "missing", "replacement", opts(ctx))
     end
 
     test "error on missing file", ctx do
       assert {:error, "artifact not found: nope.txt"} =
-               FileSystem.patch(dir(ctx), "nope.txt", "a", "b")
+               FileSystem.patch("nope.txt", "a", "b", opts(ctx))
     end
   end
 
   describe "list/1" do
     test "returns artifacts sorted by filename", ctx do
-      dir = dir(ctx)
-      FileSystem.write(dir, "b.json", "{}")
-      FileSystem.write(dir, "a.html", "<h1>hi</h1>")
+      FileSystem.write("b.json", "{}", opts(ctx))
+      FileSystem.write("a.html", "<h1>hi</h1>", opts(ctx))
 
       assert {:ok, [%Artifact{filename: "a.html"}, %Artifact{filename: "b.json"}]} =
-               FileSystem.list(dir)
+               FileSystem.list(opts(ctx))
     end
 
     test "ignores dotfiles", ctx do
-      dir = dir(ctx)
-      FileSystem.write(dir, "visible.txt", "yes")
-      File.write!(Path.join(dir, ".hidden"), "no")
+      FileSystem.write("visible.txt", "yes", opts(ctx))
+      File.write!(Path.join(dir(ctx), ".hidden"), "no")
 
-      assert {:ok, [%Artifact{filename: "visible.txt"}]} = FileSystem.list(dir)
+      assert {:ok, [%Artifact{filename: "visible.txt"}]} = FileSystem.list(opts(ctx))
     end
 
     test "ignores subdirectories", ctx do
-      dir = dir(ctx)
-      FileSystem.write(dir, "file.txt", "content")
-      File.mkdir_p!(Path.join(dir, "subdir"))
+      FileSystem.write("file.txt", "content", opts(ctx))
+      File.mkdir_p!(Path.join(dir(ctx), "subdir"))
 
-      assert {:ok, [%Artifact{filename: "file.txt"}]} = FileSystem.list(dir)
+      assert {:ok, [%Artifact{filename: "file.txt"}]} = FileSystem.list(opts(ctx))
     end
 
     test "returns empty list for non-existent directory", ctx do
-      assert {:ok, []} = FileSystem.list(Path.join(ctx.tmp_dir, "nope"))
+      assert {:ok, []} = FileSystem.list(session_id: "nonexistent", base_path: ctx.tmp_dir)
     end
   end
 
   describe "delete/2" do
     test "removes the file", ctx do
-      dir = dir(ctx)
-      FileSystem.write(dir, "temp.txt", "gone soon")
+      FileSystem.write("temp.txt", "gone soon", opts(ctx))
 
-      assert :ok = FileSystem.delete(dir, "temp.txt")
-      refute File.exists?(Path.join(dir, "temp.txt"))
+      assert :ok = FileSystem.delete("temp.txt", opts(ctx))
+      refute File.exists?(Path.join(dir(ctx), "temp.txt"))
     end
 
     test "error on missing file", ctx do
-      assert {:error, "artifact not found: nope.txt"} = FileSystem.delete(dir(ctx), "nope.txt")
+      assert {:error, "artifact not found: nope.txt"} = FileSystem.delete("nope.txt", opts(ctx))
     end
   end
 
   describe "filename validation" do
     test "rejects empty filename", ctx do
-      assert {:error, "filename must not be empty"} = FileSystem.write(dir(ctx), "", "x")
+      assert {:error, "filename must not be empty"} = FileSystem.write("", "x", opts(ctx))
     end
 
     test "rejects path traversal", ctx do
-      assert {:error, _} = FileSystem.write(dir(ctx), "../escape.txt", "x")
-      assert {:error, _} = FileSystem.read(dir(ctx), "../../etc/passwd")
+      assert {:error, _} = FileSystem.write("../escape.txt", "x", opts(ctx))
+      assert {:error, _} = FileSystem.read("../../etc/passwd", opts(ctx))
     end
 
     test "rejects forward slashes", ctx do
       assert {:error, "filename must not contain path separators"} =
-               FileSystem.write(dir(ctx), "sub/file.txt", "x")
+               FileSystem.write("sub/file.txt", "x", opts(ctx))
     end
 
     test "rejects backslashes", ctx do
       assert {:error, "filename must not contain path separators"} =
-               FileSystem.write(dir(ctx), "sub\\file.txt", "x")
+               FileSystem.write("sub\\file.txt", "x", opts(ctx))
     end
 
     test "rejects null bytes", ctx do
       assert {:error, "filename must not contain null bytes"} =
-               FileSystem.write(dir(ctx), "file\0.txt", "x")
+               FileSystem.write("file\0.txt", "x", opts(ctx))
     end
 
     test "rejects dotfiles", ctx do
       assert {:error, "filename must not start with '.'"} =
-               FileSystem.write(dir(ctx), ".secret", "x")
+               FileSystem.write(".secret", "x", opts(ctx))
     end
   end
 end
