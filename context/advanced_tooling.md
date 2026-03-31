@@ -14,17 +14,18 @@ A file created by the agent, persisted in the session. Examples: HTML pages, dat
 
 ```elixir
 %OmniUI.Artifacts.Artifact{
-  id: String.t(),            # Filename (eg "report.html", "data.json")
-  type: String.t(),          # Freeform, derived from file extension
-  size: non_neg_integer(),   # File size in bytes
-  updated_at: DateTime.t()   # From File.stat mtime
+  filename: String.t(),       # eg "report.html", "data.json"
+  mime_type: String.t(),      # Derived from extension via MIME library
+  size: non_neg_integer(),    # File size in bytes
+  updated_at: DateTime.t()    # From File.stat mtime, or DateTime.utc_now() on write
 }
 ```
 
 - Artifact **content** lives on disk (not in assigns).
-- Artifact **metadata** lives in assigns as `%{id => %Artifact{}}` — a lightweight cached view of what's on disk.
+- Artifact **metadata** lives in assigns as `%{filename => %Artifact{}}` — a lightweight cached view of what's on disk.
 - Metadata is **recovered by scanning** the session's artifacts directory on load. No separate metadata persistence needed.
-- The `type` is freeform and derived from the file extension (`.html` -> `"html"`, `.jsx` -> `"jsx"`, `.xlsx` -> `"xlsx"`). Unknown types are fine — rendering falls back to download mode.
+- `mime_type` is derived from the file extension via the `mime` library (transitive dep via `plug`). Unknown extensions fall back to `"application/octet-stream"` — rendering falls back to download mode.
+- `new/1` auto-derives `mime_type` from `filename` and defaults `updated_at` to now if not provided.
 
 ### Filesystem Layout
 
@@ -49,17 +50,19 @@ A single Omni tool (`OmniUI.Artifacts.Tool`) with a `command` discriminator. The
 
 | Command | Params | Returns |
 |---------|--------|---------|
-| `write` | `id`, `content`, `type` (optional) | Confirmation with file size |
-| `patch` | `id`, `search`, `replace` | Confirmation, or error if search string not found |
-| `get` | `id` | File content as string |
-| `list` | (none) | List of artifact filenames with types and sizes |
-| `delete` | `id` | Confirmation |
+| `write` | `filename`, `content` | Confirmation with file size |
+| `patch` | `filename`, `search`, `replace` | Confirmation with file size, or error if search string not found |
+| `get` | `filename` | File content as string |
+| `list` | (none) | List of artifact filenames with MIME types and sizes |
+| `delete` | `filename` | Confirmation |
 
-**`write`** is an upsert — creates the file if it doesn't exist, replaces content if it does. Type is derived from the file extension unless explicitly provided.
+**`write`** is an upsert — creates the file if it doesn't exist, replaces content if it does. Creates the artifacts directory if needed.
 
-**`patch`** is a targeted find-replace edit. More token-efficient than `write` for small changes to large files. Returns an error result (not an exception) if the search string isn't found, so the agent can adjust.
+**`patch`** is a targeted find-replace edit. More token-efficient than `write` for small changes to large files. Replaces only the first occurrence. The tool description strongly encourages the agent to prefer `patch` over `write` for edits.
 
-Implemented as a **stateful Omni tool module** — `init/1` receives the session's artifacts directory path, `call/2` performs filesystem operations and returns text results.
+Implemented as a **stateful Omni tool module** — `init/1` receives the session's artifacts directory path, `call/2` performs filesystem operations and returns text results. Errors raise (caught by `Omni.Tool.Runner`, returned to the agent with `is_error: true`).
+
+The tool description includes structured guidance on commands, "prefer patch over write" directive, filename rules, and HTML artifact best practices (self-contained, CDN imports, explicit backgrounds).
 
 ```elixir
 # Created when session_id is known:
@@ -82,7 +85,7 @@ GET /omni_artifacts/{session_id}/{filename}
 
 The Plug:
 - Reads the file from disk
-- Sets `Content-Type` based on file extension
+- Sets `Content-Type` from `MIME.from_path/1`
 - Sets `Content-Disposition: attachment` for binary types (triggers download in browser)
 - Returns 404 for missing files
 - **Sanitises the filename** to prevent directory traversal (`../` attacks)
@@ -100,8 +103,8 @@ Side panel, similar to Claude's artifacts panel.
 
 | Assign | Type | Purpose |
 |--------|------|---------|
-| `@artifacts` | `%{id => %Artifact{}}` | Metadata map, recovered from disk |
-| `@active_artifact` | `String.t() \| nil` | Currently viewed artifact ID |
+| `@artifacts` | `%{filename => %Artifact{}}` | Metadata map, recovered from disk |
+| `@active_artifact` | `String.t() \| nil` | Currently viewed artifact filename |
 | `@artifacts_open` | `boolean` | Panel visibility |
 
 **Panel components:**
@@ -109,13 +112,13 @@ Side panel, similar to Claude's artifacts panel.
 - **Artifact list** — sidebar within the panel listing all artifacts by name
 - **Artifact viewer** — renders the active artifact in the appropriate mode
 
-**Rendering modes** (determined by file type):
+**Rendering modes** (determined by `mime_type`):
 
-| Mode | Types | How |
-|------|-------|-----|
-| Preview | `html`, `svg` | `<iframe src="/omni_artifacts/{session}/{file}">` with `sandbox="allow-scripts"` |
-| View | text, code, `md`, `json`, `csv`, `jsx` | Syntax-highlighted code viewer |
-| Download | `xlsx`, `pdf`, images, other binary | Download link to the Plug route (+ image preview for image types) |
+| Mode | MIME types | How |
+|------|-----------|-----|
+| Preview | `text/html`, `image/svg+xml` | `<iframe src="/omni_artifacts/{session}/{file}">` with `sandbox="allow-scripts"` |
+| View | `text/*`, `application/json`, other text-like types | Syntax-highlighted code viewer |
+| Download | `image/*`, `application/*` (binary), other | Download link to the Plug route (+ image preview for `image/*` types) |
 
 No special React/JSX rendering — JSX files are displayed as code. If the agent wants a rendered React component, it creates its own HTML artifact that loads React via CDN and references the JSX file. Cross-artifact references make this work naturally (the HTML file can load the JSX file via relative path). Native React rendering could be added later as an enhancement.
 
@@ -276,22 +279,23 @@ The tool handlers run in the Agent process (not the LiveView process). When a to
 
 ## Implementation Plan
 
-### Phase 1: Artifact Data Layer
+### Phase 1: Artifact Data Layer ✓
 
-Build the artifact data structures and filesystem operations. No UI, no agent integration yet — just the foundation that everything else builds on.
+Artifact data structures, filesystem operations, and Omni tool. No UI or agent wiring.
 
-1. **`OmniUI.Artifacts.Artifact` struct** — id, type, size, updated_at. Constructor from `File.Stat`.
+1. **`OmniUI.Artifacts.Artifact` struct** — `filename`, `mime_type`, `size`, `updated_at`. `new/1` auto-derives `mime_type` and `updated_at`; `new/2` builds from filename + `File.Stat`.
 2. **`OmniUI.Artifacts.FileSystem` module** — filesystem operations:
-   - `write(dir, id, content, opts)` — write file, return `%Artifact{}`
-   - `read(dir, id)` — read file content
-   - `patch(dir, id, search, replace)` — find-replace in file
-   - `list(dir)` — scan directory, return `[%Artifact{}]`
-   - `delete(dir, id)` — remove file
-   - Path sanitisation (reject `..`, absolute paths, null bytes)
+   - `write(dir, filename, content)` — write file (mkdir_p if needed), return `{:ok, %Artifact{}}`
+   - `read(dir, filename)` — read file content
+   - `patch(dir, filename, search, replace)` — find-replace (first occurrence only)
+   - `list(dir)` — scan directory, return sorted `[%Artifact{}]` (ignores dotfiles/subdirs)
+   - `delete(dir, filename)` — remove file
+   - Filename validation (reject `/`, `\`, `..`, null bytes, dotfiles, empty)
 3. **`OmniUI.Artifacts.Tool` module** — Omni tool (stateful):
-   - `use Omni.Tool` with schema defining the command discriminator
+   - Flat schema: `command`, `filename`, `content`, `search`, `replace`
    - `init/1` receives artifacts directory path
-   - `call/2` dispatches on command, delegates to `OmniUI.Artifacts.FileSystem`
+   - `call/2` dispatches on command, delegates to FileSystem, raises on errors
+   - Detailed tool description with "prefer patch over write" guidance and HTML artifact best practices
 
 ### Phase 2: Artifact Wiring
 
@@ -334,19 +338,24 @@ Build the execution engine and tool.
     - `call/2` delegates to `OmniUI.Sandbox.run/2`
     - Environment-aware description (check `Code.ensure_loaded?(Mix)`)
 17. **Wire into agent lifecycle** — add sandbox tool in `handle_params` alongside artifacts tool.
+18. **Update artifacts tool description** — Add "Artifacts vs Sandbox" guidance to the artifacts tool prompt, similar to Pi's "Artifacts Tool vs REPL" pattern. Key points to cover:
+    - Use artifacts tool when the agent is the author (writing notes, HTML pages, reports)
+    - Use sandbox when code processes data (scraping, CSV processing, data pipelines)
+    - The composable pattern: sandbox generates data → artifacts tool creates HTML that visualizes it
+    - Also update sandbox tool description to cross-reference artifacts
 
 ### Phase 6: Sandbox-Artifact Bridge
 
 Connect the sandbox to the artifact system.
 
-18. **Artifacts API module for sandbox** — module injected into the peer node that performs file operations on the session's artifacts directory. Mirrors the tool commands (write, get, list, patch, delete).
-19. **Artifact sync on sandbox result** — when the sandbox tool result comes back, rescan artifacts directory (same mechanism as Phase 2, step 6).
+19. **Artifacts API module for sandbox** — module injected into the peer node that performs file operations on the session's artifacts directory. Mirrors the tool commands (write, get, list, patch, delete).
+20. **Artifact sync on sandbox result** — when the sandbox tool result comes back, rescan artifacts directory (same mechanism as Phase 2, step 6).
 
 ### Phase 7: Polish
 
-20. **Inline artifact indicators** — when a `content_block` renders an artifact tool use, show a richer UI (artifact name, type icon, preview thumbnail) instead of raw JSON.
-21. **Error handling** — graceful handling of disk errors, missing files, sandbox crashes.
-22. **Documentation** — developer-facing docs for setting up artifacts and sandbox.
+21. **Inline artifact indicators** — when a `content_block` renders an artifact tool use, show a richer UI (artifact name, type icon, preview thumbnail) instead of raw JSON.
+22. **Error handling** — graceful handling of disk errors, missing files, sandbox crashes.
+23. **Documentation** — developer-facing docs for setting up artifacts and sandbox.
 
 ---
 
