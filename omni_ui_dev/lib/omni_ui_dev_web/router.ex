@@ -18,6 +18,7 @@ defmodule OmniUIDevWeb.Router do
     pipe_through :browser
 
     live "/", OmniUI.AgentLive
+    forward "/omni_artifacts", OmniUI.Artifacts.Plug
   end
 
   # Other scopes may use custom stacks.

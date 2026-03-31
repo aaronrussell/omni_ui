@@ -80,17 +80,30 @@ forward "/omni_artifacts", OmniUI.Artifacts.Plug
 Routes:
 
 ```
-GET /omni_artifacts/{session_id}/{filename}
+GET /omni_artifacts/{token}/{filename}
 ```
 
-The Plug uses `OmniUI.Artifacts.FileSystem.artifacts_dir/1` to resolve the file path from the session_id in the URL. It shares the same base path configuration as the rest of the artifact system (`config :omni_ui, OmniUI.Artifacts, base_path: "..."`).
+URLs use **signed tokens** (`Phoenix.Token`) that encode the session ID. The LiveView signs the token when building URLs; the Plug verifies it on each request. This prevents unauthorized access to other sessions' artifacts without shared state.
+
+Token signing, verification, and URL construction are centralised in `OmniUI.Artifacts.URL`:
+
+```elixir
+# In LiveView (Phase 4 components will use this):
+url = OmniUI.Artifacts.URL.artifact_url(socket.endpoint, session_id, "dashboard.html")
+# => "/omni_artifacts/SFMyNTY.../dashboard.html"
+```
+
+Cross-artifact relative paths work naturally — `dashboard.html` can load `./data.json` because both share the same token prefix in the URL.
 
 The Plug:
+- Verifies the signed token via `OmniUI.Artifacts.URL.verify_token/3` (returns 401 on failure)
 - Resolves the artifacts directory via `FileSystem.artifacts_dir(session_id: session_id)`
-- Sets `Content-Type` from `MIME.from_path/1`
-- Sets `Content-Disposition: attachment` for binary types (triggers download in browser)
-- Returns 404 for missing files
-- **Sanitises the filename** to prevent directory traversal (`../` attacks)
+- **Path containment check** — expands the resolved path and verifies it is inside the artifacts directory (prevents `../` traversal, returns 404)
+- Sets `Content-Type` from `MIME.from_path/1` (without charset suffix for binary types)
+- Sets `Content-Disposition`: `inline` for browser-renderable types (`text/*`, `image/*`, `application/json`, `application/pdf`), `attachment` for everything else
+- Sets `Cache-Control: no-store` (artifacts are mutable)
+- Serves files via `Plug.Conn.send_file/3` (zero-copy sendfile in production)
+- Returns 400 for malformed paths (not exactly two segments)
 
 **Why a Plug route instead of `srcdoc`?** Three reasons:
 1. **Cross-artifact references** — `dashboard.html` can load `data.json` via relative path `./data.json` because both are served from the same base URL.
@@ -118,7 +131,7 @@ Side panel, similar to Claude's artifacts panel.
 
 | Mode | MIME types | How |
 |------|-----------|-----|
-| Preview | `text/html`, `image/svg+xml` | `<iframe src="/omni_artifacts/{session}/{file}">` with `sandbox="allow-scripts"` |
+| Preview | `text/html`, `image/svg+xml` | `<iframe src="/omni_artifacts/{token}/{file}">` with `sandbox="allow-scripts"` |
 | View | `text/*`, `application/json`, other text-like types | Syntax-highlighted code viewer |
 | Download | `image/*`, `application/*` (binary), other | Download link to the Plug route (+ image preview for `image/*` types) |
 
@@ -311,12 +324,13 @@ Connect the artifact tool to the agent lifecycle and keep assigns in sync.
 5. **Session load** — scan the artifacts directory when loading an existing session via `FileSystem.list(session_id: session_id)`, populate `@artifacts` assign (a `%{filename => %Artifact{}}` map).
 6. **Artifact sync in `AgentLive.agent_event/3`** — `agent_event(:tool_result, %{name: "artifacts"}, socket)` rescans the artifacts directory and updates `@artifacts`. Lives in AgentLive, not in Handlers or the macro — tooling is application-level, not framework-level.
 
-### Phase 3: Artifact Serving
+### Phase 3: Artifact Serving ✓
 
 Enable HTTP access to artifacts for iframe rendering and downloads.
 
-8. **`OmniUI.Artifacts.Plug`** — Plug module that serves files from the session's artifacts directory. Path sanitisation, content-type detection, 404 handling.
-9. **Developer integration** — document the `forward` route the developer adds to their router.
+7. **`OmniUI.Artifacts.URL` module** — Token signing (`sign_token/2`), verification (`verify_token/3`), and URL construction (`artifact_url/3`). Centralises the `"omni_ui:artifact"` salt. Default token max age: 86,400s (24 hours).
+8. **`OmniUI.Artifacts.Plug`** — Plug module that verifies signed tokens, resolves files via `FileSystem.artifacts_dir/1`, performs path containment checks, and serves files with `send_file/3`. Sets Content-Type, Content-Disposition (inline vs attachment), and `Cache-Control: no-store`.
+9. **Developer integration** — developer adds `forward "/omni_artifacts", OmniUI.Artifacts.Plug` to their router.
 
 ### Phase 4: Artifact UI
 
@@ -396,8 +410,12 @@ Whether `content_block/1` should render artifact tool uses differently from gene
 config :omni_ui, OmniUI.Artifacts, url_prefix: "/omni_artifacts"
 ```
 
-Components read `url_prefix` from config when building iframe `src` URLs. Zero-config works if the developer follows the documented convention of mounting the Plug at `/omni_artifacts`.
+Components read `url_prefix` from config when building iframe `src` URLs via `OmniUI.Artifacts.URL.artifact_url/3`. Zero-config works if the developer follows the documented convention of mounting the Plug at `/omni_artifacts`.
 
-### 6. Scope support ✓ (Resolved)
+### 6. Artifact URL authorization ✓ (Resolved)
+
+**Decision:** Signed tokens via `Phoenix.Token`. The LiveView signs the session ID into a token when building artifact URLs; the Plug verifies the token on each request. This prevents access to other sessions' artifacts without shared state between the LiveView and Plug. Cross-artifact relative paths work because files share the same token prefix in the URL. Token max age defaults to 24 hours, configurable via `:max_age` option on the Plug.
+
+### 7. Scope support ✓ (Resolved)
 
 **Decision:** Not supported in the artifact system for now. If a developer uses scope for multi-tenancy, they can configure a different `base_path` per tenant. Scope can be revisited as a first-class concern later if real demand shows up.
