@@ -242,11 +242,13 @@ defmodule OmniUI do
     thinking = Keyword.get(opts, :thinking, false)
     system = Keyword.get(opts, :system)
     tools = Keyword.get(opts, :tools, [])
+    tool_timeout = Keyword.get(opts, :tool_timeout)
 
     agent_opts =
       [model: model, messages: OmniUI.Tree.messages(tree), opts: [thinking: thinking]]
       |> maybe_put(:system, system)
       |> maybe_put(:tools, tools)
+      |> maybe_put(:tool_timeout, tool_timeout)
 
     {:ok, agent} = Omni.Agent.start_link(agent_opts)
 

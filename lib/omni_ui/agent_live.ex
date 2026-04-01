@@ -47,12 +47,13 @@ defmodule OmniUI.AgentLive do
         </.chat_interface>
       </div>
 
+      <!-- TODO : artifacts button -->
+
       <div class="h-full w-1/2 p-4 bg-omni-bg-1 border-l border-omni-border-2">
         <.live_component
           module={OmniUI.Artifacts.PanelComponent}
           id="artifacts-panel"
-          session_id={@session_id}
-        />
+          session_id={@session_id} />
       </div>
     </div>
     """
@@ -67,7 +68,7 @@ defmodule OmniUI.AgentLive do
     socket =
       socket
       |> assign(session_id: nil, model_options: models)
-      |> start_agent(model: @default_model)
+      |> start_agent(model: @default_model, tool_timeout: 120_000)
 
     {:ok, socket}
   end
@@ -85,12 +86,16 @@ defmodule OmniUI.AgentLive do
         {:ok, tree, metadata} ->
           model = Keyword.get(metadata, :model, @default_model)
           thinking = Keyword.get(metadata, :thinking, false)
-          tool = OmniUI.Artifacts.Tool.new(session_id: session_id)
 
           socket =
             socket
             |> assign(session_id: session_id)
-            |> update_agent(tree: tree, model: model, thinking: thinking, tools: [tool])
+            |> update_agent(
+              tree: tree,
+              model: model,
+              thinking: thinking,
+              tools: create_tools(session_id)
+            )
 
           {:noreply, socket}
 
@@ -106,12 +111,11 @@ defmodule OmniUI.AgentLive do
   def handle_params(_params, _uri, socket) do
     if connected?(socket) do
       session_id = generate_session_id()
-      tool = OmniUI.Artifacts.Tool.new(session_id: session_id)
 
       socket =
         socket
         |> assign(session_id: session_id)
-        |> update_agent(tools: [tool])
+        |> update_agent(tools: create_tools(session_id))
         |> push_patch(to: "/?session_id=#{session_id}", replace: true)
 
       {:noreply, socket}
@@ -121,7 +125,7 @@ defmodule OmniUI.AgentLive do
   end
 
   @impl OmniUI
-  def agent_event(:tool_result, %{name: "artifacts"}, socket) do
+  def agent_event(:tool_result, %{name: tool_name}, socket) when tool_name in ["artifacts", "repl"] do
     send_update(OmniUI.Artifacts.PanelComponent, id: "artifacts-panel", action: :rescan)
     socket
   end
@@ -139,5 +143,12 @@ defmodule OmniUI.AgentLive do
 
   defp generate_session_id do
     :crypto.strong_rand_bytes(12) |> Base.url_encode64(padding: false)
+  end
+
+  defp create_tools(session_id) do
+    [
+      OmniUI.Artifacts.Tool.new(session_id: session_id),
+      OmniUI.REPL.Tool.new()
+    ]
   end
 end
