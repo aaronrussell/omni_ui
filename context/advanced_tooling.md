@@ -155,50 +155,67 @@ No special React/JSX rendering — JSX files are displayed as code. If the agent
 
 ### What is the Sandbox?
 
-An Elixir execution environment where the agent can run code and collect output. The agent sends code as a string; the sandbox evaluates it, captures everything printed to stdout, and returns the output. This is a REPL, not a function call — the result is IO output, not return values.
+An Elixir execution environment where the agent can run code and collect output. The agent sends code as a string; the sandbox evaluates it, captures everything printed to stdout and the raw return value of the last expression, and returns both.
 
 ### Execution Model
 
 **One peer node per execution.** Each tool invocation:
 
 1. Starts a fresh Erlang peer node via `:peer.start/1`
-2. Injects the Artifacts API module into the peer (if artifacts are enabled)
-3. Overrides the group leader for IO capture
-4. Evaluates the agent's code via `:erpc.call/4` with a timeout
-5. Collects captured stdout
-6. Stops the peer node
-7. Returns output + status to the agent
+2. Initialises the peer (inject code paths, boot Elixir, suppress OTP log noise)
+3. Creates a StringIO on the **host** node for IO capture
+4. Evaluates setup code (if any) then the user's code via `:erpc.call/3` with the host StringIO as the group leader
+5. Collects captured stdout and the raw return value
+6. Stops the peer node and closes the StringIO
+7. Returns output + result to the caller
 
 **Why per-execution?** Clean slate each time. No state drift between invocations. And critically: `Mix.install/1` can only be called once per VM — a fresh peer per execution allows each invocation to install different dependencies.
 
-**IO capture** via group leader override:
+**Peer initialisation** requires three steps discovered during implementation:
+- **Code paths** — peers do NOT inherit the host's code paths. Must inject explicitly via `:erpc.call(node, :code, :add_pathsa, [:code.get_path()])`.
+- **Elixir boot** — `defmodule` and other Elixir features need internal ETS tables. Must call `:application.ensure_all_started(:elixir)` on the peer.
+- **Logger level** — set to `:warning` to suppress OTP application shutdown notices that would leak to the host console.
+
+**IO capture** uses a StringIO process on the host node (not the peer). The host StringIO pid is set as the group leader for the peer's eval process via `Process.group_leader/2` — Erlang distribution routes IO messages cross-node transparently. Keeping StringIO on the host means partial output is always accessible on timeout or peer crash without a second erpc call.
 
 ```elixir
+# StringIO lives on the host — always accessible
+{:ok, io} = StringIO.open("")
+
 :erpc.call(node, fn ->
-  {:ok, io} = StringIO.open("")
   Process.group_leader(self(), io)
 
   try do
-    Code.eval_string(code)
+    {result, _bindings} = Code.eval_string(code)
     {_, output} = StringIO.contents(io)
-    {:ok, output}
-  rescue
-    e -> {:error, Exception.format(:error, e, __STACKTRACE__)}
+    {:ok, %{output: output, result: result}}
+  catch
+    kind, reason ->
+      {_, output} = StringIO.contents(io)
+      {:error, {kind, reason, __STACKTRACE__}, %{output: output}}
   end
 end, timeout)
+
+# On timeout, partial output is still readable:
+{_, partial} = StringIO.contents(io)
 ```
+
+**Distribution requirement** — `:peer` requires the host to be a distributed Erlang node. The sandbox auto-starts distribution with shortnames if `Node.alive?()` is false. Peer name type (short vs long) is detected via `:net_kernel.longnames()` to match the host.
 
 ### Tool Definition
 
-Single Omni tool (`OmniUI.Tools.Sandbox`):
+Single Omni tool (`OmniUI.REPL.Tool`):
 
-- **Input:** `code` (string of Elixir code)
-- **Output:** Structured result with stdout and status
+- **Input:** `title` (brief description of what the code does) and `code` (string of Elixir code)
+- **Sandbox returns** raw data — the Tool is responsible for stringifying:
 
+```elixir
+{:ok, %{output: String.t(), result: term()}}
+{:error, :timeout | :noconnection, %{output: String.t()}}
+{:error, {kind, reason, stacktrace}, %{output: String.t()}}
 ```
-%{status: "ok", output: "...captured stdout..."}
-%{status: "error", output: "...partial stdout...", error: "** (RuntimeError) ..."}
-```
+
+`output` is captured IO (always present, may be empty). `result` is the raw return value of the last expression. Error tuples include partial output captured before the failure. The Tool module calls `inspect/2` on the result and `Exception.format/3` on exceptions when building the string response for the agent.
 
 ### Environment-Aware Tool Description
 
@@ -229,20 +246,20 @@ Mix is excluded from production releases by default. For deployments that want `
 
 ### Sandbox-Artifact Bridge
 
-The sandbox can create and modify artifacts. An `Artifacts` module is injected into the peer node before code execution:
+The sandbox can create and modify artifacts. A dynamically constructed `Artifacts` facade module is evaluated in the peer node before the user's code via the `:setup` option. The module wraps `OmniUI.Artifacts.FileSystem` functions with the session_id pre-applied:
 
 ```elixir
 # Available in sandbox code:
-Artifacts.write("chart.html", html_content, type: :html)
-Artifacts.get("data.csv")
+Artifacts.write("chart.html", html_content)
+Artifacts.read("data.csv")
 Artifacts.list()
-Artifacts.patch("chart.html", search: "old", replace: "new")
+Artifacts.patch("chart.html", "old text", "new text")
 Artifacts.delete("temp.txt")
 ```
 
-Under the hood, these perform **direct filesystem operations** to the session's artifacts directory. The peer node runs on the same machine with the same filesystem access. No cross-node RPC needed for file I/O.
+Under the hood, these call `OmniUI.Artifacts.FileSystem` functions (already available in the peer via shared code paths) with the session's opts baked in. Each mutating function prints a confirmation to IO (captured in the sandbox output). No cross-node RPC needed — all file I/O is local.
 
-The LiveView picks up artifact changes when it handles the sandbox tool result — it rescans the artifacts directory to sync the `@artifacts` assign.
+The LiveView picks up artifact changes when it handles the REPL tool result — `agent_event(:tool_result, %{name: "repl"}, socket)` triggers a rescan of the artifacts directory via `send_update(PanelComponent, action: :rescan)`.
 
 ### Security
 
@@ -250,7 +267,7 @@ This is a personal-use tool, not a secure multi-tenant sandbox. Documented as: *
 
 | Mitigation | Approach |
 |-----------|----------|
-| Timeout | `:erpc.call/4` timeout, configurable (default 30s) |
+| Timeout | `:erpc.call/3` timeout, configurable (default 60s) |
 | Crash isolation | Peer node crash does not affect the host application |
 | Resource limits | Not implemented — peer has full system access |
 | Filesystem | Not jailed — full read/write access |
@@ -355,35 +372,46 @@ Built the panel as a self-contained LiveComponent. Moved all artifact state out 
 14. **AgentLive simplification** — removed `@artifacts` assign, `scan_artifacts/1` helper, artifact scanning from `handle_params`. `agent_event(:tool_result, ...)` now does `send_update(PanelComponent, action: :rescan)`.
 15. **Router requirement** — ArtifactPlug must be mounted outside `pipe_through :browser` to avoid CSRF and x-frame-options conflicts with sandboxed iframes.
 
-### Phase 5: Code Sandbox
+### Phase 5: Sandbox Engine ✓
 
-Build the execution engine and tool.
+Built `OmniUI.REPL.Sandbox` as a standalone module with no Omni or agent dependencies.
 
-15. **`OmniUI.Sandbox` module** — execution engine:
-    - `run(code, opts)` — start peer, inject modules, eval code, capture IO, stop peer, return result
-    - Group leader override for IO capture
-    - Timeout handling
-    - Error formatting (compilation errors, runtime exceptions)
-16. **`OmniUI.Tools.Sandbox` module** — Omni tool:
-    - `use Omni.Tool` with schema accepting `code` string
-    - `init/1` receives config (artifacts path, timeout, etc.)
-    - `call/2` delegates to `OmniUI.Sandbox.run/2`
-    - Environment-aware description (check `Code.ensure_loaded?(Mix)`)
-17. **Wire into agent lifecycle** — add sandbox tool in `handle_params` alongside artifacts tool.
-18. **Update artifacts tool description** — Add "Artifacts vs Sandbox" guidance to the artifacts tool prompt, similar to Pi's "Artifacts Tool vs REPL" pattern. Key points to cover:
+15. **`OmniUI.REPL.Sandbox` module** — execution engine:
+    - `run(code, opts)` — single public function. Starts peer, inits, evals, captures IO, stops peer.
+    - **IO capture via host-local StringIO** — the StringIO process lives on the host node, set as the group leader for the peer's eval process. Cross-node IO routing is transparent via Erlang distribution. This means partial output is always readable on timeout or peer crash.
+    - Returns **raw data** — `result` is the raw term (not inspected), errors are `{kind, reason, stacktrace}` triples (not formatted). The Tool layer (Phase 6) handles all stringification.
+    - Uses `catch kind, reason` (not `rescue`) to catch throws and exits in addition to errors.
+    - `:setup` option — code string evaluated in the peer before IO capture begins (used by Phase 7 for the Artifacts bridge module). Setup errors propagate as erpc exceptions.
+    - `:timeout` option — default 60s. `:max_output` option — default 50KB. Both configurable via `config :omni_ui, OmniUI.REPL` or runtime opts.
+    - **Peer init** requires explicit code path injection and Elixir boot (neither happens automatically). Peer logger set to `:warning` to suppress OTP shutdown noise.
+    - **Distribution** — auto-starts with shortnames if host isn't distributed. Peer name type (short/long) matches host via `:net_kernel.longnames()` detection.
+    - Return type: `{:ok, %{output: String.t(), result: term()}} | {:error, :timeout | :noconnection, %{output: String.t()}} | {:error, {atom(), term(), Exception.stacktrace()}, %{output: String.t()}}`
+    - `test/test_helper.exs` updated to start distribution for peer node tests.
+
+### Phase 6: REPL Tool + Wiring
+
+Wrap the sandbox in an Omni tool and connect to AgentLive.
+
+16. **`OmniUI.REPL.Tool` module** — Omni tool:
+    - `use Omni.Tool` with name `"repl"`, schema accepting `title` (string) and `code` (string), both required
+    - `init/1` receives config (`:session_id`, `:timeout`, `:max_output`, etc.), passes through as state
+    - `call/2` delegates to `OmniUI.REPL.Sandbox.run/2`, then stringifies raw results for the agent: `inspect(result, pretty: true, limit: :infinity)` for the return value, `Exception.format(kind, reason, stacktrace)` for errors, raises on `:timeout` / `:noconnection`
+    - Environment-aware description: if `Code.ensure_loaded?(Mix)`, mention `Mix.install`; otherwise list available applications
+17. **Wire into agent lifecycle** — add REPL tool in `handle_params` alongside artifacts tool. `agent_event(:tool_result, %{name: "repl"}, socket)` triggers artifact panel rescan (sandbox may create artifacts via filesystem in Phase 7).
+
+### Phase 7: Sandbox-Artifact Bridge
+
+Connect the sandbox to the artifact system and update tool descriptions.
+
+18. **Artifacts facade module** — dynamically constructed module definition (code string) with the session's artifacts path baked in. Wraps `OmniUI.Artifacts.FileSystem` functions with the session_id pre-applied. Evaluated in the peer via the `:setup` option before the user's code. Provides a clean API: `Artifacts.write/2`, `Artifacts.read/1`, `Artifacts.patch/3`, `Artifacts.list/0`, `Artifacts.delete/1`. Each mutating function prints a confirmation to IO.
+19. **Artifact sync on sandbox result** — when the REPL tool result comes back, rescan artifacts directory (same mechanism as Phase 2, step 6).
+20. **Update tool descriptions** — Add "Artifacts vs REPL" guidance to both tool descriptions, similar to Pi's pattern. Key points:
     - Use artifacts tool when the agent is the author (writing notes, HTML pages, reports)
-    - Use sandbox when code processes data (scraping, CSV processing, data pipelines)
-    - The composable pattern: sandbox generates data → artifacts tool creates HTML that visualizes it
-    - Also update sandbox tool description to cross-reference artifacts
+    - Use REPL when code processes data (scraping, CSV processing, data pipelines)
+    - The composable pattern: REPL generates data → artifacts tool creates HTML that visualizes it
+    - REPL description cross-references the `Artifacts` module available in the sandbox
 
-### Phase 6: Sandbox-Artifact Bridge
-
-Connect the sandbox to the artifact system.
-
-19. **Artifacts API module for sandbox** — module injected into the peer node that performs file operations on the session's artifacts directory. Mirrors the tool commands (write, get, list, patch, delete).
-20. **Artifact sync on sandbox result** — when the sandbox tool result comes back, rescan artifacts directory (same mechanism as Phase 2, step 6).
-
-### Phase 7: Polish
+### Phase 8: Polish
 
 21. **Inline artifact indicators** — when a `content_block` renders an artifact tool use, show a richer UI (artifact name, type icon, preview thumbnail) instead of raw JSON. This is the broader question of custom components per tool type — may be a rabbit hole, scope carefully.
 22. **Panel visibility toggle** — the panel is currently always visible. Decide on: `@artifacts_open` boolean, toggle button, and auto-open behaviour (auto-open on first artifact creation vs manual-only vs notification badge). See Open Question #3.
@@ -404,9 +432,17 @@ config :omni_ui, OmniUI.Artifacts, base_path: "/custom/path"
 
 Defaults to `priv/omni/sessions`. Path resolution lives in `OmniUI.Artifacts.FileSystem.artifacts_dir/1`, which all FileSystem functions and the Plug use internally. The developer can also pass `:base_path` at runtime in opts. This decouples artifacts from the Store adapter while co-locating by default.
 
-### 2. Sandbox result format
+### 2. Sandbox result format ✓ (Resolved)
 
-What the sandbox tool returns to the agent. Options range from plain stdout string to a structured envelope with status, output, error, and list of artifacts modified. The right format will become clearer during implementation — start simple and enrich as needed.
+**Decision:** Tagged tuples with raw data. The sandbox returns unformatted values — the Tool layer handles stringification.
+
+```elixir
+{:ok, %{output: String.t(), result: term()}}
+{:error, :timeout | :noconnection, %{output: String.t()}}
+{:error, {kind, reason, stacktrace}, %{output: String.t()}}
+```
+
+`output` is captured IO (always present, may be empty). `result` is the raw return value (not inspected). Error tuples use `{kind, reason, stacktrace}` triples from `catch` (not formatted strings). All error paths include partial output captured before the failure. The Tool module calls `inspect/2` and `Exception.format/3` when building the agent-facing string.
 
 ### 3. Panel auto-open behaviour
 
