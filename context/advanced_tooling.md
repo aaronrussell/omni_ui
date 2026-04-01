@@ -206,35 +206,16 @@ end, timeout)
 
 Single Omni tool (`OmniUI.REPL.Tool`):
 
-- **Input:** `title` (brief description of what the code does) and `code` (string of Elixir code)
-- **Sandbox returns** raw data — the Tool is responsible for stringifying:
-
-```elixir
-{:ok, %{output: String.t(), result: term()}}
-{:error, :timeout | :noconnection, %{output: String.t()}}
-{:error, {kind, reason, stacktrace}, %{output: String.t()}}
-```
-
-`output` is captured IO (always present, may be empty). `result` is the raw return value of the last expression. Error tuples include partial output captured before the failure. The Tool module calls `inspect/2` on the result and `Exception.format/3` on exceptions when building the string response for the agent.
+- **Input:** `title` (active-form description, e.g. "Calculating average score") and `code` (Elixir code string). Both required.
+- **Success format:** `output\n=> inspect(result, pretty: true)`. Always shows the result, even `:ok`. If no IO output, just `=> result`.
+- **Error handling:** All errors raise, producing `is_error: true` tool results. Code errors formatted with `Exception.format/3`, timeout/noconnection with descriptive messages. Partial output prepended when present.
+- **init/1:** Accepts optional `:timeout` and `:max_output`. No `:session_id` until Phase 7.
 
 ### Environment-Aware Tool Description
 
-The tool description adapts at runtime based on whether `Mix` is available:
+Currently the tool has a static description that mentions Mix.install. Phase 7 will make this dynamic via an upstream `description/1` callback on `Omni.Tool` — a new optional callback that receives the state returned by `init/1`, allowing the description to vary at runtime.
 
-```elixir
-if Code.ensure_loaded?(Mix) do
-  base <> " You can call Mix.install/1 to add any Hex dependency."
-else
-  base <> " You cannot install additional dependencies. Available libraries: #{available_deps}."
-end
-```
-
-`Code.ensure_loaded?(Mix)` returns `true` in dev/test, `false` in a production release (unless Mix is explicitly included). This means:
-
-- **In dev:** Agent knows it can use `Mix.install` for any dependency.
-- **In production:** Agent knows it's limited to the host app's compiled dependencies, and gets a list of what's available.
-
-The developer curates the production sandbox's capabilities through their own `mix.exs` dependencies.
+The approach: the developer passes an optional `:extra_description` string fragment through `init/1` opts. The tool appends it to the base description. This is simpler and more flexible than auto-detecting Mix availability — the developer controls what the agent is told about its environment.
 
 ### Mix.install in Releases
 
@@ -279,19 +260,19 @@ This is a personal-use tool, not a secure multi-tenant sandbox. Documented as: *
 
 OmniUI does not auto-register any tools. The developer explicitly adds tools in their LiveView callbacks — some tools may go in `mount/3` (if they don't need session context), others in `handle_params/3` (if they depend on session_id or URL params).
 
-Artifact and sandbox tools need a `session_id`, which comes from `handle_params`. The tools are created there:
+Artifact tools need a `session_id`, which comes from `handle_params`. The REPL tool currently does not need `session_id` (it will in Phase 7 for the artifact bridge). Both are created together in `handle_params` via a `create_tools/1` helper.
 
 **Flow:**
 
-1. `mount/3` — `start_agent(socket, model: model)` with any session-independent tools.
-2. `handle_params/3` — session_id is determined. Create artifact/sandbox tools with `Tool.new(session_id: session_id)`. Replace all tools via `update_agent(socket, tools: [tool])`. PanelComponent receives the new `session_id` and scans for existing artifacts automatically.
+1. `mount/3` — `start_agent(socket, model: model, tool_timeout: 120_000)`. The `tool_timeout` is necessary because `Omni.Agent` defaults to 5s, which is too short for sandbox execution (default 60s + peer startup). `start_agent/2` passes `:tool_timeout` through to `Omni.Agent.start_link`.
+2. `handle_params/3` — session_id is determined. `create_tools(session_id)` builds both artifact and REPL tools. Replace all tools via `update_agent(socket, tools: create_tools(session_id))`. PanelComponent receives the new `session_id` and scans for existing artifacts automatically.
 3. Session switch (new `handle_params`) — replace all tools with new session_id. PanelComponent detects the session change in `update/2` and rescans.
 
 The agent doesn't have artifact/sandbox tools until `handle_params` runs. In practice this is fine — the user can't submit a message until the page is connected and `handle_params` has executed.
 
 **Syncing assigns after tool execution:**
 
-The tool handlers run in the Agent process (not the LiveView process). When a tool executes, the LiveView receives an `{:agent, pid, :tool_result, result}` event. `AgentLive`'s `agent_event(:tool_result, %{name: "artifacts"}, socket)` callback matches on the tool name and sends `send_update(PanelComponent, action: :rescan)`. The component rescans the artifacts directory internally. This lives in `AgentLive`, not in the macro or Handlers — tooling is not baked into the shared infrastructure.
+The tool handlers run in the Agent process (not the LiveView process). When a tool executes, the LiveView receives an `{:agent, pid, :tool_result, result}` event. `AgentLive`'s `agent_event(:tool_result, %{name: tool_name}, socket) when tool_name in ["artifacts", "repl"]` callback matches on either tool name and sends `send_update(PanelComponent, action: :rescan)`. The component rescans the artifacts directory internally. This lives in `AgentLive`, not in the macro or Handlers — tooling is not baked into the shared infrastructure.
 
 ---
 
@@ -388,28 +369,29 @@ Built `OmniUI.REPL.Sandbox` as a standalone module with no Omni or agent depende
     - Return type: `{:ok, %{output: String.t(), result: term()}} | {:error, :timeout | :noconnection, %{output: String.t()}} | {:error, {atom(), term(), Exception.stacktrace()}, %{output: String.t()}}`
     - `test/test_helper.exs` updated to start distribution for peer node tests.
 
-### Phase 6: REPL Tool + Wiring
+### Phase 6: REPL Tool + Wiring ✓
 
-Wrap the sandbox in an Omni tool and connect to AgentLive.
+Wrapped the sandbox in an Omni tool and connected to AgentLive.
 
-16. **`OmniUI.REPL.Tool` module** — Omni tool:
-    - `use Omni.Tool` with name `"repl"`, schema accepting `title` (string) and `code` (string), both required
-    - `init/1` receives config (`:session_id`, `:timeout`, `:max_output`, etc.), passes through as state
-    - `call/2` delegates to `OmniUI.REPL.Sandbox.run/2`, then stringifies raw results for the agent: `inspect(result, pretty: true, limit: :infinity)` for the return value, `Exception.format(kind, reason, stacktrace)` for errors, raises on `:timeout` / `:noconnection`
-    - Environment-aware description: if `Code.ensure_loaded?(Mix)`, mention `Mix.install`; otherwise list available applications
-17. **Wire into agent lifecycle** — add REPL tool in `handle_params` alongside artifacts tool. `agent_event(:tool_result, %{name: "repl"}, socket)` triggers artifact panel rescan (sandbox may create artifacts via filesystem in Phase 7).
+16. **`OmniUI.REPL.Tool` module** — Omni tool following the `Artifacts.Tool` pattern:
+    - `use Omni.Tool` with name `"repl"`, schema accepting `title` (string, active-form description) and `code` (string), both required
+    - `init/1` accepts optional `:timeout` and `:max_output`, passes through as state. No `:session_id` — deferred to Phase 7 when the artifact bridge needs it
+    - `call/2` delegates to `Sandbox.run/2`. Success formatted as `output\n=> inspect(result, pretty: true)` (always shows result, even `:ok`). All errors raise (producing `is_error: true` tool results): code errors formatted with `Exception.format/3`, timeout/noconnection with descriptive messages. Partial output prepended to error messages when present
+    - Static structured description with `##` sections (When to Use, Environment, Adding Packages, Output, Example, Important Notes). Mentions Req and Jason as available libraries, Mix.install with example. Environment-aware dynamic description deferred to Phase 7 via upstream `description/1` callback
+17. **Wired into agent lifecycle** — `create_tools/1` helper builds both artifact and REPL tools. `agent_event` uses a single clause with guard: `when tool_name in ["artifacts", "repl"]` to trigger artifact panel rescan. `start_agent` in mount passes `tool_timeout: 120_000` (the default 5s was too short for sandbox execution). Added `:tool_timeout` passthrough in `OmniUI.start_agent/2`.
 
 ### Phase 7: Sandbox-Artifact Bridge
 
-Connect the sandbox to the artifact system and update tool descriptions.
+Connect the sandbox to the artifact system and update tool descriptions. **Upstream prerequisite:** add `description/1` callback to `Omni.Tool` (receives state from `init/1`, default delegates to `description/0`, overridable).
 
-18. **Artifacts facade module** — dynamically constructed module definition (code string) with the session's artifacts path baked in. Wraps `OmniUI.Artifacts.FileSystem` functions with the session_id pre-applied. Evaluated in the peer via the `:setup` option before the user's code. Provides a clean API: `Artifacts.write/2`, `Artifacts.read/1`, `Artifacts.patch/3`, `Artifacts.list/0`, `Artifacts.delete/1`. Each mutating function prints a confirmation to IO.
-19. **Artifact sync on sandbox result** — when the REPL tool result comes back, rescan artifacts directory (same mechanism as Phase 2, step 6).
-20. **Update tool descriptions** — Add "Artifacts vs REPL" guidance to both tool descriptions, similar to Pi's pattern. Key points:
+18. **Artifacts facade module** — dynamically constructed module definition (code string) with the session's artifacts path baked in. Wraps `OmniUI.Artifacts.FileSystem` functions with the session_id pre-applied. Evaluated in the peer via the `:setup` option before the user's code. Provides a clean API: `Artifacts.write/2`, `Artifacts.read/1`, `Artifacts.patch/3`, `Artifacts.list/0`, `Artifacts.delete/1`. Each mutating function prints a confirmation to IO. **Note:** `REPL.Tool.init/1` will need to accept `:session_id` (currently only takes `:timeout` and `:max_output`) and pass it through to `Sandbox.run` via the `:setup` option.
+19. **Artifact sync on sandbox result** — already wired in Phase 6. The `agent_event` clause matches both `"artifacts"` and `"repl"` tool names and triggers panel rescan.
+20. **Update tool descriptions** — Use the new `description/1` callback to make descriptions dynamic. Add "Artifacts vs REPL" guidance to both tool descriptions, similar to Pi's pattern. Key points:
     - Use artifacts tool when the agent is the author (writing notes, HTML pages, reports)
     - Use REPL when code processes data (scraping, CSV processing, data pipelines)
     - The composable pattern: REPL generates data → artifacts tool creates HTML that visualizes it
     - REPL description cross-references the `Artifacts` module available in the sandbox
+    - Environment-aware section: developer passes optional `:extra_description` fragment through init opts, appended to base description
 
 ### Phase 8: Polish
 

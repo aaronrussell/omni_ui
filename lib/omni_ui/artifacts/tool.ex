@@ -14,9 +14,8 @@ defmodule OmniUI.Artifacts.Tool do
   Path resolution and configuration are handled by `OmniUI.Artifacts.FileSystem`.
   """
 
-  # NOTE: When the sandbox tool is added (Phase 5), revisit this description to
-  # include guidance on when to use artifacts vs sandbox, similar to Pi's
-  # "Artifacts Tool vs REPL" section. See context/advanced_tooling.md for notes.
+  # NOTE: Phase 7 will add "Artifacts vs REPL" guidance to this description
+  # and the REPL tool description. See context/advanced_tooling.md Phase 7, step 20.
   use Omni.Tool,
     name: "artifacts",
     description: """

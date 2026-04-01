@@ -163,7 +163,7 @@ defmodule OmniUI.Handlers do
     end)
   end
 
-  def handle_agent_event(:done, response, socket) do
+  def handle_agent_event(:turn, {:stop, response}, socket) do
     [_user_msg | rest_msgs] = response.messages
     {[res_id | _], tree} = tree_push_all(socket.assigns.tree, rest_msgs, response.usage)
 

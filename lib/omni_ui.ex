@@ -22,7 +22,7 @@ defmodule OmniUI do
 
         # Optional: observe agent events after default handling
         @impl OmniUI
-        def agent_event(:done, response, socket) do
+        def agent_event(:turn, {:stop, response}, socket) do
           MyApp.Analytics.track(response.usage)
           socket
         end

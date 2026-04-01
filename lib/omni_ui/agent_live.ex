@@ -125,12 +125,13 @@ defmodule OmniUI.AgentLive do
   end
 
   @impl OmniUI
-  def agent_event(:tool_result, %{name: tool_name}, socket) when tool_name in ["artifacts", "repl"] do
+  def agent_event(:tool_result, %{name: tool_name}, socket)
+      when tool_name in ["artifacts", "repl"] do
     send_update(OmniUI.Artifacts.PanelComponent, id: "artifacts-panel", action: :rescan)
     socket
   end
 
-  def agent_event(:done, _response, socket) do
+  def agent_event(:turn, {:stop, _response}, socket) do
     %{session_id: session_id, tree: tree, model: model, thinking: thinking} = socket.assigns
 
     save_tree(session_id, tree)
