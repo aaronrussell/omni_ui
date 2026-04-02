@@ -107,7 +107,7 @@ defmodule OmniUI.REPL.Sandbox do
   defp ensure_distributed! do
     unless Node.alive?() do
       name = :"omni_sandbox_#{System.unique_integer([:positive])}"
-      {:ok, _} = Node.start(name, :shortnames)
+      {:ok, _} = Node.start(name, name_domain: :shortnames)
     end
   end
 

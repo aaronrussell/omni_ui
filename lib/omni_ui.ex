@@ -166,47 +166,29 @@ defmodule OmniUI do
     end
   end
 
+  defp inject_store_functions(nil), do: nil
+
   defp inject_store_functions(store) do
     quote do
       @doc false
-      def save_tree(session_id, tree, opts \\ []) do
-        case unquote(store) do
-          nil -> :ok
-          store -> apply(store, :save_tree, [session_id, tree, opts])
-        end
-      end
+      def save_tree(session_id, tree, opts \\ []),
+        do: unquote(store).save_tree(session_id, tree, opts)
 
       @doc false
-      def save_metadata(session_id, metadata, opts \\ []) do
-        case unquote(store) do
-          nil -> :ok
-          store -> apply(store, :save_metadata, [session_id, metadata, opts])
-        end
-      end
+      def save_metadata(session_id, metadata, opts \\ []),
+        do: unquote(store).save_metadata(session_id, metadata, opts)
 
       @doc false
-      def load_session(session_id, opts \\ []) do
-        case unquote(store) do
-          nil -> {:error, :no_store}
-          store -> apply(store, :load, [session_id, opts])
-        end
-      end
+      def load_session(session_id, opts \\ []),
+        do: unquote(store).load(session_id, opts)
 
       @doc false
-      def list_sessions(opts \\ []) do
-        case unquote(store) do
-          nil -> {:ok, []}
-          store -> apply(store, :list, [opts])
-        end
-      end
+      def list_sessions(opts \\ []),
+        do: unquote(store).list(opts)
 
       @doc false
-      def delete_session(session_id, opts \\ []) do
-        case unquote(store) do
-          nil -> :ok
-          store -> apply(store, :delete, [session_id, opts])
-        end
-      end
+      def delete_session(session_id, opts \\ []),
+        do: unquote(store).delete(session_id, opts)
     end
   end
 

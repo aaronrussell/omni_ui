@@ -64,29 +64,17 @@ defmodule OmniUI.MacroTest do
   end
 
   describe "store injection — MinimalView (no store configured)" do
-    test "save_tree returns :ok" do
-      assert MinimalView.save_tree("s1", %OmniUI.Tree{}) == :ok
-      assert MinimalView.save_tree("s1", %OmniUI.Tree{}, []) == :ok
-    end
-
-    test "save_metadata returns :ok" do
-      assert MinimalView.save_metadata("s1", []) == :ok
-      assert MinimalView.save_metadata("s1", [], []) == :ok
-    end
-
-    test "load_session returns {:error, :no_store}" do
-      assert MinimalView.load_session("s1") == {:error, :no_store}
-      assert MinimalView.load_session("s1", []) == {:error, :no_store}
-    end
-
-    test "list_sessions returns {:ok, []}" do
-      assert MinimalView.list_sessions() == {:ok, []}
-      assert MinimalView.list_sessions([]) == {:ok, []}
-    end
-
-    test "delete_session returns :ok" do
-      assert MinimalView.delete_session("s1") == :ok
-      assert MinimalView.delete_session("s1", []) == :ok
+    test "store functions are not injected" do
+      refute function_exported?(MinimalView, :save_tree, 2)
+      refute function_exported?(MinimalView, :save_tree, 3)
+      refute function_exported?(MinimalView, :save_metadata, 2)
+      refute function_exported?(MinimalView, :save_metadata, 3)
+      refute function_exported?(MinimalView, :load_session, 1)
+      refute function_exported?(MinimalView, :load_session, 2)
+      refute function_exported?(MinimalView, :list_sessions, 0)
+      refute function_exported?(MinimalView, :list_sessions, 1)
+      refute function_exported?(MinimalView, :delete_session, 1)
+      refute function_exported?(MinimalView, :delete_session, 2)
     end
   end
 
