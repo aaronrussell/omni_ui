@@ -150,6 +150,45 @@ defmodule OmniUI.REPL.SandboxTest do
     end
   end
 
+  describe "AST setup" do
+    test "AST setup defines modules available to user code" do
+      setup =
+        quote do
+          defmodule(ASTHelper, do: def(greet, do: "from AST"))
+        end
+
+      assert {:ok, %{result: "from AST"}} =
+               Sandbox.run("ASTHelper.greet()", setup: setup)
+    end
+
+    test "AST setup IO output is not captured" do
+      setup =
+        quote do
+          IO.puts("ast noise")
+        end
+
+      ExUnit.CaptureIO.capture_io(fn ->
+        assert {:ok, %{output: output}} =
+                 Sandbox.run(~S|IO.puts("user output")|, setup: setup)
+
+        assert output == "user output\n"
+        refute output =~ "ast noise"
+      end)
+    end
+
+    test "list of mixed setup items evaluated in order" do
+      string_setup = "defmodule(SetupA, do: def(val, do: :a))"
+
+      ast_setup =
+        quote do
+          defmodule(SetupB, do: def(val, do: :b))
+        end
+
+      assert {:ok, %{result: {:a, :b}}} =
+               Sandbox.run("{SetupA.val(), SetupB.val()}", setup: [string_setup, ast_setup])
+    end
+  end
+
   describe "clean environment" do
     test "modules defined in one run are not available in the next" do
       code1 = """

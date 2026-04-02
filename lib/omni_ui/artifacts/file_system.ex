@@ -21,6 +21,21 @@ defmodule OmniUI.Artifacts.FileSystem do
   alias OmniUI.Artifacts.Artifact
 
   @doc """
+  Returns the resolved base path for artifact storage.
+
+  Checks (in order): explicit `:base_path` in opts, application config
+  (`config :omni_ui, OmniUI.Artifacts, base_path: "..."`), then falls back
+  to `priv/omni/sessions` within the `:omni_ui` application directory.
+  """
+  @spec base_path(keyword()) :: String.t()
+  def base_path(opts) do
+    Keyword.get_lazy(opts, :base_path, fn ->
+      Application.get_env(:omni_ui, OmniUI.Artifacts, [])
+      |> Keyword.get(:base_path, default_base_path())
+    end)
+  end
+
+  @doc """
   Returns the resolved artifacts directory path for a session.
 
   ## Options
@@ -153,13 +168,6 @@ defmodule OmniUI.Artifacts.FileSystem do
       :ok -> {:ok, Artifact.new(filename: filename, size: byte_size(content))}
       {:error, posix} -> {:error, "failed to write #{filename}: #{posix}"}
     end
-  end
-
-  defp base_path(opts) do
-    Keyword.get_lazy(opts, :base_path, fn ->
-      Application.get_env(:omni_ui, OmniUI.Artifacts, [])
-      |> Keyword.get(:base_path, default_base_path())
-    end)
   end
 
   defp default_base_path do

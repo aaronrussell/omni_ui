@@ -209,13 +209,16 @@ Single Omni tool (`OmniUI.REPL.Tool`):
 - **Input:** `title` (active-form description, e.g. "Calculating average score") and `code` (Elixir code string). Both required.
 - **Success format:** `output\n=> inspect(result, pretty: true)`. Always shows the result, even `:ok`. If no IO output, just `=> result`.
 - **Error handling:** All errors raise, producing `is_error: true` tool results. Code errors formatted with `Exception.format/3`, timeout/noconnection with descriptive messages. Partial output prepended when present.
-- **init/1:** Accepts optional `:timeout` and `:max_output`. No `:session_id` until Phase 7.
+- **init/1:** Accepts optional `:timeout`, `:max_output`, `:extensions` (list of `{module, opts}` sandbox extensions), and `:extra_description`.
 
 ### Environment-Aware Tool Description
 
-Currently the tool has a static description that mentions Mix.install. Phase 7 will make this dynamic via an upstream `description/1` callback on `Omni.Tool` — a new optional callback that receives the state returned by `init/1`, allowing the description to vary at runtime.
+The tool uses the `description/1` callback on `Omni.Tool` (receives state from `init/1`) to build a dynamic description. The description is a single heredoc with interpolation at two logical seams:
 
-The approach: the developer passes an optional `:extra_description` string fragment through `init/1` opts. The tool appends it to the base description. This is simpler and more flexible than auto-detecting Mix availability — the developer controls what the agent is told about its environment.
+1. **Environment section** — `Code.ensure_loaded?(Mix)` switches between dev guidance (pre-installed libraries + Mix.install for extras) and release guidance (host deps only, Mix unavailable).
+2. **Extension section** — each sandbox extension contributes a description fragment documenting the APIs it injects.
+
+An optional `:extra_description` string fragment can also be passed through `init/1` opts, appended at the end.
 
 ### Mix.install in Releases
 
@@ -227,18 +230,18 @@ Mix is excluded from production releases by default. For deployments that want `
 
 ### Sandbox-Artifact Bridge
 
-The sandbox can create and modify artifacts. A dynamically constructed `Artifacts` facade module is evaluated in the peer node before the user's code via the `:setup` option. The module wraps `OmniUI.Artifacts.FileSystem` functions with the session_id pre-applied:
+The sandbox can create and modify artifacts via a top-level `Artifacts` facade module injected into the peer node. The module is defined as AST (via `quote`) by `OmniUI.Artifacts.REPLExtension`, a sandbox extension that implements the `OmniUI.REPL.SandboxExtension` behaviour. It wraps `OmniUI.Artifacts.FileSystem` functions with the session's opts baked in via `unquote` into a module attribute:
 
 ```elixir
 # Available in sandbox code:
-Artifacts.write("chart.html", html_content)
-Artifacts.read("data.csv")
-Artifacts.list()
-Artifacts.patch("chart.html", "old text", "new text")
-Artifacts.delete("temp.txt")
+Artifacts.write("chart.html", html_content)   #=> %Artifact{}
+Artifacts.read("data.csv")                    #=> "csv,content..."
+Artifacts.patch("chart.html", "old", "new")   #=> %Artifact{}
+Artifacts.list()                               #=> [%Artifact{}, ...]
+Artifacts.delete("temp.txt")                   #=> :ok
 ```
 
-Under the hood, these call `OmniUI.Artifacts.FileSystem` functions (already available in the peer via shared code paths) with the session's opts baked in. Each mutating function prints a confirmation to IO (captured in the sandbox output). No cross-node RPC needed — all file I/O is local.
+Under the hood, these delegate to `OmniUI.Artifacts.FileSystem` functions (available in the peer via shared code paths). `base_path` is pre-resolved on the host at tool construction time (via `FileSystem.base_path/1`) and baked into the facade, so the peer doesn't need host app config. Errors raise — the sandbox's `catch` formats them as `is_error: true` tool results. No IO confirmations; return values provide metadata (e.g. `%Artifact{}` from write/patch).
 
 The LiveView picks up artifact changes when it handles the REPL tool result — `agent_event(:tool_result, %{name: "repl"}, socket)` triggers a rescan of the artifacts directory via `send_update(PanelComponent, action: :rescan)`.
 
@@ -260,7 +263,7 @@ This is a personal-use tool, not a secure multi-tenant sandbox. Documented as: *
 
 OmniUI does not auto-register any tools. The developer explicitly adds tools in their LiveView callbacks — some tools may go in `mount/3` (if they don't need session context), others in `handle_params/3` (if they depend on session_id or URL params).
 
-Artifact tools need a `session_id`, which comes from `handle_params`. The REPL tool currently does not need `session_id` (it will in Phase 7 for the artifact bridge). Both are created together in `handle_params` via a `create_tools/1` helper.
+Artifact tools need a `session_id`, which comes from `handle_params`. The REPL tool receives `session_id` indirectly via its extensions (e.g. `{OmniUI.Artifacts.REPLExtension, session_id: session_id}`). Both are created together in `handle_params` via a `create_tools/1` helper.
 
 **Flow:**
 
@@ -287,7 +290,8 @@ The tool handlers run in the Agent process (not the LiveView process). When a to
 - Per-execution Elixir sandbox via `:peer`
 - IO capture and timeout
 - Environment-aware tool descriptions (Mix.install in dev, deps list in prod)
-- Sandbox artifact bridge (filesystem-based)
+- Sandbox artifact bridge (filesystem-based) via generic extension mechanism
+- Cross-tool description guidance (artifacts vs REPL pipeline)
 
 ### Not Doing
 
@@ -377,21 +381,19 @@ Wrapped the sandbox in an Omni tool and connected to AgentLive.
     - `use Omni.Tool` with name `"repl"`, schema accepting `title` (string, active-form description) and `code` (string), both required
     - `init/1` accepts optional `:timeout` and `:max_output`, passes through as state. No `:session_id` — deferred to Phase 7 when the artifact bridge needs it
     - `call/2` delegates to `Sandbox.run/2`. Success formatted as `output\n=> inspect(result, pretty: true)` (always shows result, even `:ok`). All errors raise (producing `is_error: true` tool results): code errors formatted with `Exception.format/3`, timeout/noconnection with descriptive messages. Partial output prepended to error messages when present
-    - Static structured description with `##` sections (When to Use, Environment, Adding Packages, Output, Example, Important Notes). Mentions Req and Jason as available libraries, Mix.install with example. Environment-aware dynamic description deferred to Phase 7 via upstream `description/1` callback
+    - Dynamic description via `description/1` callback with `##` sections (When to Use, Environment, Adding Packages, Output, Example, Important Notes). Environment section switches on Mix availability. Extension descriptions appended automatically. Pre-installed libraries (Req, Jason) explicitly marked to prevent unnecessary Mix.install
 17. **Wired into agent lifecycle** — `create_tools/1` helper builds both artifact and REPL tools. `agent_event` uses a single clause with guard: `when tool_name in ["artifacts", "repl"]` to trigger artifact panel rescan. `start_agent` in mount passes `tool_timeout: 120_000` (the default 5s was too short for sandbox execution). Added `:tool_timeout` passthrough in `OmniUI.start_agent/2`.
 
-### Phase 7: Sandbox-Artifact Bridge
+### Phase 7: Sandbox-Artifact Bridge ✓
 
-Connect the sandbox to the artifact system and update tool descriptions. **Upstream prerequisite:** add `description/1` callback to `Omni.Tool` (receives state from `init/1`, default delegates to `description/0`, overridable).
+Connected the sandbox to the artifact system via a generic extension mechanism, and updated tool descriptions with environment awareness and cross-tool guidance.
 
-18. **Artifacts facade module** — dynamically constructed module definition (code string) with the session's artifacts path baked in. Wraps `OmniUI.Artifacts.FileSystem` functions with the session_id pre-applied. Evaluated in the peer via the `:setup` option before the user's code. Provides a clean API: `Artifacts.write/2`, `Artifacts.read/1`, `Artifacts.patch/3`, `Artifacts.list/0`, `Artifacts.delete/1`. Each mutating function prints a confirmation to IO. **Note:** `REPL.Tool.init/1` will need to accept `:session_id` (currently only takes `:timeout` and `:max_output`) and pass it through to `Sandbox.run` via the `:setup` option.
-19. **Artifact sync on sandbox result** — already wired in Phase 6. The `agent_event` clause matches both `"artifacts"` and `"repl"` tool names and triggers panel rescan.
-20. **Update tool descriptions** — Use the new `description/1` callback to make descriptions dynamic. Add "Artifacts vs REPL" guidance to both tool descriptions, similar to Pi's pattern. Key points:
-    - Use artifacts tool when the agent is the author (writing notes, HTML pages, reports)
-    - Use REPL when code processes data (scraping, CSV processing, data pipelines)
-    - The composable pattern: REPL generates data → artifacts tool creates HTML that visualizes it
-    - REPL description cross-references the `Artifacts` module available in the sandbox
-    - Environment-aware section: developer passes optional `:extra_description` fragment through init opts, appended to base description
+18. **`OmniUI.REPL.SandboxExtension` behaviour** — generic extension contract with two callbacks: `code/1` (returns AST or string to evaluate in the peer) and `description/1` (returns markdown fragment for the tool description). `REPL.Tool.init/1` accepts `:extensions` as a list of `{module, opts}` or bare modules.
+19. **`OmniUI.Artifacts.REPLExtension`** — implements `SandboxExtension`. `code/1` returns a quoted `defmodule Artifacts` block that delegates to `FileSystem` functions with pre-resolved `base_path` and `session_id` baked in via `unquote`. `description/1` documents the five-function API. No IO confirmations — return values (`%Artifact{}`, `:ok`, content strings) provide feedback silently.
+20. **Sandbox AST support** — `Sandbox.run/2` now accepts AST and lists (in addition to strings) for the `:setup` option via `eval_setup/1` dispatch. Multiple extensions each contribute a setup item; all are evaluated sequentially before user code.
+21. **Dynamic REPL tool description** — `description/1` override builds a heredoc with `environment_section/0` (switches on `Code.ensure_loaded?(Mix)` for dev vs release guidance) and `extension_section/1` (collects fragments from extensions). Pre-installed libraries (Req, Jason) explicitly marked as "do NOT Mix.install these". `FileSystem.base_path/1` made public to support host-side path resolution.
+22. **Artifacts.Tool cross-reference** — static "Artifacts vs REPL" section added to the artifacts tool description with the optimal data-visualisation pipeline: REPL saves data.json → artifacts tool authors HTML that loads it.
+23. **AgentLive wiring** — `create_tools/1` passes `{REPLExtension, session_id: session_id}` in the `:extensions` opt. Artifact sync on REPL tool result was already wired in Phase 6.
 
 ### Phase 8: Polish
 
@@ -432,7 +434,7 @@ Whether the artifact panel opens automatically when the first artifact is create
 
 ### 4. Inline artifact indicators
 
-Whether `content_block/1` should render artifact tool uses differently from generic tool uses (eg show artifact name, type icon, "View" button). Deferred to Phase 7 polish — the default tool use rendering works as a starting point.
+Whether `content_block/1` should render artifact tool uses differently from generic tool uses (eg show artifact name, type icon, "View" button). Deferred to Phase 8 polish — the default tool use rendering works as a starting point.
 
 ### 5. Artifact Plug URL prefix ✓ (Resolved)
 

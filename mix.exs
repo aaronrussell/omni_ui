@@ -25,8 +25,8 @@ defmodule OmniUI.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:omni, path: "../omni", override: true},
-      {:omni_agent, path: "../omni_agent"},
+      {:omni, "~> 1.2"},
+      {:omni_agent, "~> 0.2"},
       {:lucide_icons, "~> 2.0"},
       {:mdex, "~> 0.11.6"},
       {:mdex_gfm, "~> 0.2"},

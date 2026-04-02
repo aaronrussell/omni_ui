@@ -169,4 +169,14 @@ defmodule OmniUI.Artifacts.FileSystemTest do
                FileSystem.write(".secret", "x", opts(ctx))
     end
   end
+
+  describe "base_path/1" do
+    test "returns explicit opt when provided" do
+      assert FileSystem.base_path(base_path: "/custom/path") == "/custom/path"
+    end
+
+    test "falls back to default containing omni/sessions" do
+      assert FileSystem.base_path([]) =~ "omni/sessions"
+    end
+  end
 end

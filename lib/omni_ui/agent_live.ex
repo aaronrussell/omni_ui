@@ -131,7 +131,7 @@ defmodule OmniUI.AgentLive do
     socket
   end
 
-  def agent_event(:turn, {:stop, _response}, socket) do
+  def agent_event(:stop, _response, socket) do
     %{session_id: session_id, tree: tree, model: model, thinking: thinking} = socket.assigns
 
     save_tree(session_id, tree)
@@ -149,7 +149,11 @@ defmodule OmniUI.AgentLive do
   defp create_tools(session_id) do
     [
       OmniUI.Artifacts.Tool.new(session_id: session_id),
-      OmniUI.REPL.Tool.new()
+      OmniUI.REPL.Tool.new(
+        extensions: [
+          {OmniUI.Artifacts.REPLExtension, [session_id: session_id]}
+        ]
+      )
     ]
   end
 end

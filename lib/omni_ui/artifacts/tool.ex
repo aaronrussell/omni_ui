@@ -14,8 +14,6 @@ defmodule OmniUI.Artifacts.Tool do
   Path resolution and configuration are handled by `OmniUI.Artifacts.FileSystem`.
   """
 
-  # NOTE: Phase 7 will add "Artifacts vs REPL" guidance to this description
-  # and the REPL tool description. See context/advanced_tooling.md Phase 7, step 20.
   use Omni.Tool,
     name: "artifacts",
     description: """
@@ -47,7 +45,18 @@ defmodule OmniUI.Artifacts.Tool do
     - Import libraries as ES modules from CDNs (e.g. esm.sh).
     - Set an explicit background color (iframe default is transparent).
     - Inline all CSS or use a CSS framework CDN.
-    - Can reference other artifacts by relative filename (e.g. fetch('./data.json')).\
+    - Can reference other artifacts by relative filename (e.g. fetch('./data.json')).
+
+    ## Artifacts vs REPL
+    Use this tool when you are directly authoring file content (HTML pages, notes, \
+    reports). Use the REPL tool when code needs to fetch, process, or transform data.
+
+    Optimal pattern for data visualisation:
+    1. REPL fetches/processes data → saves result as data.json via Artifacts module
+    2. This tool creates the HTML page that loads ./data.json and renders it
+
+    This separates data processing (code) from presentation (authored content), \
+    and is more token-efficient than generating HTML strings in code.\
     """
 
   alias OmniUI.Artifacts.FileSystem

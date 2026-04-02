@@ -76,7 +76,7 @@ defmodule OmniUI.REPL.Sandbox do
 
   defp build_eval_fn(code, setup, io_pid) do
     fn ->
-      if setup, do: Code.eval_string(setup)
+      eval_setup(setup)
 
       Process.group_leader(self(), io_pid)
 
@@ -91,6 +91,11 @@ defmodule OmniUI.REPL.Sandbox do
       end
     end
   end
+
+  defp eval_setup(nil), do: :ok
+  defp eval_setup(code) when is_binary(code), do: Code.eval_string(code)
+  defp eval_setup(items) when is_list(items), do: Enum.each(items, &eval_setup/1)
+  defp eval_setup(ast), do: Code.eval_quoted(ast)
 
   defp init_peer(peer_node) do
     :erpc.call(peer_node, :code, :add_pathsa, [:code.get_path()])
