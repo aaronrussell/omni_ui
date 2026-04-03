@@ -629,7 +629,8 @@ defmodule OmniUI.Components do
           id="model-select"
           options={@formatted_model_options}
           value={model_key(@model)}
-          event="omni:select_model" />
+          event="omni:select_model"
+          position="above" />
       </div>
 
       <div
@@ -643,7 +644,8 @@ defmodule OmniUI.Components do
           options={@formatted_thinking_options}
           value={to_string(@thinking)}
           event="omni:select_thinking"
-          prompt="Thinking" />
+          prompt="Thinking"
+          position="above" />
       </div>
 
       <div :if={@usage} class="flex-auto flex items-center justify-end">
@@ -668,6 +670,7 @@ defmodule OmniUI.Components do
   attr :prompt, :string, default: "Select..."
   attr :event, :string, required: true
   attr :target, :any, default: nil
+  attr :position, :string, default: "below", values: ~w(above below)
 
   def select(assigns) do
     assigns = assign(assigns, :selected_label, find_option_label(assigns.options, assigns.value))
@@ -687,15 +690,22 @@ defmodule OmniUI.Components do
         <span>{@selected_label || @prompt}</span>
         <Lucideicons.chevron_down class={cls([
           "size-3.5 transition-transform",
-          "rotate-180 group-[.active]/select:rotate-0"
+          if(@position == "above",
+            do: "rotate-180 group-[.active]/select:rotate-0",
+            else: "group-[.active]/select:rotate-180"
+          )
         ])} />
       </button>
 
       <div class={[
-        "absolute bottom-full mb-4 z-20 -translate-x-4",
+        "absolute z-20 -translate-x-4",
+        if(@position == "above",
+          do: "bottom-full mb-4 origin-bottom-left",
+          else: "top-full mt-4 origin-top-left"
+        ),
         "min-w-48 max-h-64 overflow-y-auto",
         "bg-omni-bg border border-omni-border-2 rounded-lg shadow-lg",
-        "opacity-0 invisible scale-95 transition-all origin-bottom-left",
+        "opacity-0 invisible scale-95 transition-all",
         "group-[.active]/select:opacity-100 group-[.active]/select:visible group-[.active]/select:scale-100"
       ]}>
         <.select_items

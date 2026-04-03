@@ -91,17 +91,55 @@ defmodule OmniUI.Artifacts.PanelComponent do
   @impl true
   def render(assigns) do
     ~H"""
-    <div id={@id} class="h-full flex flex-col border bg-omni-bg border-omni-border-3 rounded-xl overflow-hidden">
+    <div id={@id} class="h-full flex flex-col bg-omni-bg">
+      <.artifact_bar
+        artifact={@artifacts[@active_artifact]}
+        token={@token}
+        target={@myself} />
+
       <%= if @active_artifact do %>
         <.artifact_viewer
           artifact={@artifacts[@active_artifact]}
           content={@content}
           token={@token}
-          target={@myself}
-        />
+          target={@myself} />
       <% else %>
         <.artifact_list artifacts={@artifacts} target={@myself} />
       <% end %>
+    </div>
+    """
+  end
+
+  defp artifact_bar(assigns) do
+    ~H"""
+    <div class="flex items-center gap-4 h-12 p-4 border-b border-omni-border-2">
+      <Lucideicons.monitor class="size-4" />
+      <div class="font-semibold text-omni-text">{if(@artifact, do: @artifact.filename, else: "All artifacts")}</div>
+
+      <div
+        :if={@artifact}
+        class="flex-auto flex items-center gap-2 justify-end">
+          <p>toggle</p> <!-- todo: view toggle -->
+        <a
+          class={[
+            "flex items-center justify-center size-7 rounded transition-colors cursor-pointer",
+            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+          ]}
+          href={artifact_url(@token, @artifact.filename)}
+          download={@artifact.filename}>
+          <Lucideicons.download class="size-4" />
+        </a>
+        <button
+          class={[
+            "flex items-center justify-center size-7 rounded cursor-pointer",
+            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+          ]}
+          phx-click="close_artifact"
+          phx-target={@target}>
+          <Lucideicons.x class="size-4" />
+        </button>
+      </div>
+
     </div>
     """
   end
@@ -110,27 +148,42 @@ defmodule OmniUI.Artifacts.PanelComponent do
 
   defp artifact_list(assigns) do
     ~H"""
-    <div class="h-full flex flex-col">
-      <div class="px-4 py-3 border-b border-omni-border-3">
-        <h2 class="font-semibold text-omni-text">Artifacts</h2>
-      </div>
-
+    <div class="h-full p-12 pb-16 overflow-y-auto">
       <%= if @artifacts == %{} do %>
-        <div class="flex-1 flex items-center justify-center text-omni-text-4">
-          <p>No artifacts yet</p>
+        <div class="h-full flex items-center justify-center">
+          <p class="text-sm text-omni-text-3 italic">No artifacts yet.</p>
         </div>
       <% else %>
-        <div class="flex-1 overflow-y-auto">
-          <button
-            :for={{filename, artifact} <- Enum.sort(@artifacts)}
+
+        <div class="border-b border-omni-border-2">
+          <div class="px-2 py-3 grid grid-cols-[50%_1fr_1fr] gap-x-4 text-sm font-medium text-omni-text">
+            <div>Name</div>
+            <div>Size</div>
+            <div>Updated</div>
+          </div>
+        </div>
+
+        <div
+          :for={{filename, artifact} <- Enum.sort(@artifacts)}
+          class="border-b border-omni-border-3">
+          <div
+            class={[
+              "px-2 py-3 grid grid-cols-[50%_1fr_1fr] gap-x-4 text-sm text-omni-text-3 group cursor-pointer transition-colors",
+              "hover:bg-omni-bg-2"
+            ]}
             phx-click="select_artifact"
             phx-value-filename={filename}
-            phx-target={@target}
-            class="w-full text-left px-4 py-3 border-b border-omni-border-3 hover:bg-omni-bg-2 transition-colors"
-          >
-            <div class="font-medium text-omni-text truncate">{filename}</div>
-            <div class="text-sm text-omni-text-3">{format_size(artifact.size)}</div>
-          </button>
+            phx-target={@target}>
+            <div class={[
+              "flex items-center gap-2 transition-colors",
+              "text-omni-text-1 group-hover:text-omni-accent-1"
+            ]}>
+              <Lucideicons.file_code class="size-4" />
+              <span class="font-medium">{filename}</span>
+            </div>
+            <div>{format_size(artifact.size)}</div>
+            <div>{Calendar.strftime(artifact.updated_at, "%d %b %Y, %I:%M%P")}</div>
+          </div>
         </div>
       <% end %>
     </div>
@@ -144,24 +197,6 @@ defmodule OmniUI.Artifacts.PanelComponent do
 
     ~H"""
     <div class="h-full flex flex-col">
-      <div class="px-4 py-3 border-b border-omni-border-3 flex items-center gap-3">
-        <button
-          phx-click="close_artifact"
-          phx-target={@target}
-          class="text-omni-text-3 hover:text-omni-text transition-colors"
-          aria-label="Back to artifacts list"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
-            <path
-              fill-rule="evenodd"
-              d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z"
-              clip-rule="evenodd"
-            />
-          </svg>
-        </button>
-        <h2 class="font-semibold text-omni-text truncate">{@artifact.filename}</h2>
-      </div>
-
       <div class="flex-1 min-h-0">
         <.viewer_content mode={@mode} artifact={@artifact} content={@content} token={@token} />
       </div>
@@ -183,7 +218,11 @@ defmodule OmniUI.Artifacts.PanelComponent do
 
   defp viewer_content(%{mode: :view} = assigns) do
     ~H"""
-    <div class="h-full overflow-auto">
+    <div
+      class={[
+        "h-full overflow-auto",
+        "[&>pre]:h-full [&>pre]:p-12 [&>pre]:text-sm"
+      ]}>
       {@content}
     </div>
     """

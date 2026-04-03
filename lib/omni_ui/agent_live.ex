@@ -49,7 +49,7 @@ defmodule OmniUI.AgentLive do
 
       <!-- TODO : artifacts button -->
 
-      <div class="h-full w-1/2 p-4 bg-omni-bg-1 border-l border-omni-border-2">
+      <div class="h-full w-1/2 border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
         <.live_component
           module={OmniUI.Artifacts.PanelComponent}
           id="artifacts-panel"
