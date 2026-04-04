@@ -11,8 +11,8 @@ defmodule OmniUI.Artifacts.FileSystem do
 
   ## Configuration
 
-  The base path defaults to `priv/omni/sessions` within the `:omni_ui`
-  application directory (the same default as `OmniUI.Store.Filesystem`).
+  The base path defaults to `priv/omni/sessions` relative to the current
+  working directory (the same default as `OmniUI.Store.Filesystem`).
   Override with:
 
       config :omni_ui, OmniUI.Artifacts, base_path: "/custom/path"
@@ -25,7 +25,7 @@ defmodule OmniUI.Artifacts.FileSystem do
 
   Checks (in order): explicit `:base_path` in opts, application config
   (`config :omni_ui, OmniUI.Artifacts, base_path: "..."`), then falls back
-  to `priv/omni/sessions` within the `:omni_ui` application directory.
+  to `priv/omni/sessions` relative to the current working directory.
   """
   @spec base_path(keyword()) :: String.t()
   def base_path(opts) do
@@ -171,10 +171,7 @@ defmodule OmniUI.Artifacts.FileSystem do
   end
 
   defp default_base_path do
-    case :code.priv_dir(:omni_ui) do
-      {:error, :bad_name} -> Path.join("priv", "omni/sessions")
-      dir -> Path.join(to_string(dir), "omni/sessions")
-    end
+    Path.join("priv", "omni/sessions")
   end
 
   defp validate_filename(filename) do

@@ -23,8 +23,8 @@ defmodule OmniUI.Store.Filesystem do
 
   ## Configuration
 
-  The base path defaults to `priv/omni/sessions` within the `:omni_ui`
-  application directory. Override with:
+  The base path defaults to `priv/omni/sessions` relative to the current
+  working directory (i.e. the host application root). Override with:
 
       config :omni_ui, OmniUI.Store.Filesystem, base_path: "/custom/path"
 
@@ -154,10 +154,7 @@ defmodule OmniUI.Store.Filesystem do
   end
 
   defp default_base_path do
-    case :code.priv_dir(:omni_ui) do
-      {:error, :bad_name} -> Path.join("priv", "omni/sessions")
-      dir -> Path.join(to_string(dir), "omni/sessions")
-    end
+    Path.join("priv", "omni/sessions")
   end
 
   defp read_meta(path) do
