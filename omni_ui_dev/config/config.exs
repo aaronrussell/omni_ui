@@ -56,7 +56,7 @@ config :omni, OmniUI.AgentLive, store: OmniUI.Store.Filesystem
 
 config :omni, Omni.Providers.Ollama,
   models: [
-    [id: "qwen3.5:4b", reasoning: true]
+    [id: "gemma4:e4b", reasoning: true]
   ]
 
 # Import environment specific config. This must remain at the bottom

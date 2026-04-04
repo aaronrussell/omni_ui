@@ -6,6 +6,39 @@ defmodule OmniUI.Helpers do
   rendering markdown, and working with Omni data structures.
   """
 
+  # Markdown typography styles applied at the chat_interface level via descendant
+  # selectors targeting the `.mdex` class. This keeps the markdown component's HTML
+  # minimal while defining styles once in the DOM.
+  @markdown_styles ~w"""
+  [&_.mdex>*:first-child]:mt-0! [&_.mdex>*:last-child]:mb-0!
+  [&_.mdex_p,ul,ol,h1,h2,h3,h4,h5,h6]:mb-4 [&_.mdex_p,ul,ol,h1,h2,h3,h4,h5,h6]:max-w-prose
+  [&_.mdex_h1,h2]:mt-12 [&_.mdex_h3]:mt-6
+  [&_.mdex_h1,h2,h4,h5,h6]:font-bold [&_.mdex_h3,h5]:italic
+  [&_.mdex_h1]:text-3xl [&_.mdex_h1]:font-black
+  [&_.mdex_h2]:text-2xl [&_.mdex_h2]:font-bold
+  [&_.mdex_h3]:text-xl [&_.mdex_h3]:font-bold
+  [&_.mdex_h4]:text-lg [&_.mdex_h4]:font-bold
+  [&_.mdex_h5]:font-bold
+  [&_.mdex_h6]:font-medium [&_.mdex_h6]:italic
+  [&_.mdex_ul]:list-disc [&_.mdex_ul]:pl-5
+  [&_.mdex_ol]:list-decimal [&_.mdex_ol]:pl-5
+  [&_.mdex_li]:my-0.5
+  [&_.mdex_table,pre,img,hr]:my-6
+  [&_.mdex_table]:w-full [&_.mdex_table]:table-fixed [&_.mdex_table]:text-sm
+  [&_.mdex_table]:border [&_.mdex_table]:border-separate [&_.mdex_table]:border-spacing-0 [&_.mdex_table]:rounded-xl
+  [&_.mdex_table]:border-omni-border-3
+  [&_.mdex_thead_th]:border-b [&_.mdex_thead_th]:border-omni-border-3
+  [&_.mdex_th,td]:text-left [&_.mdex_th,td]:p-2.5
+  [&_.mdex_tbody>tr]:odd:bg-omni-bg-2
+  [&_.mdex_pre]:-mx-6 [&_.mdex_pre]:px-6 [&_.mdex_pre]:py-5 [&_.mdex_pre]:rounded-xl [&_.mdex_pre]:overflow-auto
+  [&_.mdex_hr]:h-px [&_.mdex_hr]:bg-omni-border-2 [&_.mdex_hr]:border-none
+  [&_.mdex_a]:font-medium [&_.mdex_a]:hover:underline [&_.mdex_a]:transition-colors
+  [&_.mdex_a]:text-omni-accent-1 [&_.mdex_a]:hover:text-omni-accent-2
+  [&_.mdex_code]:text-sm [&_.mdex_code]:leading-[1.625] [&_.mdex_code]:font-mono
+  [&_.mdex_:not(pre)>code]:px-1 [&_.mdex_:not(pre)>code]:py-0.5 [&_.mdex_:not(pre)>code]:rounded-sm
+  [&_.mdex_:not(pre)>code]:bg-omni-bg-1
+  """
+
   @doc """
   Returns a URL for an `Omni.Content.Attachment`.
 
@@ -195,6 +228,12 @@ defmodule OmniUI.Helpers do
     index = Enum.find_index(siblings, &(&1 == id))
     "#{index + 1}/#{length(siblings)}"
   end
+
+  @doc """
+  TODO
+  """
+  @spec md_styles() :: String.t()
+  def md_styles(), do: @markdown_styles
 
   @doc """
   Converts a markdown string to HTML using MDEx with GFM and Mermaid support.

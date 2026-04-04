@@ -71,7 +71,7 @@ defmodule OmniUI.Artifacts.URL do
           String.t()
   def artifact_url(endpoint, session_id, filename) do
     token = sign_token(endpoint, session_id)
-    "#{url_prefix()}/#{token}/#{filename}"
+    "#{url_prefix()}/#{token}/#{URI.encode(filename)}"
   end
 
   defp url_prefix do

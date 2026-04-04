@@ -28,6 +28,7 @@ defmodule OmniUI.MixProject do
       {:omni, "~> 1.2"},
       {:omni_agent, "~> 0.2"},
       {:lucide_icons, "~> 2.0"},
+      {:lumis, "~> 0.2.0"},
       {:mdex, "~> 0.11.6"},
       {:mdex_gfm, "~> 0.2"},
       {:mdex_mermaid, "~> 0.3.5"},

@@ -106,8 +106,18 @@ defmodule OmniUI.REPL.Sandbox do
 
   defp ensure_distributed! do
     unless Node.alive?() do
+      # EPMD must be running before Node.start/2 can enable distribution.
+      # When the VM was started without --sname/--name, EPMD won't be up yet.
+      ensure_epmd!()
       name = :"omni_sandbox_#{System.unique_integer([:positive])}"
       {:ok, _} = Node.start(name, name_domain: :shortnames)
+    end
+  end
+
+  defp ensure_epmd! do
+    case :erl_epmd.names() do
+      {:ok, _} -> :ok
+      {:error, _} -> :os.cmd(~c"epmd -daemon")
     end
   end
 

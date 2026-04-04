@@ -2,7 +2,8 @@ defmodule OmniUI.AgentLive do
   use Phoenix.LiveView
   use OmniUI
 
-  @default_model {:ollama, "qwen3.5:4b"}
+  @default_model {:ollama, "gemma4:e4b"}
+  @default_model {:opencode, "kimi-k2.5"}
 
   attr :current_turn, OmniUI.Turn
   attr :usage, Omni.Usage, required: true
@@ -62,7 +63,7 @@ defmodule OmniUI.AgentLive do
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
     {:ok, models1} = Omni.list_models(:anthropic)
-    {:ok, models2} = Omni.list_models(:ollama)
+    {:ok, models2} = Omni.list_models(:opencode)
     models = models1 ++ models2
 
     socket =

@@ -38,8 +38,9 @@ defmodule OmniUI.Artifacts.Plug do
   end
 
   @impl Plug
-  def call(%Plug.Conn{path_info: [token, filename]} = conn, %{max_age: max_age} = opts) do
+  def call(%Plug.Conn{path_info: [token, raw_filename]} = conn, %{max_age: max_age} = opts) do
     endpoint = conn.private[:phoenix_endpoint]
+    filename = URI.decode(raw_filename)
 
     fs_opts = if opts[:base_path], do: [base_path: opts.base_path], else: []
 
@@ -51,6 +52,7 @@ defmodule OmniUI.Artifacts.Plug do
       content_type = MIME.from_path(filename)
 
       conn
+      |> put_cors_headers()
       |> put_resp_content_type(content_type, nil)
       |> put_resp_header("content-disposition", content_disposition(filename, content_type))
       |> put_resp_header("cache-control", "no-store")
@@ -59,6 +61,13 @@ defmodule OmniUI.Artifacts.Plug do
       {:error, _reason} -> send_resp(conn, 401, "Unauthorized")
       false -> send_resp(conn, 404, "Not Found")
     end
+  end
+
+  # CORS preflight for sandboxed iframes (origin: null)
+  def call(%Plug.Conn{method: "OPTIONS", path_info: [_token, _filename]} = conn, _opts) do
+    conn
+    |> put_cors_headers()
+    |> send_resp(204, "")
   end
 
   def call(conn, _opts) do
@@ -72,6 +81,15 @@ defmodule OmniUI.Artifacts.Plug do
     safe_dir = Path.expand(dir) <> "/"
 
     if String.starts_with?(expanded, safe_dir), do: :ok, else: false
+  end
+
+  # Sandboxed iframes have origin "null", so artifact sub-resources (fetch, img,
+  # etc.) need CORS headers. Access is already gated by the signed URL token.
+  defp put_cors_headers(conn) do
+    conn
+    |> put_resp_header("access-control-allow-origin", "*")
+    |> put_resp_header("access-control-allow-methods", "GET, OPTIONS")
+    |> put_resp_header("access-control-allow-headers", "content-type")
   end
 
   defp content_disposition(filename, content_type) do

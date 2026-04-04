@@ -84,6 +84,23 @@ defmodule OmniUI.Artifacts.PlugTest do
                ~s(attachment; filename="report.xlsx")
              ]
     end
+
+    test "serves file whose name needs URI encoding", ctx do
+      FileSystem.write("my app.html", "<p>spaced</p>", opts(ctx))
+      token = sign("test-session")
+
+      # path_info preserves percent-encoding; the Plug must decode it
+      conn = build_conn(token, "my%20app.html") |> call_plug([], ctx)
+
+      assert conn.status == 200
+      assert conn.resp_body == "<p>spaced</p>"
+    end
+
+    test "artifact_url encodes special characters in filename" do
+      url = URL.artifact_url(Endpoint, "sess", "my app.html")
+      assert url =~ "/my%20app.html"
+      refute url =~ " "
+    end
   end
 
   describe "missing file" do
