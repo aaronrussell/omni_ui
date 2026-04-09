@@ -206,7 +206,11 @@ defmodule OmniUI do
     * `:tree` — `%OmniUI.Tree{}` to restore a conversation (default: empty tree)
     * `:thinking` — thinking mode: `false | :low | :medium | :high | :max` (default: `false`)
     * `:system` — system prompt string (default: `nil`)
-    * `:tools` — list of tool modules (default: `[]`)
+    * `:tools` — list of tool entries (default: `[]`). Each entry is either:
+      * a bare `%Omni.Tool{}` struct (rendered with the default content block), or
+      * `{%Omni.Tool{}, opts}` where `opts` is a keyword list. The only supported
+        option is `component: (assigns -> rendered)` — a 1-arity function component
+        that replaces the default content block rendering for that tool's uses.
   ## Example
 
       def mount(_params, _session, socket) do
@@ -223,7 +227,7 @@ defmodule OmniUI do
     tree = Keyword.get(opts, :tree, %OmniUI.Tree{})
     thinking = Keyword.get(opts, :thinking, false)
     system = Keyword.get(opts, :system)
-    tools = Keyword.get(opts, :tools, [])
+    {tools, tool_components} = normalise_tools(Keyword.get(opts, :tools, []))
     tool_timeout = Keyword.get(opts, :tool_timeout)
 
     agent_opts =
@@ -244,7 +248,8 @@ defmodule OmniUI do
       current_turn: nil,
       model: model,
       thinking: thinking,
-      usage: usage
+      usage: usage,
+      tool_components: tool_components
     )
     |> stream(:turns, turns)
   end
@@ -260,7 +265,8 @@ defmodule OmniUI do
     * `:model` — updates both socket assign and agent model
     * `:thinking` — updates both socket assign and agent opts
     * `:system` — updates agent context only (not surfaced in UI)
-    * `:tools` — updates agent context only
+    * `:tools` — updates agent context and the `:tool_components` assign. Accepts
+      the same list shape as `start_agent/2` — bare structs or `{tool, opts}` tuples.
   ## Example
 
       OmniUI.update_agent(socket, model: {:anthropic, "claude-opus-4-20250514"})
@@ -283,9 +289,10 @@ defmodule OmniUI do
         :ok = Omni.Agent.set_state(agent, :context, &%{&1 | system: system})
         socket
 
-      {:tools, tools}, socket ->
+      {:tools, entries}, socket ->
+        {tools, tool_components} = normalise_tools(entries)
         :ok = Omni.Agent.set_state(agent, :context, &%{&1 | tools: tools})
-        socket
+        assign(socket, :tool_components, tool_components)
 
       {:tree, tree}, socket ->
         :ok = Omni.Agent.set_state(agent, :context, &%{&1 | messages: OmniUI.Tree.messages(tree)})
@@ -298,6 +305,31 @@ defmodule OmniUI do
   end
 
   # ── Private ────────────────────────────────────────────────────────
+
+  @doc false
+  # Splits a list of tool entries into a flat `[%Omni.Tool{}]` list (for the
+  # agent) and a `%{tool_name => component_fun}` map (for the UI). Accepts
+  # either bare `%Omni.Tool{}` structs or `{%Omni.Tool{}, opts}` tuples where
+  # `opts[:component]` is a 1-arity function component. Order of the flat tool
+  # list is preserved. Public (undocumented) for testability.
+  def normalise_tools(entries) do
+    {tools, components} =
+      Enum.reduce(entries, {[], %{}}, fn
+        %Omni.Tool{} = tool, {tools, components} ->
+          {[tool | tools], components}
+
+        {%Omni.Tool{} = tool, opts}, {tools, components} when is_list(opts) ->
+          components =
+            case Keyword.get(opts, :component) do
+              nil -> components
+              fun when is_function(fun, 1) -> Map.put(components, tool.name, fun)
+            end
+
+          {[tool | tools], components}
+      end)
+
+    {Enum.reverse(tools), components}
+  end
 
   defp resolve_model!(%Omni.Model{} = model), do: model
 

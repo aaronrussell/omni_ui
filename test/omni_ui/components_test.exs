@@ -102,6 +102,104 @@ defmodule OmniUI.ComponentsTest do
       assert html =~ "border-red-500"
     end
 
+    test "renders tool use with custom component from tool_components" do
+      custom = fn assigns ->
+        ~H"""
+        <div class="custom-tool-use">
+          custom: {@tool_use.name} / {@tool_use.input["q"]} /
+          <%= if @tool_result, do: "done", else: "pending" %>
+        </div>
+        """
+      end
+
+      assigns = %{
+        content: %Content.ToolUse{id: "tc1", name: "search", input: %{"q" => "hello"}},
+        tool_results: %{},
+        tool_components: %{"search" => custom},
+        streaming: false
+      }
+
+      html =
+        rendered_to_string(~H"""
+        <.content_block
+          content={@content}
+          tool_results={@tool_results}
+          tool_components={@tool_components}
+          streaming={@streaming} />
+        """)
+
+      assert html =~ "custom-tool-use"
+      assert html =~ "custom: search / hello"
+      assert html =~ "pending"
+      # Default tool-use rendering artefacts should be absent
+      refute html =~ "Input:"
+    end
+
+    test "custom component receives pre-resolved tool_result when available" do
+      custom = fn assigns ->
+        ~H"""
+        <div>
+          <%= if @tool_result do %>
+            result-id: {@tool_result.tool_use_id}
+          <% end %>
+        </div>
+        """
+      end
+
+      assigns = %{
+        content: %Content.ToolUse{id: "tc1", name: "search", input: %{}},
+        tool_results: %{
+          "tc1" => %Content.ToolResult{
+            tool_use_id: "tc1",
+            name: "search",
+            content: [%Content.Text{text: "ok"}]
+          }
+        },
+        tool_components: %{"search" => custom},
+        streaming: false
+      }
+
+      html =
+        rendered_to_string(~H"""
+        <.content_block
+          content={@content}
+          tool_results={@tool_results}
+          tool_components={@tool_components}
+          streaming={@streaming} />
+        """)
+
+      assert html =~ "result-id: tc1"
+    end
+
+    test "falls back to default rendering when tool_components has no entry for the tool" do
+      other = fn assigns ->
+        ~H"""
+        <div>other tool component</div>
+        """
+      end
+
+      assigns = %{
+        content: %Content.ToolUse{id: "tc1", name: "search", input: %{"q" => "test"}},
+        tool_results: %{},
+        tool_components: %{"other_tool" => other},
+        streaming: false
+      }
+
+      html =
+        rendered_to_string(~H"""
+        <.content_block
+          content={@content}
+          tool_results={@tool_results}
+          tool_components={@tool_components}
+          streaming={@streaming} />
+        """)
+
+      # Default rendering shows the tool name and an "Input:" label
+      assert html =~ "search"
+      assert html =~ "Input:"
+      refute html =~ "other tool component"
+    end
+
     test "renders attachment with image" do
       assigns = %{
         content: %Content.Attachment{media_type: "image/png", source: {:base64, "abc"}}

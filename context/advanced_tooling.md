@@ -397,10 +397,11 @@ Connected the sandbox to the artifact system via a generic extension mechanism, 
 
 ### Phase 8: Polish
 
-21. **Inline artifact indicators** — when a `content_block` renders an artifact tool use, show a richer UI (artifact name, type icon, preview thumbnail) instead of raw JSON. This is the broader question of custom components per tool type — may be a rabbit hole, scope carefully.
-22. **Panel visibility toggle** — the panel is currently always visible. Decide on: `@artifacts_open` boolean, toggle button, and auto-open behaviour (auto-open on first artifact creation vs manual-only vs notification badge). See Open Question #3.
-23. **Error handling** — graceful handling of disk errors, missing files, sandbox crashes.
-24. **Documentation** — developer-facing docs for setting up artifacts and sandbox. Must include the router requirement (ArtifactPlug outside `:browser` pipeline).
+21. **Custom tool-use components (framework) ✓** — `content_block/1`'s `ToolUse` clause is now a dispatcher that consults a `@tool_components` map (`%{tool_name => (assigns -> rendered)}`) before falling back to a built-in `default_tool_use/1` renderer. Registration is via a mixed `:tools` list on `start_agent`/`update_agent`: either a bare `%Omni.Tool{}` (default rendering) or `{%Omni.Tool{}, component: fun}` (custom rendering). A private `normalise_tools/1` in `OmniUI` splits the list into the flat tool list for `Omni.Agent` and the components map assigned to `:tool_components`. Threaded through `AgentLive → TurnComponent → assistant_message → content_block`. Custom components receive a normalised assigns map: `@tool_use`, `@tool_result` (pre-resolved, nil if pending), `@streaming`. Event handling uses standard `phx-click` bubbling up through the `TurnComponent` to the parent LiveView. See architecture.md → "Custom Tool-Use Components".
+22. **Artifacts tool-use component** — build `OmniUI.Artifacts.ToolUseComponent.component/1` rendering a filename pill + "View" button that dispatches an event to `AgentLive`, which in turn does `send_update(PanelComponent, action: {:view, filename})`. Requires a small addition to `PanelComponent.update/2` to handle the new action. Wire via `{OmniUI.Artifacts.Tool.new(...), component: &OmniUI.Artifacts.ToolUseComponent.component/1}` in `create_tools/1`.
+23. **Panel visibility toggle** — the panel is currently always visible. Decide on: `@artifacts_open` boolean, toggle button, and auto-open behaviour (auto-open on first artifact creation vs manual-only vs notification badge). See Open Question #3.
+24. **Error handling** — graceful handling of disk errors, missing files, sandbox crashes.
+25. **Documentation** — developer-facing docs for setting up artifacts and sandbox. Must include the router requirement (ArtifactPlug outside `:browser` pipeline).
 
 ---
 
@@ -432,9 +433,9 @@ Defaults to `priv/omni/sessions`. Path resolution lives in `OmniUI.Artifacts.Fil
 
 Whether the artifact panel opens automatically when the first artifact is created, stays manual-only, or uses a notification badge. Defer to UI implementation phase.
 
-### 4. Inline artifact indicators
+### 4. Inline artifact indicators ✓ (Resolved)
 
-Whether `content_block/1` should render artifact tool uses differently from generic tool uses (eg show artifact name, type icon, "View" button). Deferred to Phase 8 polish — the default tool use rendering works as a starting point.
+**Decision:** `content_block/1`'s `ToolUse` clause is a dispatcher that supports custom per-tool components via a `@tool_components` map. The map is built at tool registration time from a mixed `:tools` list where entries can be bare `%Omni.Tool{}` structs or `{tool, component: fun}` tuples. Custom components receive a normalised `%{tool_use, tool_result, streaming}` assigns map. The framework plumbing is built; the actual artifacts tool-use component (filename pill + "View" button) is a Phase 8 follow-up. See architecture.md → "Custom Tool-Use Components".
 
 ### 5. Artifact Plug URL prefix ✓ (Resolved)
 

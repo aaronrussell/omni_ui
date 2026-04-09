@@ -60,6 +60,7 @@ defmodule OmniUI.TurnComponent do
           <.assistant_message
             content={@turn.content}
             tool_results={@turn.tool_results}
+            tool_components={@tool_components}
             streaming={@turn.status == :streaming} />
 
           <.assistant_message_actions
@@ -142,7 +143,7 @@ defmodule OmniUI.TurnComponent do
 
   @impl true
   def mount(socket) do
-    {:ok, assign(socket, editing: false, input: "")}
+    {:ok, assign(socket, editing: false, input: "", tool_components: %{})}
   end
 
   # Local events

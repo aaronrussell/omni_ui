@@ -63,6 +63,61 @@ defmodule OmniUI.MacroTest do
     end
   end
 
+  describe "normalise_tools/1" do
+    defp tool(name), do: Omni.Tool.new(name: name, description: "test")
+    defp renderer, do: fn assigns -> assigns end
+
+    test "returns empty list and empty map for empty input" do
+      assert {[], %{}} = OmniUI.normalise_tools([])
+    end
+
+    test "passes bare structs through without adding to components map" do
+      a = tool("a")
+      b = tool("b")
+
+      assert {[^a, ^b], %{}} = OmniUI.normalise_tools([a, b])
+    end
+
+    test "extracts component from tuple entries" do
+      a = tool("a")
+      fun = renderer()
+
+      assert {[^a], %{"a" => ^fun}} = OmniUI.normalise_tools([{a, component: fun}])
+    end
+
+    test "handles a mixed list of bare structs and tuples" do
+      a = tool("a")
+      b = tool("b")
+      c = tool("c")
+      fun_a = renderer()
+      fun_c = renderer()
+
+      assert {[^a, ^b, ^c], components} =
+               OmniUI.normalise_tools([{a, component: fun_a}, b, {c, component: fun_c}])
+
+      assert components == %{"a" => fun_a, "c" => fun_c}
+    end
+
+    test "tuple with empty keyword list is treated as bare (no component)" do
+      a = tool("a")
+
+      assert {[^a], %{}} = OmniUI.normalise_tools([{a, []}])
+    end
+
+    test "tuple with component: nil is treated as no component" do
+      a = tool("a")
+
+      assert {[^a], %{}} = OmniUI.normalise_tools([{a, component: nil}])
+    end
+
+    test "preserves order of the flat tool list" do
+      tools = for n <- 1..5, do: tool("tool_#{n}")
+
+      assert {result, %{}} = OmniUI.normalise_tools(tools)
+      assert result == tools
+    end
+  end
+
   describe "store injection — MinimalView (no store configured)" do
     test "store functions are not injected" do
       refute function_exported?(MinimalView, :save_tree, 2)

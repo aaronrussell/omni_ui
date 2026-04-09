@@ -18,7 +18,8 @@ defmodule OmniUI.AgentLive do
               :for={{dom_id, turn} <- @streams.turns}
               module={OmniUI.TurnComponent}
               id={dom_id}
-              turn={turn} />
+              turn={turn}
+              tool_components={@tool_components} />
           </.message_list>
 
           <.turn :if={@current_turn} id="current-turn">
@@ -30,6 +31,7 @@ defmodule OmniUI.AgentLive do
               <.assistant_message
                 content={@current_turn.content}
                 tool_results={@current_turn.tool_results}
+                tool_components={@tool_components}
                 streaming={true} />
             </:assistant>
           </.turn>

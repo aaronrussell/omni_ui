@@ -206,6 +206,7 @@ defmodule OmniUI.Components do
   attr :content, :list, required: true
   attr :tool_results, :map, required: true
   attr :streaming, :boolean, required: true
+  attr :tool_components, :map, default: %{}
 
   def assistant_message(assigns) do
     ~H"""
@@ -215,6 +216,7 @@ defmodule OmniUI.Components do
           :for={{content, idx} <- Enum.with_index(@content)}
           content={content}
           tool_results={@tool_results}
+          tool_components={@tool_components}
           streaming={@streaming and idx == length(@content) - 1} />
       </div>
 
@@ -280,9 +282,22 @@ defmodule OmniUI.Components do
 
   Dispatches on the struct type of the `:content` assign to render `Text`,
   `Thinking`, `ToolUse`, or `Attachment` blocks.
+
+  For `ToolUse` blocks, consults the `:tool_components` map (keyed by tool
+  name) for a custom component. If no entry exists, falls back to the default
+  tool-use rendering.
+
+  Custom tool-use components receive a normalised assigns map with three keys:
+
+    * `@tool_use` — the `%Omni.Content.ToolUse{}` struct
+    * `@tool_result` — the matching `%Omni.Content.ToolResult{}` or `nil` if
+      not yet available (pre-resolved from the `:tool_results` map)
+    * `@streaming` — boolean, `true` if this is the last block of a streaming
+      message
   """
   attr :content, :map, required: true
   attr :tool_results, :map, default: %{}
+  attr :tool_components, :map, default: %{}
   attr :streaming, :boolean, default: false
 
   def content_block(%{content: %Omni.Content.Text{}} = assigns) do
@@ -319,7 +334,24 @@ defmodule OmniUI.Components do
     """
   end
 
-  def content_block(%{content: %Omni.Content.ToolUse{}} = assigns) do
+  def content_block(%{content: %Omni.Content.ToolUse{} = tool_use} = assigns) do
+    tool_use_assigns = %{
+      tool_use: tool_use,
+      tool_result: assigns[:tool_results][tool_use.id],
+      streaming: assigns[:streaming] || false
+    }
+
+    case assigns[:tool_components][tool_use.name] do
+      nil -> default_tool_use(tool_use_assigns)
+      fun when is_function(fun, 1) -> fun.(tool_use_assigns)
+    end
+  end
+
+  # Default rendering for a ToolUse content block. Used when no custom
+  # component is registered for the tool in `:tool_components`. Receives the
+  # same normalised assigns as any custom component: `@tool_use`,
+  # `@tool_result`, `@streaming`.
+  defp default_tool_use(assigns) do
     ~H"""
     <.expandable>
       <:icon>
@@ -334,13 +366,13 @@ defmodule OmniUI.Components do
           <code class={[
             "px-2 py-1 rounded font-mono text-xs",
             "bg-omni-bg-1 text-omni-text-1"
-          ]}><%= @content.name %></code>
-          <%= if @tool_results[@content.id] do %>
+          ]}><%= @tool_use.name %></code>
+          <%= if @tool_result do %>
             <Lucideicons.check
-              :if={@tool_results[@content.id].is_error == false}
+              :if={@tool_result.is_error == false}
               class="size-3 text-green-500" />
             <Lucideicons.circle_x
-              :if={@tool_results[@content.id].is_error == true}
+              :if={@tool_result.is_error == true}
               class="size-4 text-red-500" />
           <% end %>
         </div>
@@ -351,15 +383,15 @@ defmodule OmniUI.Components do
         <pre class={[
           "px-2 py-1 font-mono text-xs text-wrap rounded",
           "bg-omni-bg-2 text-omni-text-2"
-        ]}><%= format_json(@content.input) %></pre>
+        ]}><%= format_json(@tool_use.input) %></pre>
 
-        <%= if @tool_results[@content.id] do %>
+        <%= if @tool_result do %>
           <div class="text-xs text-omni-text-2">Output:</div>
           <pre class={[
             "px-2 py-1 font-mono text-xs text-wrap rounded",
             "bg-omni-bg-2 text-omni-text-2",
-            if(@tool_results[@content.id].is_error, do: "border border-red-500")
-          ]}><%= format_tool_result(@tool_results[@content.id]) %></pre>
+            if(@tool_result.is_error, do: "border border-red-500")
+          ]}><%= format_tool_result(@tool_result) %></pre>
         <% end %>
       </div>
     </.expandable>

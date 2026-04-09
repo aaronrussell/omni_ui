@@ -121,5 +121,29 @@ defmodule OmniUI.TurnComponentTest do
       assert html =~ "search"
       assert html =~ "Found it"
     end
+
+    test "dispatches to custom component from tool_components assign" do
+      custom = fn assigns ->
+        ~H"""
+        <div class="custom-marker">tool: {@tool_use.name}</div>
+        """
+      end
+
+      turn = %{
+        simple_turn()
+        | content: [%Content.ToolUse{id: "tc1", name: "search", input: %{"q" => "x"}}]
+      }
+
+      html =
+        render_component(TurnComponent,
+          id: "turn-1",
+          turn: turn,
+          tool_components: %{"search" => custom}
+        )
+
+      assert html =~ "custom-marker"
+      assert html =~ "tool: search"
+      refute html =~ "Input:"
+    end
   end
 end

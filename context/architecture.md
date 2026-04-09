@@ -138,6 +138,7 @@ AgentLive (LiveView)
 │   │       │   │   └── attachment/1 tiles (read-only)
 │   │       │   └── assistant_message/1
 │   │       │       └── content_block/1 (pattern-matched: Text, Thinking, ToolUse, Attachment)
+│   │       │                          — ToolUse dispatches via @tool_components (see below)
 │   │       ├── user_message_actions/1 (copy, edit, version nav)
 │   │       └── assistant_message_actions/1 (copy, redo, version nav, usage)
 │   │
@@ -167,6 +168,35 @@ AgentLive (LiveView)
 **The streaming turn is a function component**, not a LiveComponent. The LiveView keeps `@current_turn` in its assigns and renders it with the same `turn/1` component used inside `TurnComponent`. LiveView's change tracking means only the template block referencing `@current_turn` re-evaluates on each delta — the stream of completed turns is untouched. The DOM diff sent over the wire is small (just appended text).
 
 If streaming performance becomes an issue, two non-architectural fixes are available: debouncing deltas (batch on a 50-100ms timer), or deferring markdown rendering to the client via a JS hook.
+
+---
+
+## Custom Tool-Use Components
+
+Tool-use content blocks can be rendered with per-tool custom components. The `ToolUse` clause of `content_block/1` is a dispatcher: it looks up the tool's name in a `@tool_components` map (`%{tool_name => (assigns -> rendered)}`); if found, it calls that function, otherwise falls back to a built-in `default_tool_use/1` renderer.
+
+**Registration.** The map is built at tool registration time. `start_agent/2` and `update_agent/2` accept a `:tools` list of mixed shapes:
+
+```elixir
+%Omni.Tool{}                              # default rendering
+{%Omni.Tool{}, component: fun}            # custom rendering
+```
+
+A private `normalise_tools/1` in `OmniUI` splits the list into a flat `[%Omni.Tool{}]` (handed to `Omni.Agent`) and a `%{name => component_fun}` map (assigned to `:tool_components` on the socket). The tuple's keyword list is forward-compatible — sibling keys like `:title`, `:icon`, `:result_block` can be added later without breaking existing call sites.
+
+**Propagation.** `@tool_components` is threaded through the component tree: `AgentLive → TurnComponent → assistant_message/1 → content_block/1`. `TurnComponent` defaults it to `%{}` in `mount/1` so tests and callers without custom components work unchanged.
+
+**Assigns contract.** Custom components (and `default_tool_use/1`) receive a normalised assigns map — *not* the raw `content_block` assigns:
+
+- `@tool_use` — the `%Omni.Content.ToolUse{}` struct
+- `@tool_result` — the matching `%Omni.Content.ToolResult{}` or `nil` (pre-resolved from `:tool_results` so custom components don't re-do the lookup)
+- `@streaming` — boolean
+
+Dispatcher state (`@tool_components`, the full `@tool_results` map) is deliberately *not* leaked into custom components.
+
+**Event handling.** Custom components can include interactive elements (e.g. a "View artifact" button) using standard `phx-click`. Events without a `phx-target` bubble up through the `TurnComponent` to the parent LiveView, where the developer handles them in their own `handle_event/3`. No framework-level event plumbing.
+
+**Sharp edge.** `@tool_components` is captured at `stream_insert` time for each `TurnComponent`. If the developer hot-swaps tools mid-session (via `update_agent`), already-rendered stream items don't pick up the new map. In practice `:tools` is set in `handle_params/3` alongside the tree, before turns are populated, so this doesn't bite. If mid-session swaps become a use case, reset the `:turns` stream afterwards.
 
 ---
 
