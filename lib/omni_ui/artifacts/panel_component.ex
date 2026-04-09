@@ -14,6 +14,8 @@ defmodule OmniUI.Artifacts.PanelComponent do
 
     * `action: :rescan` — rescans the artifacts directory (e.g. after a
       tool result creates or modifies an artifact)
+    * `action: {:view, filename}` — opens the named artifact in the panel
+      (e.g. when the user clicks an inline artifact tool-use button)
 
   ## View modes
 
@@ -34,7 +36,7 @@ defmodule OmniUI.Artifacts.PanelComponent do
 
   use Phoenix.LiveComponent
 
-  import OmniUI.Artifacts.Components
+  import OmniUI.Artifacts.PanelUI
   import OmniUI.Helpers, only: [md_styles: 0, to_md: 1]
 
   alias OmniUI.Artifacts.{FileSystem, URL}
@@ -101,6 +103,24 @@ defmodule OmniUI.Artifacts.PanelComponent do
 
       _ ->
         {:ok, assign(socket, :artifacts, artifacts)}
+    end
+  end
+
+  def update(%{action: {:view, filename}}, socket) do
+    # TODO: Stale view action — the artifact may have been deleted since the
+    # chat message containing the button was rendered. Currently silent
+    # no-op to avoid crashing. Should show an error banner / notice in the
+    # panel explaining the artifact has been deleted. See advanced_tooling.md
+    # Phase 8.
+    if Map.has_key?(socket.assigns.artifacts, filename) do
+      socket =
+        socket
+        |> assign(active_artifact: filename, view_source: false)
+        |> assign_content()
+
+      {:ok, socket}
+    else
+      {:ok, socket}
     end
   end
 

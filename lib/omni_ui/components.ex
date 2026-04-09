@@ -335,23 +335,44 @@ defmodule OmniUI.Components do
   end
 
   def content_block(%{content: %Omni.Content.ToolUse{} = tool_use} = assigns) do
+    # __changed__ is required so that custom components called dynamically can
+    # still use `Phoenix.Component.assign/3` and participate in change tracking.
     tool_use_assigns = %{
+      __changed__: %{},
       tool_use: tool_use,
       tool_result: assigns[:tool_results][tool_use.id],
       streaming: assigns[:streaming] || false
     }
 
     case assigns[:tool_components][tool_use.name] do
-      nil -> default_tool_use(tool_use_assigns)
+      nil -> tool_use(tool_use_assigns)
       fun when is_function(fun, 1) -> fun.(tool_use_assigns)
     end
   end
 
-  # Default rendering for a ToolUse content block. Used when no custom
-  # component is registered for the tool in `:tool_components`. Receives the
-  # same normalised assigns as any custom component: `@tool_use`,
-  # `@tool_result`, `@streaming`.
-  defp default_tool_use(assigns) do
+  @doc """
+  Default rendering for a `ToolUse` content block.
+
+  Used by `content_block/1` when no custom component is registered for a tool
+  in `:tool_components`. Custom tool-use components can also delegate to this
+  function — for example, to add a per-tool control via the `:aside` slot —
+  by importing `OmniUI.Components` and calling `tool_use/1` with the
+  normalised assigns map.
+  """
+  attr :tool_use, :map, required: true, doc: "the `%Omni.Content.ToolUse{}` struct"
+
+  attr :tool_result, :map,
+    default: nil,
+    doc: "the matching `%Omni.Content.ToolResult{}`, or `nil` if not yet available"
+
+  attr :streaming, :boolean,
+    default: false,
+    doc: "`true` if this is the last block of a streaming message"
+
+  slot :aside,
+    doc: "optional content rendered alongside the header, outside the expandable's click target"
+
+  def tool_use(assigns) do
     ~H"""
     <.expandable>
       <:icon>
@@ -377,6 +398,8 @@ defmodule OmniUI.Components do
           <% end %>
         </div>
       </:toggle>
+
+      <:aside :if={@aside != []}>{render_slot @aside}</:aside>
 
       <div class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-3 items-center">
         <div class="text-xs text-omni-text-2">Input:</div>
@@ -528,36 +551,47 @@ defmodule OmniUI.Components do
 
   @doc """
   Collapsible section with an icon and optional toggle label.
-
-  The `:icon` slot is shown when collapsed and replaced by a chevron on
-  hover or when expanded. The `:toggle` slot overrides the text label.
   """
-  attr :label, :string, default: nil
-  slot :icon, required: true
-  slot :toggle
-  slot :inner_block, required: true
+  attr :label, :string,
+    default: nil,
+    doc: "text shown as the toggle label when no `:toggle` slot is given"
+
+  slot :icon,
+    required: true,
+    doc: "shown when collapsed; replaced by a chevron on hover or when expanded"
+
+  slot :toggle, doc: "content shown as the clickable toggle; overrides `:label`"
+
+  slot :aside,
+    doc: "optional content rendered alongside the header, outside the click target"
+
+  slot :inner_block, required: true, doc: "the expanded body"
 
   def expandable(assigns) do
     ~H"""
     <div class="group/expandable">
-      <div
-        class="group/toggle inline-flex items-center gap-1.5 cursor-pointer"
-        phx-click={JS.toggle_class("active", to: {:closest, ".group\\/expandable"})}>
-        <div class="group-hover/toggle:hidden group-[.active]/expandable:hidden">
-          {render_slot(@icon)}
+      <div class="flex items-center justify-between gap-4">
+        <div
+          class="group/toggle inline-flex items-center gap-1.5 cursor-pointer"
+          phx-click={JS.toggle_class("active", to: {:closest, ".group\\/expandable"})}>
+          <div class="group-hover/toggle:hidden group-[.active]/expandable:hidden">
+            {render_slot(@icon)}
+          </div>
+          <div class="hidden group-hover/toggle:block group-[.active]/expandable:block">
+            <Lucideicons.chevron_down class={cls([
+              "size-4 transition-all group-[.active]/expandable:rotate-180",
+              "text-omni-text-4 group-hover/toggle:text-omni-text-3"
+            ])} />
+          </div>
+          <div class={[
+            "text-sm transition-colors",
+            "text-omni-text-3 group-hover/toggle:text-omni-text-2"
+          ]}>
+            {render_slot(@toggle) || @label || "Expand"}
+          </div>
         </div>
-        <div class="hidden group-hover/toggle:block group-[.active]/expandable:block">
-          <Lucideicons.chevron_down class={cls([
-            "size-4 transition-all group-[.active]/expandable:rotate-180",
-            "text-omni-text-4 group-hover/toggle:text-omni-text-3"
-          ])} />
-        </div>
-        <div class={[
-          "text-sm transition-colors",
-          "text-omni-text-3 group-hover/toggle:text-omni-text-2"
-        ]}>
-          {render_slot(@toggle) || @label || "Expand"}
-        </div>
+
+        <div :if={@aside != []}>{render_slot @aside}</div>
       </div>
 
       <div class={[

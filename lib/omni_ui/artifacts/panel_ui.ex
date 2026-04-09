@@ -1,4 +1,4 @@
-defmodule OmniUI.Artifacts.Components do
+defmodule OmniUI.Artifacts.PanelUI do
   use Phoenix.Component
   alias OmniUI.Artifacts.Artifact
 

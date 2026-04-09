@@ -2,6 +2,8 @@ defmodule OmniUI.AgentLive do
   use Phoenix.LiveView
   use OmniUI
 
+  alias OmniUI.Artifacts
+
   @default_model {:ollama, "gemma4:e4b"}
   @default_model {:opencode, "kimi-k2.5"}
 
@@ -54,7 +56,7 @@ defmodule OmniUI.AgentLive do
 
       <div class="h-full w-1/2 border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
         <.live_component
-          module={OmniUI.Artifacts.PanelComponent}
+          module={Artifacts.PanelComponent}
           id="artifacts-panel"
           session_id={@session_id} />
       </div>
@@ -127,10 +129,21 @@ defmodule OmniUI.AgentLive do
     end
   end
 
+  @impl Phoenix.LiveView
+  def handle_event("view_artifact", %{"filename" => filename}, socket) do
+    # todo - this should open the panel once it's toggleable
+    send_update(Artifacts.PanelComponent,
+      id: "artifacts-panel",
+      action: {:view, filename}
+    )
+
+    {:noreply, socket}
+  end
+
   @impl OmniUI
   def agent_event(:tool_result, %{name: tool_name}, socket)
       when tool_name in ["artifacts", "repl"] do
-    send_update(OmniUI.Artifacts.PanelComponent, id: "artifacts-panel", action: :rescan)
+    send_update(Artifacts.PanelComponent, id: "artifacts-panel", action: :rescan)
     socket
   end
 
@@ -151,10 +164,10 @@ defmodule OmniUI.AgentLive do
 
   defp create_tools(session_id) do
     [
-      OmniUI.Artifacts.Tool.new(session_id: session_id),
+      {Artifacts.Tool.new(session_id: session_id), component: &Artifacts.ChatUI.tool_use/1},
       OmniUI.REPL.Tool.new(
         extensions: [
-          {OmniUI.Artifacts.REPLExtension, [session_id: session_id]}
+          {Artifacts.REPLExtension, [session_id: session_id]}
         ]
       )
     ]
