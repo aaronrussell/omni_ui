@@ -157,7 +157,12 @@ AgentLive (LiveView)
 │   ├── toolbar/1 (function component — model selector, thinking toggle, usage)
 │   └── footer slot
 │
-└── artifacts panel (future)
+├── header/1 (private function component — top bar)
+│   ├── Session buttons (placeholder)
+│   ├── Title
+│   └── Artifacts panel toggle button
+│
+└── Artifacts.PanelComponent (LiveComponent — toggled via @view_artifacts)
 ```
 
 **Two LiveComponents:**

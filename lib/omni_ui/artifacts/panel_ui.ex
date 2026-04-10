@@ -9,7 +9,7 @@ defmodule OmniUI.Artifacts.PanelUI do
 
   def artifact_bar(assigns) do
     ~H"""
-    <div class="flex items-center gap-4 h-12 p-4 border-b border-omni-border-2">
+    <div class="flex items-center gap-4 h-12 p-4 border-b border-omni-border-3">
       <Lucideicons.monitor class="size-4" />
       <div class="font-semibold text-omni-text">
         {if(@artifact, do: @artifact.filename, else: "All artifacts")}
@@ -17,7 +17,7 @@ defmodule OmniUI.Artifacts.PanelUI do
 
       <div
         :if={@artifact}
-        class="flex-auto flex items-center gap-2 justify-end">
+        class="flex-auto flex items-center gap-1 justify-end">
 
         <div
           :if={toggleable?(@artifact)}
@@ -46,7 +46,7 @@ defmodule OmniUI.Artifacts.PanelUI do
 
         <a
           class={[
-            "flex items-center justify-center size-7 rounded transition-colors cursor-pointer",
+            "flex items-center justify-center size-8 rounded transition-colors cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
           href={artifact_url(@token, @artifact.filename)}
@@ -55,7 +55,7 @@ defmodule OmniUI.Artifacts.PanelUI do
         </a>
         <button
           class={[
-            "flex items-center justify-center size-7 rounded cursor-pointer",
+            "flex items-center justify-center size-8 rounded cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
           phx-click="close_artifact"

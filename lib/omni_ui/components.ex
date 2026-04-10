@@ -478,11 +478,11 @@ defmodule OmniUI.Components do
           <span>{format_token_count(@usage.input_tokens)}</span>
         </div>
         <div class="flex items-center gap-0.5">
-          <Lucideicons.arrow_up class="size-3 rotate-180 text-omni-text-4" />
+          <Lucideicons.arrow_down class="size-3 text-omni-text-4" />
           <span>{format_token_count(@usage.output_tokens)}</span>
         </div>
         <div class="flex items-center gap-0.5">
-          <span class="text-omni-text-4">$</span>
+          <Lucideicons.dollar_sign class="size-3 text-omni-text-4" />
           <span>{format_token_cost(@usage.total_cost)}</span>
         </div>
       </div>

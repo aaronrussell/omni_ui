@@ -12,53 +12,109 @@ defmodule OmniUI.AgentLive do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <div class="relative size-full flex">
-      <div class="h-full w-1/2">
-        <.chat_interface>
-          <.message_list id="turns" phx-update="stream">
-            <.live_component
-              :for={{dom_id, turn} <- @streams.turns}
-              module={OmniUI.TurnComponent}
-              id={dom_id}
-              turn={turn}
-              tool_components={@tool_components} />
-          </.message_list>
+    <div class="relative h-screen flex bg-omni-bg text-omni-text">
+      <div
+        class={[
+          "flex flex-col h-full",
+          if(@view_artifacts, do: "w-1/2", else: "w-full")
+        ]}>
+        <.header view_artifacts={@view_artifacts} />
 
-          <.turn :if={@current_turn} id="current-turn">
-            <:user>
-              <.user_message text={@current_turn.user_text} attachments={@current_turn.user_attachments} />
-              <.timestamp time={@current_turn.user_timestamp} />
-            </:user>
-            <:assistant>
-              <.assistant_message
-                content={@current_turn.content}
-                tool_results={@current_turn.tool_results}
-                tool_components={@tool_components}
-                streaming={true} />
-            </:assistant>
-          </.turn>
+        <div class="flex-1 min-h-0">
+          <.chat_interface>
+            <.message_list id="turns" phx-update="stream">
+              <.live_component
+                :for={{dom_id, turn} <- @streams.turns}
+                module={OmniUI.TurnComponent}
+                id={dom_id}
+                turn={turn}
+                tool_components={@tool_components} />
+            </.message_list>
 
-          <:toolbar>
-            <.toolbar
-              model={@model}
-              model_options={@model_options}
-              thinking={@thinking}
-              usage={@usage} />
-          </:toolbar>
+            <.turn :if={@current_turn} id="current-turn">
+              <:user>
+                <.user_message text={@current_turn.user_text} attachments={@current_turn.user_attachments} />
+                <.timestamp time={@current_turn.user_timestamp} />
+              </:user>
+              <:assistant>
+                <.assistant_message
+                  content={@current_turn.content}
+                  tool_results={@current_turn.tool_results}
+                  tool_components={@tool_components}
+                  streaming={true} />
+              </:assistant>
+            </.turn>
 
-          <:footer>
-            <p>Boring footer here. <a href="#todo">Privacy Policy</a></p>
-          </:footer>
-        </.chat_interface>
+            <:toolbar>
+              <.toolbar
+                model={@model}
+                model_options={@model_options}
+                thinking={@thinking}
+                usage={@usage} />
+            </:toolbar>
+
+            <:footer>
+              <p>Boring footer here. <a href="#todo">Privacy Policy</a></p>
+            </:footer>
+          </.chat_interface>
+        </div>
       </div>
 
-      <!-- TODO : artifacts button -->
-
-      <div class="h-full w-1/2 border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
+      <div
+        class={[
+          "h-full w-1/2 border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]",
+          if(@view_artifacts, do: "block", else: "hidden")
+        ]}>
         <.live_component
+          :if={@view_artifacts}
           module={Artifacts.PanelComponent}
           id="artifacts-panel"
           session_id={@session_id} />
+      </div>
+    </div>
+    """
+  end
+
+  attr :view_artifacts, :boolean, required: true
+
+  defp header(assigns) do
+    ~H"""
+    <div class="grid grid-cols-[1fr_auto_1fr] gap-2 h-12 px-4 border-b border-omni-border-3">
+      <div class="flex items-center gap-1">
+        <button
+          class={[
+            "flex items-center justify-center size-8 rounded cursor-pointer",
+            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+          ]}
+          title="Sessions">
+          <Lucideicons.history class="size-4" />
+        </button>
+
+        <button
+          class={[
+            "flex items-center justify-center size-8 rounded cursor-pointer",
+            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+          ]}
+          title="New sessions">
+          <Lucideicons.plus class="size-4" />
+        </button>
+      </div>
+
+      <div class="flex items-center justify-center">
+        <span class="text-sm text-omni-text-1">Untitled</span>
+      </div>
+
+      <div class="flex items-center justify-end gap-1">
+        <button
+          class={[
+            "flex items-center justify-center size-8 rounded cursor-pointer",
+            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+          ]}
+          title={if(@view_artifacts, do: "Close artifacts panel", else: "Open artifacts panel")}
+          phx-click="toggle_artifacts">
+          <Lucideicons.panel_right_open :if={not @view_artifacts} class="size-4" />
+          <Lucideicons.panel_right_close :if={@view_artifacts} class="size-4" />
+        </button>
       </div>
     </div>
     """
@@ -72,7 +128,7 @@ defmodule OmniUI.AgentLive do
 
     socket =
       socket
-      |> assign(session_id: nil, model_options: models)
+      |> assign(session_id: nil, model_options: models, view_artifacts: false)
       |> start_agent(model: @default_model, tool_timeout: 120_000)
 
     {:ok, socket}
@@ -130,14 +186,17 @@ defmodule OmniUI.AgentLive do
   end
 
   @impl Phoenix.LiveView
+  def handle_event("toggle_artifacts", _, socket) do
+    {:noreply, assign(socket, :view_artifacts, !socket.assigns.view_artifacts)}
+  end
+
   def handle_event("view_artifact", %{"filename" => filename}, socket) do
-    # todo - this should open the panel once it's toggleable
     send_update(Artifacts.PanelComponent,
       id: "artifacts-panel",
       action: {:view, filename}
     )
 
-    {:noreply, socket}
+    {:noreply, assign(socket, :view_artifacts, true)}
   end
 
   @impl OmniUI
