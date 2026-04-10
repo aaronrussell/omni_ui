@@ -67,11 +67,20 @@ defmodule OmniUI.Artifacts.PanelUI do
     """
   end
 
+  attr :artifacts, :map, required: true
+  attr :error, :string, default: nil
+  attr :target, :any, default: nil
+
   def artifact_list(assigns) do
     ~H"""
-    <div class="h-full p-12 pb-16 overflow-y-auto">
+    <div class="size-full p-12 pb-16 flex flex-col overflow-y-auto">
+      <div :if={@error} class="flex items-center gap-3 mb-4 px-4 py-3 text-red-600 bg-omni-bg-2 border border-red-500 rounded">
+        <Lucideicons.triangle_alert class="size-4" />
+        <p class="text-sm">{@error}</p>
+      </div>
+
       <%= if @artifacts == %{} do %>
-        <div class="h-full flex items-center justify-center">
+        <div class="flex-1 flex items-center justify-center">
           <p class="text-sm text-omni-text-3 italic">No artifacts yet.</p>
         </div>
       <% else %>

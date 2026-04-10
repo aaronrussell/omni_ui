@@ -71,7 +71,7 @@ defmodule OmniUI.Artifacts.PanelComponent do
             token={@token}
             target={@myself} />
         <% else %>
-          <.artifact_list artifacts={@artifacts} target={@myself} />
+          <.artifact_list artifacts={@artifacts} error={@error} target={@myself} />
         <% end %>
       </div>
     </div>
@@ -85,8 +85,8 @@ defmodule OmniUI.Artifacts.PanelComponent do
        artifacts: %{},
        active_artifact: nil,
        content: nil,
-       # :iframe, :markdown, :media, :source, :download
-       view: nil,
+       error: nil,
+       view: nil, # :iframe, :markdown, :media, :source, :download
        view_source: false,
        session_id: nil,
        token: nil
@@ -99,28 +99,23 @@ defmodule OmniUI.Artifacts.PanelComponent do
 
     case Map.get(artifacts, socket.assigns.active_artifact) do
       nil ->
-        {:ok, assign(socket, artifacts: artifacts, active_artifact: nil)}
+        {:ok, assign(socket, artifacts: artifacts, active_artifact: nil, error: nil)}
 
       _ ->
-        {:ok, assign(socket, :artifacts, artifacts)}
+        {:ok, assign(socket, artifacts: artifacts, error: nil)}
     end
   end
 
   def update(%{action: {:view, filename}}, socket) do
-    # TODO: Stale view action — the artifact may have been deleted since the
-    # chat message containing the button was rendered. Currently silent
-    # no-op to avoid crashing. Should show an error banner / notice in the
-    # panel explaining the artifact has been deleted. See advanced_tooling.md
-    # Phase 8.
     if Map.has_key?(socket.assigns.artifacts, filename) do
       socket =
         socket
-        |> assign(active_artifact: filename, view_source: false)
+        |> assign(active_artifact: filename, view_source: false, error: nil)
         |> assign_content()
 
       {:ok, socket}
     else
-      {:ok, socket}
+      {:ok, assign(socket, active_artifact: nil, error: "\"#{filename}\" has been deleted.")}
     end
   end
 
@@ -147,7 +142,7 @@ defmodule OmniUI.Artifacts.PanelComponent do
   def handle_event("select_artifact", %{"filename" => filename}, socket) do
     socket =
       socket
-      |> assign(active_artifact: filename, view_source: false)
+      |> assign(active_artifact: filename, view_source: false, error: nil)
       |> assign_content()
 
     {:noreply, socket}
