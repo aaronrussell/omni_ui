@@ -99,7 +99,7 @@ defmodule OmniUI.ComponentsTest do
         <.content_block content={@content} tool_results={@tool_results} streaming={@streaming} />
         """)
 
-      assert html =~ "border-red-500"
+      assert html =~ "ring-red-500"
     end
 
     test "renders tool use with custom component from tool_components" do

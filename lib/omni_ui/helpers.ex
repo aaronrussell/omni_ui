@@ -203,6 +203,26 @@ defmodule OmniUI.Helpers do
   end
 
   @doc """
+  Syntax-highlights a code string as HTML.
+
+  Uses Lumis with inline styles (catppuccin_macchiato theme) so the output
+  is self-contained — no external CSS needed. When `lang` is `nil`, Lumis
+  auto-detects the language. The `lang` value can be a language name
+  (`"elixir"`, `"json"`) or a filename (`"report.html"`).
+
+  Returns a `Phoenix.HTML.safe/0` tuple for direct use in HEEx templates.
+  """
+  @spec highlight_code(String.t(), String.t() | nil) :: Phoenix.HTML.safe()
+  def highlight_code(code, lang \\ nil) do
+    formatter = {:html_inline, theme: "catppuccin_macchiato"}
+
+    code
+    |> String.trim()
+    |> Lumis.highlight!(language: lang, formatter: formatter)
+    |> Phoenix.HTML.raw()
+  end
+
+  @doc """
   Returns a string key for an `Omni.Model` in `"provider:model"` format.
 
   Uses `Omni.Model.to_ref/1` to resolve the provider atom and model ID,

@@ -401,21 +401,23 @@ defmodule OmniUI.Components do
 
       <:aside :if={@aside != []}>{render_slot @aside}</:aside>
 
-      <div class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-3 items-center">
-        <div class="text-xs text-omni-text-2">Input:</div>
-        <pre class={[
-          "px-2 py-1 font-mono text-xs text-wrap rounded",
-          "bg-omni-bg-2 text-omni-text-2"
-        ]}><%= format_json(@tool_use.input) %></pre>
+      <div
+        class={[
+          "space-y-3",
+          "[&_pre]:m-0! [&_pre]:px-4 [&_pre]:py-3 [&_pre]:max-h-48 [&_pre]:rounded",
+          "[&_pre]:text-xs [&_pre]:overflow-auto"
+        ]}>
+        <div class="[&_pre]:text-wrap">
+          <span class="block mb-1 text-xs text-omni-text-2">Input:</span>
+          <%= highlight_code(format_json(@tool_use.input), "json") %>
+        </div>
 
-        <%= if @tool_result do %>
-          <div class="text-xs text-omni-text-2">Output:</div>
-          <pre class={[
-            "px-2 py-1 font-mono text-xs text-wrap rounded",
-            "bg-omni-bg-2 text-omni-text-2",
-            if(@tool_result.is_error, do: "border border-red-500")
-          ]}><%= format_tool_result(@tool_result) %></pre>
-        <% end %>
+        <div
+          :if={@tool_result}
+          class={if(@tool_result.is_error, do: "[&_pre]:ring-2 [&_pre]:ring-offset-2 [&_pre]:ring-red-500")}>
+          <span class="block mb-1 text-xs text-omni-text-2">Output:</span>
+          <%= highlight_code(format_tool_result(@tool_result)) %>
+        </div>
       </div>
     </.expandable>
     """
@@ -595,10 +597,10 @@ defmodule OmniUI.Components do
       </div>
 
       <div class={[
-        "ml-4 opacity-0 h-0 invisible overflow-hidden transition-all",
+        "opacity-0 h-0 invisible overflow-hidden transition-all",
         "group-[.active]/expandable:opacity-100 group-[.active]/expandable:h-auto group-[.active]/expandable:visible"
       ]}>
-        <div class="p-1.5">
+        <div class="my-2 px-5.5 py-4 bg-omni-bg-2 border border-omni-border-3 rounded">
           {render_slot(@inner_block)}
         </div>
       </div>

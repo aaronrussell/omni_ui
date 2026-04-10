@@ -224,11 +224,11 @@ defmodule OmniUI.AgentLive do
   defp create_tools(session_id) do
     [
       {Artifacts.Tool.new(session_id: session_id), component: &Artifacts.ChatUI.tool_use/1},
-      OmniUI.REPL.Tool.new(
-        extensions: [
-          {Artifacts.REPLExtension, [session_id: session_id]}
-        ]
-      )
+      {OmniUI.REPL.Tool.new(
+         extensions: [
+           {Artifacts.REPLExtension, [session_id: session_id]}
+         ]
+       ), component: &OmniUI.REPL.ChatUI.tool_use/1}
     ]
   end
 end

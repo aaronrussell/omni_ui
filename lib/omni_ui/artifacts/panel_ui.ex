@@ -134,8 +134,8 @@ defmodule OmniUI.Artifacts.PanelUI do
     ~H"""
     <div
       class={[
-        "min-h-full",
-        "[&>pre]:min-h-full [&>pre]:m-0 [&>pre]:p-12 [&>pre]:text-sm",
+        "h-full",
+        "[&>pre]:min-h-full! [&>pre]:m-0 [&>pre]:p-12 [&>pre]:text-sm",
         "[&>pre]:whitespace-pre-wrap"
       ]}>
       {@content}

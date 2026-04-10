@@ -37,7 +37,7 @@ defmodule OmniUI.Artifacts.PanelComponent do
   use Phoenix.LiveComponent
 
   import OmniUI.Artifacts.PanelUI
-  import OmniUI.Helpers, only: [md_styles: 0, to_md: 1]
+  import OmniUI.Helpers, only: [highlight_code: 2, md_styles: 0, to_md: 1]
 
   alias OmniUI.Artifacts.{FileSystem, URL}
 
@@ -209,12 +209,8 @@ defmodule OmniUI.Artifacts.PanelComponent do
   end
 
   defp load_content(:source, artifact, session_id) do
-    {:ok, data} = FileSystem.read(artifact.filename, session_id: session_id)
-    formatter = {:html_inline, theme: "catppuccin_macchiato"}
-
-    data
-    |> Lumis.highlight!(language: artifact.filename, formatter: formatter)
-    |> Phoenix.HTML.raw()
+    {:ok, code} = FileSystem.read(artifact.filename, session_id: session_id)
+    highlight_code(code, artifact.filename)
   end
 
   defp load_content(_view, _artifact, _session_id), do: nil
