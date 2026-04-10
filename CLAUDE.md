@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OmniUI is a LiveView component kit for building agent chat interfaces, powered by the `omni` Hex package. Layer 1 (function components) and Layer 3 (hand-wired `AgentLive`) are built. Next up: extracting the `use OmniUI` macro (Layer 2) and advanced tooling (artifacts, code sandbox).
+OmniUI is a LiveView component kit for building agent chat interfaces, powered by the `omni` Hex package. All three layers are built: function components (Layer 1), `use OmniUI` macro (Layer 2), and `AgentLive` (Layer 3). Artifacts system and code sandbox are complete.
 
 - `context/roadmap.md` — Roadmap and upcoming workstreams
 - `context/architecture.md` — Current architecture, data structures, and component hierarchy
@@ -32,9 +32,9 @@ mix format                   # Auto-format code
 
 **Three-layer component design** (see `context/architecture.md` for full details):
 
-1. **Function Components** (Layer 1, complete) — Pure rendering, no state. `components.ex` contains all function components.
-2. **`use OmniUI` Macro** (Layer 2, future) — Will inject streaming plumbing, state management, and init into any LiveView.
-3. **`AgentLive`** (Layer 3, complete as hand-wired) — Mountable LiveView. Will be refactored to use the macro.
+1. **Function Components** (Layer 1) — Pure rendering, no state. `components.ex` contains all function components.
+2. **`use OmniUI` Macro** (Layer 2) — Injects streaming plumbing, state management, and init into any LiveView.
+3. **`AgentLive`** (Layer 3) — Mountable LiveView built with the macro. Reference implementation with artifacts panel, tool wiring, and session management.
 
 **Source of truth:** `OmniUI.Tree` (branching message history) is the app's authoritative store. The `Omni.Agent` is a downstream consumer — synced to the tree before each prompt. Turns are computed views over the tree, never stored.
 

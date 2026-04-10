@@ -68,7 +68,17 @@ Pluggable session persistence with URL-based session management. See `persistenc
 - `update_agent/2` extended with `:tree` option — resets agent context, rebuilds turns stream, syncs assigns
 - `AgentLive` uses `handle_params/3` for session routing (`/?session_id=abc`), persists tree + metadata in `agent_event(:done)`
 
-### 3. Persistence Follow-ups
+### 3. Advanced Tooling (done)
+
+Artifacts system and code sandbox. See `architecture.md` for the design.
+
+**What was built:**
+
+- **Artifacts** — session-scoped files the agent creates via a single tool (write, patch, get, list, delete). Disk-based storage co-located with session data. HTTP serving via `Artifacts.Plug` with signed tokens. Self-contained `PanelComponent` with rendering modes (iframe preview, syntax-highlighted source, markdown, media, download). Custom inline chat components for both tools.
+- **Code Sandbox** — per-execution Elixir sandbox via `:peer` nodes. IO capture via host-local StringIO. Environment-aware tool descriptions. Extension mechanism connecting sandbox to artifacts (`Artifacts.REPLExtension` injects an `Artifacts` facade module into the peer).
+- **Custom tool-use components** — `content_block/1` dispatcher supports per-tool custom components via `@tool_components` map. `Artifacts.ChatUI` wraps the default renderer with an `:aside` slot; `REPL.ChatUI` replaces it entirely.
+
+### 4. Persistence Follow-ups
 
 **Status:** Future enhancements documented in `persistence.md` § "Future Work".
 
@@ -78,42 +88,19 @@ Pluggable session persistence with URL-based session management. See `persistenc
 - **Save on metadata-only changes** — model/thinking/navigation changes aren't persisted yet. Options: developer overrides `handle_event`, new `ui_event/3` callback, or AgentLive handles directly.
 - **Error handling in saves** — current implementation is fire-and-forget. Logging, retry, flash notifications are the developer's concern via `agent_event/3`.
 
-### 4. Advanced Tooling
-
-**Status:** Requires design exercise before implementation.
-
-Two interrelated pieces: an artifacts system for rendering rich tool output, and a code sandbox for executing agent-generated code.
-
-#### Artifacts
-
-**What is an artifact?** The working definition: a piece of content produced by a tool call that deserves its own rendering context — not just inline text in the conversation. Examples: generated HTML pages, interactive visualizations, diagrams, structured data views.
-
-**Key design questions:**
-
-- **Rendering model:** How does an artifact get rendered? Options range from simple (iframe with HTML string) to complex (dynamically compiled LiveView components). The iframe approach is safer and simpler but limits interactivity. LiveView components are powerful but raise trust/sandboxing questions.
-- **UI surface:** Side panel (like Claude's artifacts)? Inline expansion? Full-screen takeover? Multiple artifacts visible simultaneously? The `AgentLive` template already has a placeholder for an artifacts panel.
-- **Artifact lifecycle:** Are artifacts ephemeral (live only during the session) or persistent? Can the user edit an artifact? Can the agent iterate on a previous artifact? If so, artifacts need identity and versioning — possibly another tree structure.
-- **Tool integration:** How does a tool declare that its output is an artifact vs inline content? Is this a convention in the tool result's content, a separate field, or a tool registration option?
-
-#### Code Sandbox
-
-**Key design questions:**
-
-- **What executes?** Elixir code via the BEAM? JavaScript in a browser sandbox? Both? Elixir execution is natural for the ecosystem but raises safety questions. JS execution is well-understood (iframe sandbox) but less interesting for an Elixir-native toolkit.
-- **Elixir sandboxing:** If we execute Elixir, how do we isolate it? Options: separate node, restricted module access via `Code.eval_string` wrapper, Docker container. Each has different tradeoffs in safety, latency, and capability.
-- **Interaction with artifacts:** Code execution output often *is* the artifact (a generated chart, a computed dataset, a rendered HTML page). The sandbox and artifact systems need to be designed together.
-- **Tool definition:** Is the sandbox itself a tool the agent calls? Or is it infrastructure that tools can invoke? The agent probably needs a `run_code` tool that produces artifact output.
-
-**Approach:** Start with the simplest useful thing — an HTML artifact renderer (iframe) triggered by a tool result. This proves the artifact UI, tool integration, and panel layout without solving sandboxing. Code execution is a separate step that builds on the artifact surface.
-
 ### 5. Polish & Release
 
 Smaller items that don't require major design work but need to happen before a public release.
 
 - **Error retry** — errored turns preserve the user message. Add a retry button that re-prompts the agent. Straightforward given the current tree/turn architecture.
+- **Streaming tool-use headers** — tool_use blocks currently only render once the tool_use content has fully streamed. Should render the header (icon, tool name/title) as soon as the first chunk arrives so the user gets visual feedback that something is happening.
 - **Streaming performance** — debounce text deltas (50-100ms timer) to reduce re-renders during fast streaming. Called out as a TODO in the code.
+- **Per-tool timeouts** — the agent currently has a single timeout applied to all tool calls, and the REPL tool has its own separate timeout setting. Needs exploration: can tools declare their own timeout that overrides the agent default? Likely requires changes in `omni`.
+- **REPL tool packaging** — the REPL tool (`OmniUI.REPL.Sandbox`, `REPL.Tool`, `REPL.SandboxExtension`) has no UI dependency — it could live in `omni` or a separate package alongside `Omni.Agent`. Artifacts is different (needs the panel UI). Needs a conversation about where the boundary is.
+- **Project namespacing** — `OmniUI` vs `Omni.UI`. The rest of the ecosystem uses the `Omni` namespace (`Omni.Agent`, etc.). Needs a decision on whether to align (and what the migration looks like).
 - **Package API surface** — decide what's public vs internal. `OmniUI.Components`, `OmniUI.Turn`, `OmniUI.Tree` are public. Helpers, TreeFaker, internal structs may not be.
-- **Documentation** — hex docs, usage guides, example configurations. Deferred until API stabilises post-macro extraction.
+- **Documentation** — hex docs, usage guides, example configurations. Including artifact/sandbox setup (ArtifactPlug router requirements, tool registration).
+- **Cross-browser QA** — thorough testing across browsers. The artifacts panel specifically won't work well on mobile — need to figure out the responsive approach (full-screen takeover? separate route? hidden on mobile?).
 - **Testing** — expand test coverage as the public API solidifies. Current tests cover data structures and components; integration tests for the full streaming lifecycle would be valuable.
 
 ---
@@ -124,14 +111,6 @@ The workstreams are sequential where it matters:
 
 1. ~~**Macro**~~ — done.
 2. ~~**Persistence**~~ — done. Store behaviour, filesystem adapter, macro integration, AgentLive session management.
-3. **Persistence follow-ups** — incremental saves, JSON format, session browser, metadata-only saves. Can be picked up as needed.
-4. **Advanced tooling** — artifacts, code sandbox. With persistence in place, artifact storage extends the existing Store pattern.
+3. ~~**Advanced tooling**~~ — done. Artifacts, code sandbox, custom tool-use components. See `architecture.md`.
+4. **Persistence follow-ups** — incremental saves, JSON format, session browser, metadata-only saves. Can be picked up as needed.
 5. **Polish** items can be picked up incrementally at any point.
-
-Artifact *storage* specifically is hard to design before knowing what an artifact is — that part will naturally emerge from the tooling work and extend the Store behaviour.
-
----
-
-## Open Questions
-
-- **Artifact identity** — if artifacts are versioned and editable, they need their own data model. How does this relate to the conversation tree? Is an artifact a node in the tree, a side structure, or something else entirely?

@@ -269,3 +269,49 @@ A dark mode variant is defined using `@variant dark`. Components use these token
 Consumers override the theme by redefining the CSS custom properties (`--color-omni-*`). The `.omni-ui` class on the root `chat_interface` element scopes the component tree.
 
 **Markdown typography** is defined as Tailwind descendant-selector classes (`[&_.mdex_*]`) on the `chat_interface` root, targeting the `.mdex` class that MDEx applies to rendered HTML. This keeps the `markdown/1` component's markup minimal while defining all typography styles once.
+
+---
+
+## Artifacts
+
+Files created by the agent, persisted in the session. Artifacts are **session-scoped** and **not branch-aware** — navigating conversation branches does not rewind artifact state. This is a deliberate simplification; the alternative (reconstructing state by replaying tool calls along the active path) is too complex for the value.
+
+**Data model:** `OmniUI.Artifacts.Artifact` struct — `filename`, `mime_type` (derived from extension), `size`, `updated_at`. Content lives on disk, not in assigns. Metadata is recovered by scanning the session's artifacts directory — no separate metadata persistence.
+
+**Filesystem layout:** Artifacts are co-located with session data under `{base_path}/sessions/{session_id}/artifacts/`. Uses the same base path as `Store.Filesystem`. Session deletion (`File.rm_rf`) naturally cleans up artifacts.
+
+**Tool:** Single Omni tool (`OmniUI.Artifacts.Tool`) with a `command` discriminator — `write`, `patch`, `get`, `list`, `delete`. Stateful: `init/1` receives `:session_id`, `call/2` delegates to `OmniUI.Artifacts.FileSystem`. `patch` is a targeted find-replace, more token-efficient than `write` for small changes.
+
+**HTTP serving:** `OmniUI.Artifacts.Plug` serves files over HTTP. URLs use signed `Phoenix.Token` encoding the session ID — the LiveView signs, the Plug verifies. Path containment check prevents traversal. Must be mounted **outside** `pipe_through :browser` (CSRF protection and `x-frame-options` break sandboxed iframes). Why a Plug route instead of `srcdoc`: cross-artifact relative paths work (HTML can load sibling JSON), binary artifacts can be downloaded, and content stays on disk.
+
+**UI:** `OmniUI.Artifacts.PanelComponent` — self-contained LiveComponent receiving only `session_id` from the parent. Owns all artifact state (`@artifacts`, `@active_artifact`, `@content`, `@token`). AgentLive has zero artifact assigns. Communication via `send_update(PanelComponent, action: :rescan)` in `agent_event(:tool_result, ...)`. Index/detail single-view pattern. Rendering modes by MIME type: iframe preview (HTML, PDF), syntax-highlighted source (text types), markdown, media, and download.
+
+**Inline chat components:** `Artifacts.ChatUI.tool_use/1` wraps the default `Components.tool_use/1`, adding command-specific content (filename buttons, status labels) via the `:aside` slot.
+
+---
+
+## Code Sandbox
+
+An Elixir execution environment using per-execution `:peer` nodes. The agent sends code; the sandbox evaluates it, captures stdout and the return value, and returns both.
+
+**Execution model:** Each invocation starts a fresh peer node, evaluates the code, and tears down. Clean slate every time — no state drift, and `Mix.install/1` (which can only run once per VM) works across invocations. Peer init requires explicit code path injection and Elixir boot (neither is automatic).
+
+**IO capture:** StringIO process lives on the **host** node, set as group leader for the peer's eval process. Erlang distribution routes IO messages cross-node transparently. Host-local StringIO means partial output is always readable on timeout or peer crash.
+
+**Tool:** `OmniUI.REPL.Tool` — schema accepts `title` (active-form description) and `code` (Elixir string). Dynamic `description/1` switches between dev (Mix.install available) and release (host deps only) guidance. Extension descriptions appended automatically.
+
+**Sandbox-artifact bridge:** `OmniUI.REPL.SandboxExtension` behaviour — `code/1` returns AST or string evaluated in the peer, `description/1` returns a fragment for the tool description. `OmniUI.Artifacts.REPLExtension` injects a top-level `Artifacts` module into the peer with `write`, `read`, `patch`, `list`, `delete` — delegating to `FileSystem` with session opts baked in.
+
+**Inline chat component:** `REPL.ChatUI.tool_use/1` replaces the default renderer entirely — terminal icon, agent-provided title in the toggle, syntax-highlighted Elixir code instead of raw JSON params.
+
+**Security:** Personal-use tool, not a secure multi-tenant sandbox. Peer crash isolation and configurable timeout, but no filesystem jailing, resource limits, or network restrictions.
+
+---
+
+## Tool Lifecycle
+
+OmniUI does not auto-register tools. The developer adds them explicitly in LiveView callbacks.
+
+Artifact and REPL tools need a `session_id` (from `handle_params`), so they're created together in a `create_tools/1` helper called from `handle_params/3`. `mount/3` calls `start_agent/2` with `tool_timeout: 120_000` (the default 5s is too short for sandbox execution). On session switch, `handle_params` replaces all tools with the new session_id via `update_agent/2`.
+
+AgentLive's `agent_event(:tool_result, %{name: tool_name}, socket) when tool_name in ["artifacts", "repl"]` triggers `send_update(PanelComponent, action: :rescan)`. This lives in AgentLive, not the macro — tooling is application-level, not framework-level.
