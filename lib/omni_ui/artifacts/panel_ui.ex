@@ -158,13 +158,16 @@ defmodule OmniUI.Artifacts.PanelUI do
   def artifact_view(%{view: :download} = assigns) do
     ~H"""
     <div class="h-full flex items-center justify-center p-12">
-      <button
+      <a
         href={artifact_url(@token, @artifact.filename)}
         download={@artifact.filename}
-        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-omni-accent-1 text-white font-medium hover:bg-omni-accent-2 transition-colors">
+        class={[
+          "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer",
+          "text-omni-text-1 border-omni-border-3 hover:text-omni-accent-1 hover:bg-omni-accent-2/5 hover:border-omni-accent-2"
+        ]}>
         <Lucideicons.download class="size-4" />
-        <span>Download</span>
-      </button>
+        <span class="font-medium">Download</span>
+      </a>
     </div>
     """
   end
