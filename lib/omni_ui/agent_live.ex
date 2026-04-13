@@ -95,7 +95,8 @@ defmodule OmniUI.AgentLive do
             "flex items-center justify-center size-8 rounded cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
-          title="New sessions">
+          title="New session"
+          phx-click="new_session">
           <Lucideicons.plus class="size-4" />
         </button>
       </div>
@@ -188,6 +189,22 @@ defmodule OmniUI.AgentLive do
   @impl Phoenix.LiveView
   def handle_event("toggle_artifacts", _, socket) do
     {:noreply, assign(socket, :view_artifacts, !socket.assigns.view_artifacts)}
+  end
+
+  def handle_event("new_session", _, socket) do
+    if socket.assigns.current_turn do
+      Omni.Agent.cancel(socket.assigns.agent)
+    end
+
+    session_id = generate_session_id()
+
+    socket =
+      socket
+      |> assign(session_id: session_id)
+      |> update_agent(tree: %OmniUI.Tree{}, tools: create_tools(session_id))
+      |> push_patch(to: "/?session_id=#{session_id}")
+
+    {:noreply, socket}
   end
 
   def handle_event("view_artifact", %{"filename" => filename}, socket) do
