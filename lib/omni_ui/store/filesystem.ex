@@ -64,8 +64,12 @@ defmodule OmniUI.Store.Filesystem do
 
     meta =
       case read_meta(meta_path) do
-        {:ok, existing} -> %{existing | metadata: metadata, updated_at: now}
-        :error -> %{created_at: now, updated_at: now, metadata: metadata}
+        {:ok, existing} ->
+          merged = Keyword.merge(existing.metadata, metadata)
+          %{existing | metadata: merged, updated_at: now}
+
+        :error ->
+          %{created_at: now, updated_at: now, metadata: metadata}
       end
 
     File.write!(meta_path, :erlang.term_to_binary(meta))
@@ -76,14 +80,27 @@ defmodule OmniUI.Store.Filesystem do
   @impl true
   def load(session_id, opts \\ []) do
     dir = session_dir(session_id, opts)
+    tree_result = File.read(Path.join(dir, "tree.etf"))
+    meta_result = read_meta(Path.join(dir, "meta.etf"))
 
-    with {:ok, tree_bin} <- File.read(Path.join(dir, "tree.etf")),
-         {:ok, meta_bin} <- File.read(Path.join(dir, "meta.etf")) do
-      tree = :erlang.binary_to_term(tree_bin)
-      meta = :erlang.binary_to_term(meta_bin)
-      {:ok, tree, meta.metadata}
-    else
-      {:error, :enoent} -> {:error, :not_found}
+    case {tree_result, meta_result} do
+      {{:error, _}, :error} ->
+        {:error, :not_found}
+
+      _ ->
+        tree =
+          case tree_result do
+            {:ok, bin} -> :erlang.binary_to_term(bin)
+            {:error, _} -> %OmniUI.Tree{}
+          end
+
+        metadata =
+          case meta_result do
+            {:ok, meta} -> meta.metadata
+            :error -> []
+          end
+
+        {:ok, tree, metadata}
     end
   end
 
