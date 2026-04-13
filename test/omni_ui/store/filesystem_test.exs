@@ -76,14 +76,37 @@ defmodule OmniUI.Store.FilesystemTest do
       assert loaded_meta == metadata
     end
 
-    test "save_metadata without prior tree creates meta.etf", ctx do
+    test "save_metadata without prior tree creates meta.etf and load returns an empty tree",
+         ctx do
       :ok = Filesystem.save_metadata("sess_1", [title: "Test"], opts(ctx))
 
-      # meta.etf exists but tree.etf does not — load fails
-      assert {:error, :not_found} = Filesystem.load("sess_1", opts(ctx))
-
-      # But the meta file is on disk
+      assert {:ok, %Tree{nodes: nodes}, metadata} = Filesystem.load("sess_1", opts(ctx))
+      assert nodes == %{}
+      assert metadata == [title: "Test"]
       assert File.exists?(Path.join([ctx.tmp_dir, "sess_1", "meta.etf"]))
+    end
+
+    test "load returns :not_found only when neither tree nor meta exists", ctx do
+      assert {:error, :not_found} = Filesystem.load("no_such_session", opts(ctx))
+    end
+
+    test "save_metadata merges rather than overwrites", ctx do
+      :ok = Filesystem.save_metadata("sess_1", [model: :old_model, thinking: false], opts(ctx))
+      :ok = Filesystem.save_metadata("sess_1", [title: "New title"], opts(ctx))
+
+      assert {:ok, _tree, metadata} = Filesystem.load("sess_1", opts(ctx))
+      assert metadata[:model] == :old_model
+      assert metadata[:thinking] == false
+      assert metadata[:title] == "New title"
+    end
+
+    test "save_metadata with explicit nil overwrites the value", ctx do
+      :ok = Filesystem.save_metadata("sess_1", [title: "Old"], opts(ctx))
+      :ok = Filesystem.save_metadata("sess_1", [title: nil], opts(ctx))
+
+      assert {:ok, _tree, metadata} = Filesystem.load("sess_1", opts(ctx))
+      assert metadata[:title] == nil
+      assert Keyword.has_key?(metadata, :title)
     end
   end
 

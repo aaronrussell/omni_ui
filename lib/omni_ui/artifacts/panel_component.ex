@@ -86,7 +86,8 @@ defmodule OmniUI.Artifacts.PanelComponent do
        active_artifact: nil,
        content: nil,
        error: nil,
-       view: nil, # :iframe, :markdown, :media, :source, :download
+       # :iframe, :markdown, :media, :source, :download
+       view: nil,
        view_source: false,
        session_id: nil,
        token: nil
