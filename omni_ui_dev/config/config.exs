@@ -52,11 +52,17 @@ config :logger, :default_formatter,
 config :phoenix, :json_library, Jason
 
 config :omni, providers: [:anthropic, :openai, :google, :opencode, :openrouter, :ollama]
-config :omni, OmniUI.AgentLive, store: OmniUI.Store.Filesystem
+
+config :omni, OmniUI.AgentLive,
+  store: OmniUI.Store.Filesystem,
+  # :heuristic | :main | {provider, model}
+  # Omit (or set to nil) to disable auto-generation.
+  # e.g. title_generation: {:anthropic, "claude-haiku-4-5"}
+  title_generation: {:openai, "gpt-5.4-nano"}
 
 config :omni, Omni.Providers.Ollama,
   models: [
-    [id: "gemma4:e4b", reasoning: true]
+    [id: "gemma4:latest", reasoning: true]
   ]
 
 # Import environment specific config. This must remain at the bottom

@@ -81,14 +81,18 @@ Developer picks via `use OmniUI, title: ...`:
 **Signature — one unified function:**
 
 ```elixir
-@spec generate([Omni.Message.t()], Model.ref() | :heuristic) ::
+@spec generate(Model.ref() | :heuristic, [Omni.Message.t()], keyword()) ::
         {:ok, String.t()} | {:error, term()}
 
-def generate(messages, :heuristic), do: {:ok, heuristic(messages)}
-def generate(messages, model), do: # LLM call
+def generate(:heuristic, messages, _opts), do: ...
+def generate(model, messages, opts), do: # LLM call with opts passthrough
 ```
 
-Optionally expose `Title.heuristic/1` publicly as a convenience, but the primary entry point is the unified `generate/2`.
+Argument order matches `Omni.generate_text/3` — strategy/model first (the "how"), messages second (the "input"), opts last.
+
+`heuristic/1` is also public as a convenience. Opts on the model branch pass through to `Omni.generate_text/3` (useful for test stubbing via `plug:`, or for custom `max_tokens`).
+
+Prompt shape: a system prompt instructing the model to reply with only a 3-6 word title, and a single synthesised user message containing `User: ...\n\nAssistant: ...`. The LLM summarises the conversation rather than participating in it — cheaper, more reliable across providers, and naturally strips thinking/tools/attachments since only text blocks contribute.
 
 **Why one function, not two:**
 
@@ -98,38 +102,21 @@ Optionally expose `Title.heuristic/1` publicly as a convenience, but the primary
 
 ### Config location — AgentLive, not `OmniUI.Title`
 
-`OmniUI.Title` stays pure. No `Application.get_env`, no macro-attribute magic. AgentLive resolves strategy and passes it in:
+`OmniUI.Title` stays pure. No `Application.get_env`, no macro-attribute magic. AgentLive resolves the strategy at runtime from app config (matching the existing `:omni` namespace used for the store):
 
 ```elixir
-@title_strategy :heuristic  # or read from use opts / app config
-
-defp resolve_title_strategy(socket) do
-  case @title_strategy do
-    false -> nil
-    :main -> socket.assigns.model
-    other -> other  # :heuristic or a Model.ref tuple
-  end
-end
-
-def agent_event(:stop, _, socket) do
-  socket = persist(socket)
-
-  case needs_title?(socket) && resolve_title_strategy(socket) do
-    nil -> socket
-    strategy ->
-      start_async(socket, :title, fn ->
-        Title.generate(messages_for_title(socket), strategy)
-      end)
-  end
-end
-
-def handle_async(:title, {:ok, {:ok, title}}, socket) do
-  save_metadata(socket.assigns.session_id, title: title)
-  {:noreply, assign(socket, :title, title)}
-end
+config :omni, OmniUI.AgentLive, title_generation: :heuristic
+# or: title_generation: :main
+# or: title_generation: {:anthropic, "claude-haiku-4-5"}
+# omit (or set to nil) to disable — the default
 ```
 
-The "off" case is handled by the caller branching on `nil`, not by passing `nil` into `Title.generate/2`.
+AgentLive's flow:
+
+1. After persisting on `:stop`, call `maybe_generate_title(socket)`.
+2. If `socket.assigns.title == nil` and config resolves to a non-nil strategy, `start_async(socket, :generate_title, fn -> Title.generate(messages, strategy) end)`.
+3. `handle_async(:generate_title, {:ok, {:ok, title}}, socket)` only applies if `title` is still nil (race guard — user may have typed a title manually while generation was in flight). Saves metadata and assigns.
+4. `{:error, _}` and `{:exit, _}` paths log at `:info` and silently skip. Next `:stop` retries naturally because title is still nil.
 
 ---
 
@@ -187,7 +174,7 @@ Four discrete workstreams, in order:
    Also bundles two Store contract fixes required for sane semantics: `save_metadata` merges rather than overwrites, and `load` handles metadata-only or tree-only sessions (returning empty defaults for the missing piece).
 
 3. **LLM title generation**
-   `OmniUI.Title` module with `generate/2` (LLM + heuristic branches). Configurable via `use OmniUI, title: ...`. AgentLive integration via `start_async` in `agent_event(:stop, ...)`.
+   `OmniUI.Title` module with `generate/3` (LLM + heuristic branches). Configurable via `config :omni, OmniUI.AgentLive, title_generation: ...`. AgentLive integration via `start_async` in `agent_event(:stop, ...)`, with `handle_async` race-guarding against concurrent manual edits.
 
 4. **Session browser**
    - Extend `Store` behaviour with pagination opts

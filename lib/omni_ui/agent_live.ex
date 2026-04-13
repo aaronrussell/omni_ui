@@ -1,11 +1,13 @@
 defmodule OmniUI.AgentLive do
   use Phoenix.LiveView
   use OmniUI
+  require Logger
 
   alias OmniUI.Artifacts
 
-  @default_model {:ollama, "gemma4:e4b"}
-  @default_model {:opencode, "kimi-k2.5"}
+  @default_model {:ollama, "gemma4:latest"}
+  # @default_model {:opencode, "kimi-k2.5"}
+  @title_strategy Application.compile_env(:omni, [__MODULE__, :title_generation])
 
   attr :current_turn, OmniUI.Turn
   attr :usage, Omni.Usage, required: true
@@ -136,7 +138,7 @@ defmodule OmniUI.AgentLive do
 
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
-    {:ok, models1} = Omni.list_models(:anthropic)
+    {:ok, models1} = Omni.list_models(:ollama)
     {:ok, models2} = Omni.list_models(:opencode)
     models = models1 ++ models2
 
@@ -249,10 +251,50 @@ defmodule OmniUI.AgentLive do
     save_tree(session_id, tree)
     save_metadata(session_id, model: Omni.Model.to_ref(model), thinking: thinking)
 
-    socket
+    maybe_generate_title(socket, @title_strategy)
   end
 
   def agent_event(_event, _data, socket), do: socket
+
+  @impl Phoenix.LiveView
+  def handle_async(:generate_title, {:ok, {:ok, title}}, socket) do
+    socket =
+      if socket.assigns.title == nil do
+        save_metadata(socket.assigns.session_id, title: title)
+        assign(socket, :title, title)
+      else
+        socket
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_async(:generate_title, result, socket) do
+    reason =
+      case result do
+        {:ok, {:error, reason}} -> reason
+        {:exit, reason} -> reason
+      end
+
+    Logger.error("Title generation crashed: #{inspect(reason)}")
+    {:noreply, socket}
+  end
+
+  defp maybe_generate_title(socket, nil), do: socket
+
+  defp maybe_generate_title(socket, :main),
+    do: maybe_generate_title(socket, Omni.Model.to_ref(socket.assigns.model))
+
+  defp maybe_generate_title(socket, strategy) do
+    case socket.assigns.title do
+      nil ->
+        messages = OmniUI.Tree.messages(socket.assigns.tree)
+        start_async(socket, :generate_title, fn -> OmniUI.Title.generate(strategy, messages) end)
+
+      _ ->
+        socket
+    end
+  end
 
   defp maybe_save_title(socket, input) do
     title = input |> to_string() |> String.trim()
