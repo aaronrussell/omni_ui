@@ -18,7 +18,7 @@ defmodule OmniUI.AgentLive do
           "flex flex-col h-full",
           if(@view_artifacts, do: "w-1/2", else: "w-full")
         ]}>
-        <.header view_artifacts={@view_artifacts} />
+        <.header title={@title} view_artifacts={@view_artifacts} />
 
         <div class="flex-1 min-h-0">
           <.chat_interface>
@@ -75,6 +75,7 @@ defmodule OmniUI.AgentLive do
     """
   end
 
+  attr :title, :string
   attr :view_artifacts, :boolean, required: true
 
   defp header(assigns) do
@@ -101,9 +102,21 @@ defmodule OmniUI.AgentLive do
         </button>
       </div>
 
-      <div class="flex items-center justify-center">
-        <span class="text-sm text-omni-text-1">Untitled</span>
-      </div>
+      <form phx-submit="save_title" class="flex items-center justify-center">
+        <input
+          type="text"
+          name="title"
+          value={@title || ""}
+          placeholder="Untitled"
+          phx-blur="save_title"
+          autocomplete="off"
+          class={[
+            "field-sizing-content min-w-18 max-w-80 px-2 py-1.5 text-ellipsis overflow-hidden",
+            "bg-transparent border-0 outline-none text-center text-sm",
+            "text-omni-text-1 placeholder:text-omni-text-1 focus:placeholder:opacity-0",
+            "hover:bg-omni-accent-2/10 focus:text-omni-text focus:bg-omni-accent-2/10 focus:max-w-none"
+          ]} />
+      </form>
 
       <div class="flex items-center justify-end gap-1">
         <button
@@ -129,7 +142,7 @@ defmodule OmniUI.AgentLive do
 
     socket =
       socket
-      |> assign(session_id: nil, model_options: models, view_artifacts: false)
+      |> assign(session_id: nil, title: nil, model_options: models, view_artifacts: false)
       |> start_agent(model: @default_model, tool_timeout: 120_000)
 
     {:ok, socket}
@@ -148,10 +161,11 @@ defmodule OmniUI.AgentLive do
         {:ok, tree, metadata} ->
           model = Keyword.get(metadata, :model, @default_model)
           thinking = Keyword.get(metadata, :thinking, false)
+          title = Keyword.get(metadata, :title)
 
           socket =
             socket
-            |> assign(session_id: session_id)
+            |> assign(session_id: session_id, title: title)
             |> update_agent(
               tree: tree,
               model: model,
@@ -200,12 +214,18 @@ defmodule OmniUI.AgentLive do
 
     socket =
       socket
-      |> assign(session_id: session_id)
+      |> assign(session_id: session_id, title: nil)
       |> update_agent(tree: %OmniUI.Tree{}, tools: create_tools(session_id))
       |> push_patch(to: "/?session_id=#{session_id}")
 
     {:noreply, socket}
   end
+
+  def handle_event("save_title", %{"title" => title}, socket),
+    do: {:noreply, maybe_save_title(socket, title)}
+
+  def handle_event("save_title", %{"value" => title}, socket),
+    do: {:noreply, maybe_save_title(socket, title)}
 
   def handle_event("view_artifact", %{"filename" => filename}, socket) do
     send_update(Artifacts.PanelComponent,
@@ -233,6 +253,24 @@ defmodule OmniUI.AgentLive do
   end
 
   def agent_event(_event, _data, socket), do: socket
+
+  defp maybe_save_title(socket, input) do
+    title = input |> to_string() |> String.trim()
+    current = socket.assigns.title || ""
+
+    cond do
+      title == current ->
+        socket
+
+      title == "" ->
+        save_metadata(socket.assigns.session_id, title: nil)
+        assign(socket, :title, nil)
+
+      true ->
+        save_metadata(socket.assigns.session_id, title: title)
+        assign(socket, :title, title)
+    end
+  end
 
   defp generate_session_id do
     :crypto.strong_rand_bytes(12) |> Base.url_encode64(padding: false)

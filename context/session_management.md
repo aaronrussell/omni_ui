@@ -47,9 +47,15 @@ Generate **after the first assistant response completes**, not on first user mes
 
 ### Manual editing
 
-Click the title in the header → inline edit → save on blur/enter → persist to metadata.
+Click the title in the header → inline edit → save on blur or Enter → persist to metadata.
 
-Manual-edited titles are **pinned** (a `title_pinned` flag in metadata) so a later regeneration doesn't clobber them. Also covered: once generation fires once and succeeds, the title is no longer `nil`, so the "title is nil" trigger condition won't re-fire regardless of the pinned flag — but the flag is still useful if we ever add an explicit regenerate action.
+**UI shape:** an always-on `<input>` styled to look like plain text until hover/focus. Uses `field-sizing: content` with a `min-w` so it auto-sizes to content while still showing the "Untitled" placeholder when empty. Wrapped in a form with `phx-submit` so Enter commits; the input also has `phx-blur` so losing focus commits. Both paths fire the same `save_title` handler.
+
+**Save rule:** trim the input. No-op if unchanged from current. If empty (and there was a title), save `title: nil` — explicit clear. Otherwise save the new title. `save_metadata` merges, so clearing the title doesn't touch other metadata. In phase 3, clearing becomes the natural "regenerate" path: title back to nil → next `:stop` triggers LLM generation.
+
+**No `title_pinned` flag.** The trigger for LLM regeneration is simply "title is nil" — any non-nil title is effectively pinned because nothing overwrites it. If we ever add an explicit "regenerate title" action, we'll add the flag then. Until then, it's speculative scaffolding.
+
+**Pre-first-message edits.** A user can type a title before any messages exist. Since `save_metadata` now creates a session on disk independently of the tree, and `load` handles metadata-only sessions by returning an empty tree, this works naturally — the session persists with just a title.
 
 **Rename only happens in the header.** The session browser does not support inline rename — keeps the browser focused on find/open/delete.
 
@@ -177,7 +183,8 @@ Four discrete workstreams, in order:
    Wire phx-click, cancel in-flight agent, reset tree, push_patch. Smallest piece, no dependencies.
 
 2. **Manual title editing + storage**
-   Click header title → inline edit → save. Adds `:title` and `:title_pinned` to metadata. No LLM involved. Unlocks the session browser being usable.
+   Click header title → inline edit → save. Adds `:title` to metadata. No LLM involved. Unlocks the session browser being usable.
+   Also bundles two Store contract fixes required for sane semantics: `save_metadata` merges rather than overwrites, and `load` handles metadata-only or tree-only sessions (returning empty defaults for the missing piece).
 
 3. **LLM title generation**
    `OmniUI.Title` module with `generate/2` (LLM + heuristic branches). Configurable via `use OmniUI, title: ...`. AgentLive integration via `start_async` in `agent_event(:stop, ...)`.
