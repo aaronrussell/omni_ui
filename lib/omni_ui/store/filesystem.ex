@@ -107,29 +107,18 @@ defmodule OmniUI.Store.Filesystem do
   @impl true
   def list(opts \\ []) do
     base = scoped_base(opts)
+    offset = Keyword.get(opts, :offset, 0)
+    limit = Keyword.get(opts, :limit)
 
     sessions =
       case File.ls(base) do
         {:ok, entries} ->
           entries
-          |> Enum.map(fn entry ->
-            meta_path = Path.join([base, entry, "meta.etf"])
-
-            case read_meta(meta_path) do
-              {:ok, meta} ->
-                %{
-                  id: entry,
-                  title: Keyword.get(meta.metadata, :title),
-                  created_at: meta.created_at,
-                  updated_at: meta.updated_at
-                }
-
-              :error ->
-                nil
-            end
-          end)
+          |> Enum.map(&read_summary(base, &1))
           |> Enum.reject(&is_nil/1)
           |> Enum.sort_by(& &1.updated_at, {:desc, DateTime})
+          |> Enum.drop(offset)
+          |> maybe_take(limit)
 
         {:error, :enoent} ->
           []
@@ -137,6 +126,26 @@ defmodule OmniUI.Store.Filesystem do
 
     {:ok, sessions}
   end
+
+  defp read_summary(base, entry) do
+    meta_path = Path.join([base, entry, "meta.etf"])
+
+    case read_meta(meta_path) do
+      {:ok, meta} ->
+        %{
+          id: entry,
+          title: Keyword.get(meta.metadata, :title),
+          created_at: meta.created_at,
+          updated_at: meta.updated_at
+        }
+
+      :error ->
+        nil
+    end
+  end
+
+  defp maybe_take(list, nil), do: list
+  defp maybe_take(list, limit), do: Enum.take(list, limit)
 
   @impl true
   def delete(session_id, opts \\ []) do

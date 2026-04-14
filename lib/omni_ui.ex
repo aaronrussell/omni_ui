@@ -171,6 +171,9 @@ defmodule OmniUI do
   defp inject_store_functions(store) do
     quote do
       @doc false
+      def __omni_store__, do: unquote(store)
+
+      @doc false
       def save_tree(session_id, tree, opts \\ []),
         do: unquote(store).save_tree(session_id, tree, opts)
 
@@ -277,9 +280,21 @@ defmodule OmniUI do
 
     Enum.reduce(opts, socket, fn
       {:model, value}, socket ->
-        model = resolve_model!(value)
-        :ok = Omni.Agent.set_state(agent, :model, model)
-        assign(socket, :model, model)
+        # A bad model ref here usually means a session persisted a model that
+        # has since been deregistered (renamed, provider removed, etc.). Skip
+        # the update and keep the current model rather than raising.
+        # TODO: surface this to the user via a notification once the
+        # notifications system lands (see roadmap § Polish & Release).
+        case resolve_model(value) do
+          {:ok, model} ->
+            :ok = Omni.Agent.set_state(agent, :model, model)
+            assign(socket, :model, model)
+
+          {:error, reason} ->
+            require Logger
+            Logger.warning("update_agent: ignoring unresolvable model #{inspect(value)} (#{inspect(reason)})")
+            socket
+        end
 
       {:thinking, thinking}, socket ->
         :ok = Omni.Agent.set_state(agent, :opts, &Keyword.put(&1, :thinking, thinking))
@@ -331,12 +346,13 @@ defmodule OmniUI do
     {Enum.reverse(tools), components}
   end
 
-  defp resolve_model!(%Omni.Model{} = model), do: model
-
-  defp resolve_model!({provider_id, model_id}) do
-    case Omni.get_model(provider_id, model_id) do
+  defp resolve_model!(model) do
+    case resolve_model(model) do
       {:ok, model} -> model
       {:error, reason} -> raise ArgumentError, "failed to resolve model: #{inspect(reason)}"
     end
   end
+
+  defp resolve_model(%Omni.Model{} = model), do: {:ok, model}
+  defp resolve_model({provider_id, model_id}), do: Omni.get_model(provider_id, model_id)
 end

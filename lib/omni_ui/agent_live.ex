@@ -25,12 +25,21 @@ defmodule OmniUI.AgentLive do
         <div class="flex-1 min-h-0">
           <.chat_interface>
             <.message_list id="turns" phx-update="stream">
-              <.live_component
-                :for={{dom_id, turn} <- @streams.turns}
-                module={OmniUI.TurnComponent}
-                id={dom_id}
-                turn={turn}
-                tool_components={@tool_components} />
+              <%
+                # Tree node ids are per-tree, so sessions share dom_ids —
+                # which would mean shared TurnComponent instances and leaked
+                # state across session switches. The outer div keeps the
+                # stream's dom_id (required by phx-update="stream"); the
+                # LiveComponent's id is session-scoped so each session gets
+                # its own instances.
+              %>
+              <div :for={{dom_id, turn} <- @streams.turns} id={dom_id}>
+                <.live_component
+                  module={OmniUI.TurnComponent}
+                  id={"#{@session_id}:#{turn.id}"}
+                  turn={turn}
+                  tool_components={@tool_components} />
+              </div>
             </.message_list>
 
             <.turn :if={@current_turn} id="current-turn">
@@ -63,15 +72,24 @@ defmodule OmniUI.AgentLive do
       </div>
 
       <div
-        class={[
-          "h-full w-1/2 border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]",
-          if(@view_artifacts, do: "block", else: "hidden")
-        ]}>
+        :if={@view_artifacts}
+        class="h-full w-1/2 border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
         <.live_component
-          :if={@view_artifacts}
           module={Artifacts.PanelComponent}
           id="artifacts-panel"
           session_id={@session_id} />
+      </div>
+
+      <div
+        :if={@view_sessions}
+        class="fixed inset-0 bg-black/40 z-10">
+        <div class="h-full w-80 bg-omni-bg border-r border-omni-border-2 shadow-[4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
+          <.live_component
+            module={OmniUI.SessionsComponent}
+            id="sessions"
+            store={__omni_store__()}
+            current_id={@session_id} />
+        </div>
       </div>
     </div>
     """
@@ -89,7 +107,8 @@ defmodule OmniUI.AgentLive do
             "flex items-center justify-center size-8 rounded cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
-          title="Sessions">
+          title="Sessions"
+          phx-click="open_sessions">
           <Lucideicons.history class="size-4" />
         </button>
 
@@ -144,7 +163,13 @@ defmodule OmniUI.AgentLive do
 
     socket =
       socket
-      |> assign(session_id: nil, title: nil, model_options: models, view_artifacts: false)
+      |> assign(
+        session_id: nil,
+        title: nil,
+        model_options: models,
+        view_artifacts: false,
+        view_sessions: false
+      )
       |> start_agent(model: @default_model, tool_timeout: 120_000)
 
     {:ok, socket}
@@ -188,15 +213,7 @@ defmodule OmniUI.AgentLive do
   # New session: generate ID and patch URL
   def handle_params(_params, _uri, socket) do
     if connected?(socket) do
-      session_id = generate_session_id()
-
-      socket =
-        socket
-        |> assign(session_id: session_id)
-        |> update_agent(tools: create_tools(session_id))
-        |> push_patch(to: "/?session_id=#{session_id}", replace: true)
-
-      {:noreply, socket}
+      {:noreply, start_new_session(socket, replace: true)}
     else
       {:noreply, socket}
     end
@@ -207,20 +224,23 @@ defmodule OmniUI.AgentLive do
     {:noreply, assign(socket, :view_artifacts, !socket.assigns.view_artifacts)}
   end
 
+  def handle_event("open_sessions", _, socket) do
+    {:noreply, assign(socket, :view_sessions, true)}
+  end
+
+  def handle_event("close_sessions", _, socket) do
+    {:noreply, assign(socket, :view_sessions, false)}
+  end
+
+  def handle_event("switch_session", %{"session-id" => session_id}, socket) do
+    {:noreply,
+     socket
+     |> assign(:view_sessions, false)
+     |> push_patch(to: "/?session_id=#{session_id}")}
+  end
+
   def handle_event("new_session", _, socket) do
-    if socket.assigns.current_turn do
-      Omni.Agent.cancel(socket.assigns.agent)
-    end
-
-    session_id = generate_session_id()
-
-    socket =
-      socket
-      |> assign(session_id: session_id, title: nil)
-      |> update_agent(tree: %OmniUI.Tree{}, tools: create_tools(session_id))
-      |> push_patch(to: "/?session_id=#{session_id}")
-
-    {:noreply, socket}
+    {:noreply, start_new_session(socket)}
   end
 
   def handle_event("save_title", %{"title" => title}, socket),
@@ -236,6 +256,11 @@ defmodule OmniUI.AgentLive do
     )
 
     {:noreply, assign(socket, :view_artifacts, true)}
+  end
+
+  @impl Phoenix.LiveView
+  def handle_info({OmniUI, :active_session_deleted}, socket) do
+    {:noreply, start_new_session(socket)}
   end
 
   @impl OmniUI
@@ -312,6 +337,19 @@ defmodule OmniUI.AgentLive do
         save_metadata(socket.assigns.session_id, title: title)
         assign(socket, :title, title)
     end
+  end
+
+  defp start_new_session(socket, opts \\ []) do
+    if socket.assigns.current_turn do
+      Omni.Agent.cancel(socket.assigns.agent)
+    end
+
+    session_id = generate_session_id()
+
+    socket
+    |> assign(session_id: session_id, title: nil)
+    |> update_agent(tree: %OmniUI.Tree{}, tools: create_tools(session_id))
+    |> push_patch(to: "/?session_id=#{session_id}", replace: Keyword.get(opts, :replace, false))
   end
 
   defp generate_session_id do

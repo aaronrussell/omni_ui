@@ -9,16 +9,28 @@ defmodule OmniUI.Artifacts.PanelUI do
 
   def artifact_bar(assigns) do
     ~H"""
-    <div class="flex items-center gap-4 h-12 p-4 border-b border-omni-border-3">
-      <Lucideicons.monitor class="size-4" />
-      <div class="font-semibold text-omni-text">
+    <header class="flex items-center gap-4 h-12 p-4 border-b border-omni-border-3">
+      <%= if @artifact do %>
+        <button
+          class={[
+            "flex items-center justify-center size-8 rounded cursor-pointer",
+            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+          ]}
+          phx-click="close_artifact"
+          phx-target={@target}>
+          <Lucideicons.arrow_left class="size-4" />
+        </button>
+      <% else %>
+        <div class="flex items-center justify-center size-8">
+          <Lucideicons.list class="size-4" />
+        </div>
+      <% end %>
+
+      <h2 class="text-sm font-medium text-omni-text-1">
         {if(@artifact, do: @artifact.filename, else: "All artifacts")}
-      </div>
+      </h2>
 
-      <div
-        :if={@artifact}
-        class="flex-auto flex items-center gap-1 justify-end">
-
+      <div class="flex-auto flex items-center gap-1 justify-end">
         <div
           :if={toggleable?(@artifact)}
           class="flex items-center rounded-lg bg-omni-bg-1 p-0.5 text-xs font-medium">
@@ -45,6 +57,7 @@ defmodule OmniUI.Artifacts.PanelUI do
         </div>
 
         <a
+          :if={@artifact}
           class={[
             "flex items-center justify-center size-8 rounded transition-colors cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
@@ -53,17 +66,18 @@ defmodule OmniUI.Artifacts.PanelUI do
           download={@artifact.filename}>
           <Lucideicons.download class="size-4" />
         </a>
+
         <button
           class={[
             "flex items-center justify-center size-8 rounded cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
-          phx-click="close_artifact"
-          phx-target={@target}>
+          title="Close artifacts"
+          phx-click="toggle_artifacts">
           <Lucideicons.x class="size-4" />
         </button>
       </div>
-    </div>
+    </header>
     """
   end
 
@@ -73,7 +87,7 @@ defmodule OmniUI.Artifacts.PanelUI do
 
   def artifact_list(assigns) do
     ~H"""
-    <div class="size-full p-12 pb-16 flex flex-col overflow-y-auto">
+    <div class="size-full p-16 pt-12 flex flex-col overflow-y-auto">
       <div :if={@error} class="flex items-center gap-3 mb-4 px-4 py-3 text-red-600 bg-omni-bg-2 border border-red-500 rounded">
         <Lucideicons.triangle_alert class="size-4" />
         <p class="text-sm">{@error}</p>
@@ -131,7 +145,7 @@ defmodule OmniUI.Artifacts.PanelUI do
 
   def artifact_view(%{view: :markdown} = assigns) do
     ~H"""
-    <div class="min-h-full p-12 pb-16 bg-omni-bg-1">
+    <div class="min-h-full p-16 pt-12 bg-omni-bg-1">
       <div class="max-w-xl mx-auto mdex leading-[1.5]">
         {@content}
       </div>
@@ -144,7 +158,7 @@ defmodule OmniUI.Artifacts.PanelUI do
     <div
       class={[
         "h-full",
-        "[&>pre]:min-h-full! [&>pre]:m-0 [&>pre]:p-12 [&>pre]:text-sm",
+        "[&>pre]:min-h-full! [&>pre]:m-0 [&>pre]:px-16 [&>pre]:py-12 [&>pre]:text-sm",
         "[&>pre]:whitespace-pre-wrap"
       ]}>
       {@content}
@@ -154,7 +168,7 @@ defmodule OmniUI.Artifacts.PanelUI do
 
   def artifact_view(%{view: :media} = assigns) do
     ~H"""
-    <div class="min-h-full flex items-center justify-center p-12 pb-16 bg-omni-bg-1">
+    <div class="min-h-full flex items-center justify-center p-16 pt-12 bg-omni-bg-1">
       <img
         src={artifact_url(@token, @artifact.filename)}
         alt={@artifact.filename}
@@ -166,7 +180,7 @@ defmodule OmniUI.Artifacts.PanelUI do
 
   def artifact_view(%{view: :download} = assigns) do
     ~H"""
-    <div class="h-full flex items-center justify-center p-12">
+    <div class="h-full flex items-center justify-center p-16 pt-12">
       <a
         href={artifact_url(@token, @artifact.filename)}
         download={@artifact.filename}

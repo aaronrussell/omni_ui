@@ -176,12 +176,11 @@ Four discrete workstreams, in order:
 3. **LLM title generation**
    `OmniUI.Title` module with `generate/3` (LLM + heuristic branches). Configurable via `config :omni, OmniUI.AgentLive, title_generation: ...`. AgentLive integration via `start_async` in `agent_event(:stop, ...)`, with `handle_async` race-guarding against concurrent manual edits.
 
-4. **Session browser**
-   - Extend `Store` behaviour with pagination opts
-   - Update `Filesystem` adapter
-   - Build `session_list/1` function component
-   - Build `SessionBrowserComponent` LiveComponent
-   - Wire drawer-from-left in AgentLive header
-   - Delete-with-confirm flow
+4. **Session browser** (done)
+   - `Store.list/1` accepts `:limit`/`:offset`; callers infer `has_more` from list length
+   - Macro injects `__omni_store__/0` alongside the other store helpers so collaborators (like the sessions drawer) can receive the store module as an assign
+   - `OmniUI.Components.session_list/1` — pure function component: one row per session, current session highlighted, `:actions` slot for per-row controls
+   - `OmniUI.SessionsComponent` — LiveComponent: overlay drawer (plain divs with backdrop + ESC close), fetches first page on mount, "Load more" appends, inline two-step delete confirm
+   - AgentLive: `view_sessions` assign mirrors `view_artifacts`; handles `open_sessions`/`close_sessions`/`switch_session` events; `handle_info({OmniUI, :active_session_deleted}, ...)` push_patches to `/` when the active session is deleted
 
 Titles (2+3) before browser (4) because the browser is significantly more useful with real titles. Ordering between 2 and 3 doesn't really matter — they're independent — but 2 establishes the metadata schema that 3 writes into.

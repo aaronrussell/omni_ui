@@ -75,10 +75,18 @@ defmodule OmniUI.Store do
               {:ok, OmniUI.Tree.t(), metadata()} | {:error, :not_found}
 
   @doc """
-  List session summaries.
+  List session summaries, ordered by `updated_at` descending.
 
   Returns id, title, and timestamps for each session. The title is
   extracted from saved metadata (the `:title` key) if present.
+
+  ## Options
+
+    * `:limit` — maximum number of sessions to return. Unlimited by default.
+    * `:offset` — number of sessions to skip from the start. Defaults to 0.
+
+  Callers infer whether more results are available by comparing the
+  returned list length to the requested `:limit`.
   """
   @callback list(opts :: keyword()) :: {:ok, [session_info()]}
 

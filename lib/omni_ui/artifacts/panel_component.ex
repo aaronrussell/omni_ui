@@ -53,16 +53,15 @@ defmodule OmniUI.Artifacts.PanelComponent do
   @impl true
   def render(assigns) do
     ~H"""
-    <div
-      id={@id}
-      class={["omni-ui h-full flex flex-col bg-omni-bg" | md_styles()]}>
+    <section
+      class="omni-ui h-full flex flex-col bg-omni-bg">
       <.artifact_bar
         artifact={@artifacts[@active_artifact]}
         view_source={@view_source}
         token={@token}
         target={@myself} />
 
-      <div class="flex-1 overflow-auto">
+      <div class={["flex-1 overflow-auto" | md_styles()]}>
         <%= if @active_artifact do %>
           <.artifact_view
             artifact={@artifacts[@active_artifact]}
@@ -74,7 +73,7 @@ defmodule OmniUI.Artifacts.PanelComponent do
           <.artifact_list artifacts={@artifacts} error={@error} target={@myself} />
         <% end %>
       </div>
-    </div>
+    </section>
     """
   end
 

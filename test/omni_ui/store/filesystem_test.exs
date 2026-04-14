@@ -189,6 +189,48 @@ defmodule OmniUI.Store.FilesystemTest do
       {:ok, [session]} = Filesystem.list(opts(ctx))
       assert session.title == nil
     end
+
+    test "honours :limit", ctx do
+      for i <- 1..5 do
+        :ok = Filesystem.save_tree("sess_#{i}", sample_tree(), opts(ctx))
+        Process.sleep(5)
+      end
+
+      {:ok, sessions} = Filesystem.list(opts(ctx, limit: 2))
+      assert length(sessions) == 2
+    end
+
+    test "honours :offset", ctx do
+      for i <- 1..4 do
+        :ok = Filesystem.save_tree("sess_#{i}", sample_tree(), opts(ctx))
+        Process.sleep(5)
+      end
+
+      {:ok, all} = Filesystem.list(opts(ctx))
+      {:ok, skipped} = Filesystem.list(opts(ctx, offset: 2))
+
+      assert length(skipped) == 2
+      assert Enum.map(skipped, & &1.id) == Enum.map(Enum.drop(all, 2), & &1.id)
+    end
+
+    test ":limit and :offset together paginate through the full set", ctx do
+      for i <- 1..5 do
+        :ok = Filesystem.save_tree("sess_#{i}", sample_tree(), opts(ctx))
+        Process.sleep(5)
+      end
+
+      {:ok, page1} = Filesystem.list(opts(ctx, limit: 2, offset: 0))
+      {:ok, page2} = Filesystem.list(opts(ctx, limit: 2, offset: 2))
+      {:ok, page3} = Filesystem.list(opts(ctx, limit: 2, offset: 4))
+
+      assert length(page1) == 2
+      assert length(page2) == 2
+      # Last page is short — caller infers no more
+      assert length(page3) == 1
+
+      ids = Enum.map(page1 ++ page2 ++ page3, & &1.id)
+      assert length(Enum.uniq(ids)) == 5
+    end
   end
 
   describe "delete" do
