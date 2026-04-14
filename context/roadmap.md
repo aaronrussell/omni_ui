@@ -28,13 +28,16 @@ See `architecture.md` for the current component hierarchy, data structures, and 
 - `TurnComponent` — inline editing, copy-to-clipboard, branch navigation (edits + regenerations)
 - `EditorComponent` — text input with drag-and-drop file attachments
 - Toolbar with model selection and thinking mode toggle
+- Pluggable persistence (Store behaviour + filesystem adapter) with session routing via URL param
+- Artifacts system and code sandbox (per-execution Elixir peer nodes) with custom inline tool-use components
+- Session management — new/switch/delete, inline-editable titles, LLM title auto-generation, sessions drawer
 - Semantic CSS theming via OKLCH color tokens with dark mode
 
 **What's not built:**
 
-- Persistence follow-ups (incremental saves, JSON format, session browser, metadata-only saves)
-- Artifacts panel and advanced tooling
-- Error retry mechanism
+- Persistence follow-ups (incremental saves, JSON format, metadata-only saves for model/thinking)
+- Notifications system (for transient warnings and errors)
+- Error retry for failed turns
 - Package polish (public API surface, docs, hex publishing)
 
 ---
@@ -78,17 +81,29 @@ Artifacts system and code sandbox. See `architecture.md` for the design.
 - **Code Sandbox** — per-execution Elixir sandbox via `:peer` nodes. IO capture via host-local StringIO. Environment-aware tool descriptions. Extension mechanism connecting sandbox to artifacts (`Artifacts.REPLExtension` injects an `Artifacts` facade module into the peer).
 - **Custom tool-use components** — `content_block/1` dispatcher supports per-tool custom components via `@tool_components` map. `Artifacts.ChatUI` wraps the default renderer with an `:aside` slot; `REPL.ChatUI` replaces it entirely.
 
-### 4. Persistence Follow-ups
+### 4. Session Management (done)
 
-**Status:** Future enhancements documented in `persistence.md` § "Future Work".
+Session lifecycle UI built on top of persistence: new/switch/delete/title/browser. See `architecture.md` § Sessions.
+
+**What was built:**
+
+- **New session button** — cancels in-flight agent, resets tree + tools, push_patches a fresh session id. Shared `start_new_session/2` helper used by the button, delete-active-session, and the no-session-id URL path.
+- **Session title** — inline-editable `<input>` in the header (phx-blur + phx-submit), with explicit `title: nil` save to clear. `save_metadata` merge semantics and partial-session `load` added to the Store contract to make metadata-only sessions persistable.
+- **LLM title generation** — `OmniUI.Title.generate/3` library function with `:heuristic` and model branches. AgentLive integrates via `start_async` on first `:stop`, with `handle_async` race-guard. Configurable via `config :omni, OmniUI.AgentLive, title_generation: ...`.
+- **Sessions drawer** — `session_list/1` function component + `SessionsComponent` LiveComponent. Overlay drawer, load-more pagination, inline two-step delete confirm. Store gained `:limit`/`:offset`; macro injects `__omni_store__/0` so collaborators can be passed the store module.
+- **Lenient model resolution** — `update_agent/2` no longer raises on unresolvable model refs (stale persisted models).
+- **Session-scoped `TurnComponent` ids** — wrapper div keeps the stream dom_id while the component id includes the session id, preventing state leakage across switches.
+
+### 5. Persistence Follow-ups
+
+Items from the original persistence design not addressed during session management. Pick up as needed.
 
 - **Incremental saves** — buffer new node IDs and pass as `:new_node_ids` to `save_tree`, so adapters can append rather than full-overwrite. The API already accepts the opt; adapters ignore it for now.
 - **JSON serialization** — human-readable storage format replacing opaque ETF. Requires `Omni.Message`/`Omni.Content.*` serialization in the `omni` package.
-- **Session browser component** — UI for listing and switching sessions. Needs to work both router-mounted (push_patch) and embedded (events). `update_agent(tree: ...)` already handles the session switch.
-- **Save on metadata-only changes** — model/thinking/navigation changes aren't persisted yet. Options: developer overrides `handle_event`, new `ui_event/3` callback, or AgentLive handles directly.
-- **Error handling in saves** — current implementation is fire-and-forget. Logging, retry, flash notifications are the developer's concern via `agent_event/3`.
+- **Save on metadata-only changes (model/thinking)** — title edits now persist without needing a `:stop`, but changing model or thinking mid-session still waits for the next completion before hitting disk. Options: developer overrides `handle_event`, new `ui_event/3` callback, or AgentLive handles directly.
+- **Error handling in saves** — current implementation is fire-and-forget. Will likely roll into the notifications system (see Polish) when that lands.
 
-### 5. Polish & Release
+### 6. Polish & Release
 
 Smaller items that don't require major design work but need to happen before a public release.
 
@@ -113,5 +128,6 @@ The workstreams are sequential where it matters:
 1. ~~**Macro**~~ — done.
 2. ~~**Persistence**~~ — done. Store behaviour, filesystem adapter, macro integration, AgentLive session management.
 3. ~~**Advanced tooling**~~ — done. Artifacts, code sandbox, custom tool-use components. See `architecture.md`.
-4. **Persistence follow-ups** — incremental saves, JSON format, session browser, metadata-only saves. Can be picked up as needed.
-5. **Polish** items can be picked up incrementally at any point.
+4. ~~**Session management**~~ — done. New/switch/delete, title editing + LLM generation, sessions drawer. See `architecture.md` § Sessions.
+5. **Persistence follow-ups** — incremental saves, JSON format, metadata-only saves (model/thinking). Can be picked up as needed.
+6. **Polish** items can be picked up incrementally at any point.

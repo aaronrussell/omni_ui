@@ -158,11 +158,14 @@ AgentLive (LiveView)
 │   └── footer slot
 │
 ├── header/1 (private function component — top bar)
-│   ├── Session buttons (placeholder)
-│   ├── Title
+│   ├── Sessions drawer toggle + New session button
+│   ├── Title input (inline-editable via phx-blur / phx-submit)
 │   └── Artifacts panel toggle button
 │
-└── Artifacts.PanelComponent (LiveComponent — toggled via @view_artifacts)
+├── Artifacts.PanelComponent (LiveComponent — toggled via @view_artifacts)
+│
+└── SessionsComponent (LiveComponent — drawer, toggled via @view_sessions)
+    └── session_list/1 (function component — rows + :actions slot)
 ```
 
 **Two LiveComponents:**
@@ -240,6 +243,77 @@ Both operations create new branches in the tree.
 Both flows end with the same streaming lifecycle: `@current_turn` accumulates deltas, `:done` pushes the completed turn to the stream.
 
 **Branch switching** uses `Tree.navigate/2` + `Tree.extend/1` to set the new active path, then recomputes all turns via `Turn.all/1` and resets the stream with `stream(:turns, turns, reset: true)`.
+
+---
+
+## Sessions
+
+Sessions are identified by a URL param (`?session_id=<id>`) and persisted via the configured `OmniUI.Store`. `AgentLive.handle_params/3` has three clauses:
+
+1. **Re-entry guard** — matches when the URL's `session_id` equals the current assign; no-op. Prevents our own `push_patch` from triggering another load cycle.
+2. **Load existing** — session id present. Calls `load_session/1`, assigns title + tree + model + thinking, and wires up session-scoped tools via `create_tools/1`.
+3. **No session id** — fresh mount or navigation to `/`. Routes through `start_new_session/2` with `replace: true`.
+
+A private `start_new_session/2` helper is the single path for resetting to a fresh session. It's called from:
+
+- The **New session** header button
+- `handle_params` when the URL has no session id
+- `handle_info({OmniUI, :active_session_deleted}, ...)` when the drawer deletes the active session
+
+It cancels any in-flight agent response, generates a fresh id, clears the title, resets the tree via `update_agent(tree: %OmniUI.Tree{}, tools: create_tools(id))`, and `push_patch`es the URL. Consolidating here prevents the partial-reset bugs where different code paths each set up a clean session slightly differently.
+
+### Session-scoped TurnComponent ids
+
+Tree node ids are per-tree integer counters, so sessions produce the same stream dom_ids (`turns-5`, `turns-6`, …). If the `TurnComponent`'s id matched the dom_id, sessions would share component instances keyed by `(module, id)` and state would leak across switches (e.g. an artifact button keeping the previous session's filename).
+
+The `:for` in the stream wraps each `TurnComponent` in a div that carries the stream's dom_id (satisfying the `phx-update="stream"` contract), while the LiveComponent id includes the session id:
+
+```heex
+<div :for={{dom_id, turn} <- @streams.turns} id={dom_id}>
+  <.live_component
+    module={OmniUI.TurnComponent}
+    id={"#{@session_id}:#{turn.id}"}
+    ... />
+</div>
+```
+
+`stream_configure/3` can't solve this — it's called once and the session id isn't known at setup.
+
+### Title generation
+
+Titles are stored in metadata and surfaced in the header via an always-on `<input>` styled to look like plain text. `field-sizing: content` auto-sizes it; a wrapping form gives `phx-submit` on Enter, and the input has `phx-blur`. Both commit via the same `save_title` handler, which trims, no-ops on no-change, and — if the new value is empty and a title existed — saves `title: nil` as an explicit clear. The nil save re-enables auto-generation.
+
+Auto-generation is a pure library function:
+
+```elixir
+OmniUI.Title.generate(strategy, messages, opts \\ [])
+# strategy: :heuristic | Omni.Model.ref()
+```
+
+`:heuristic` truncates the first user message at a word boundary. The model branch synthesises `"User: …\n\nAssistant: …"` into a single prompt (with a system instruction asking for only a short title), so the LLM *summarises* the conversation rather than participating in it — cheaper, more reliable across providers, and naturally strips non-text content.
+
+AgentLive is the reference integration. In `agent_event(:stop, ...)`, if the title is still nil and the config resolves to a strategy, generation kicks off via `start_async/3`. The `handle_async` success branch only applies the result if the title is still nil (race guard — the user may have typed one manually while generation was in flight). Errors log and silently skip; the next `:stop` naturally retries because title is still nil.
+
+Config: `config :omni, OmniUI.AgentLive, title_generation:` with `:heuristic`, `:main` (reuse current model), or an explicit `{provider, model}`. Absent or `nil` disables.
+
+### Sessions drawer
+
+Mirrors the Layer 1 / Layer 2 split:
+
+- **`OmniUI.Components.session_list/1`** — function component. One row per session, current-session highlight, `:actions` slot for per-row controls.
+- **`OmniUI.SessionsComponent`** — LiveComponent wrapping the list with drawer chrome. Overlays the main content with a backdrop; ESC or click-outside closes. Fetches the first page on mount; "Load more" appends; deletes use inline two-step confirm. Deleting the active session sends `{OmniUI, :active_session_deleted}` to the parent.
+
+The LiveComponent needs the store to call `list/1` and `delete/1`. The macro injects `__omni_store__/0` alongside the other store helpers so collaborators receive the resolved module as an assign: `store={__omni_store__()}`.
+
+### Store pagination
+
+`Store.list/1` accepts `:limit` and `:offset`; callers infer "has more" from returned list length. No total-count concept in the contract — avoids a second scan on filesystem-style adapters, and doesn't map cleanly to cursor-pagination backends.
+
+### Lenient model resolution
+
+`update_agent/2`'s `:model` clause is lenient on unresolvable refs: calls `Omni.get_model/2` and logs a warning on `{:error, _}` rather than raising. A session persisted with a model that's since been deregistered still loads, keeping the current model instead. `start_agent/2` stays strict — construction-time failures are developer errors.
+
+Warnings are silent for now. Once the notifications system (roadmap § Polish & Release) lands, this is a prime candidate to surface to the user.
 
 ---
 
