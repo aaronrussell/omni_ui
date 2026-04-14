@@ -12,7 +12,7 @@ defmodule OmniUI.Artifacts.FileSystem do
   ## Configuration
 
   The base path defaults to `priv/omni/sessions` relative to the current
-  working directory (the same default as `OmniUI.Store.Filesystem`).
+  working directory (the same default as `OmniUI.Store.FileSystem`).
   Override with:
 
       config :omni_ui, OmniUI.Artifacts, base_path: "/custom/path"

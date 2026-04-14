@@ -65,7 +65,7 @@ Pluggable session persistence with URL-based session management. See `persistenc
 **What was built:**
 
 - `OmniUI.Store` behaviour — five callbacks (`save_tree`, `save_metadata`, `load`, `list`, `delete`) with scoping via opts and adapter-managed timestamps
-- `OmniUI.Store.Filesystem` — ETF-based development adapter, two files per session (`tree.etf`, `meta.etf`), scoped and unscoped paths
+- `OmniUI.Store.FileSystem` — JSON-based development adapter, two files per session (`tree.jsonl`, `meta.json`), scoped and unscoped paths
 - `Tree.new/1` — reconstructs a tree from saved parts (nodes, path, cursors), for future non-ETF adapters
 - Macro injects store functions (`save_tree`, `save_metadata`, `load_session`, `list_sessions`, `delete_session`) resolved from `use OmniUI, store: Module` or app config; no-ops when unconfigured
 - `update_agent/2` extended with `:tree` option — resets agent context, rebuilds turns stream, syncs assigns

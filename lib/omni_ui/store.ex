@@ -4,7 +4,7 @@ defmodule OmniUI.Store do
 
   Defines the contract for saving and loading conversation trees and
   session metadata. OmniUI ships a filesystem adapter for development
-  (`OmniUI.Store.Filesystem`); consumers implement their own for Ecto,
+  (`OmniUI.Store.FileSystem`); consumers implement their own for Ecto,
   Redis, or other backends.
 
   ## Callbacks

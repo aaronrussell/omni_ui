@@ -50,7 +50,7 @@ end
 defmodule OmniUI.Test.StoreView do
   @moduledoc false
   use Phoenix.LiveView
-  use OmniUI, store: OmniUI.Store.Filesystem
+  use OmniUI, store: OmniUI.Store.FileSystem
 
   @impl Phoenix.LiveView
   def render(assigns), do: ~H"<div>store</div>"
