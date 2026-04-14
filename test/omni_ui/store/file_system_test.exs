@@ -50,7 +50,7 @@ defmodule OmniUI.Store.FileSystemTest do
       tree = sample_tree()
 
       assert :ok = FileSystem.save_tree("sess_1", tree, opts(ctx))
-      assert {:ok, loaded, []} = FileSystem.load("sess_1", opts(ctx))
+      assert {:ok, loaded, %{}} = FileSystem.load("sess_1", opts(ctx))
 
       assert loaded == tree
     end
@@ -59,7 +59,7 @@ defmodule OmniUI.Store.FileSystemTest do
       tree = branching_tree()
 
       assert :ok = FileSystem.save_tree("sess_1", tree, opts(ctx))
-      assert {:ok, loaded, []} = FileSystem.load("sess_1", opts(ctx))
+      assert {:ok, loaded, %{}} = FileSystem.load("sess_1", opts(ctx))
 
       assert loaded == tree
       assert Tree.messages(loaded) == Tree.messages(tree)
@@ -165,22 +165,53 @@ defmodule OmniUI.Store.FileSystemTest do
       assert %{"__etf" => blob} = meta["metadata"]
       assert is_binary(blob)
     end
+
+    test "title is lifted to top level, not duplicated inside the ETF blob", ctx do
+      :ok = FileSystem.save_metadata("sess_1", [title: "Lifted", model: :x], opts(ctx))
+
+      meta = read_meta_json(ctx, "sess_1")
+      assert meta["title"] == "Lifted"
+
+      {:ok, blob} = Base.decode64(meta["metadata"]["__etf"])
+      decoded = :erlang.binary_to_term(blob)
+      refute Map.has_key?(decoded, :title)
+      assert decoded == %{model: :x}
+    end
+
+    test "title absent from saved metadata means no top-level title field", ctx do
+      :ok = FileSystem.save_metadata("sess_1", [model: :x], opts(ctx))
+
+      meta = read_meta_json(ctx, "sess_1")
+      refute Map.has_key?(meta, "title")
+    end
   end
 
   describe "metadata round-trip preserves Elixir term fidelity" do
     test "atoms, tuples, and nested structures survive", ctx do
       :ok = FileSystem.save_tree("sess_1", sample_tree(), opts(ctx))
 
-      metadata = [
+      metadata = %{
         model: {:anthropic, "claude-sonnet-4-20250514"},
         thinking: :high,
         nested: %{key: :value, list: [:a, :b, {:c, 1}]}
-      ]
+      }
 
       :ok = FileSystem.save_metadata("sess_1", metadata, opts(ctx))
 
       {:ok, _tree, loaded} = FileSystem.load("sess_1", opts(ctx))
       assert loaded == metadata
+    end
+
+    test "accepts keyword list input and returns a map", ctx do
+      :ok =
+        FileSystem.save_metadata(
+          "sess_1",
+          [model: {:anthropic, "claude"}, thinking: :high],
+          opts(ctx)
+        )
+
+      {:ok, _tree, loaded} = FileSystem.load("sess_1", opts(ctx))
+      assert loaded == %{model: {:anthropic, "claude"}, thinking: :high}
     end
 
     test "save_metadata without prior tree creates meta.json and load returns an empty tree",
@@ -189,7 +220,7 @@ defmodule OmniUI.Store.FileSystemTest do
 
       assert {:ok, %Tree{nodes: nodes}, metadata} = FileSystem.load("sess_1", opts(ctx))
       assert nodes == %{}
-      assert metadata == [title: "Test"]
+      assert metadata == %{title: "Test"}
       assert File.exists?(Path.join([ctx.tmp_dir, "sess_1", "meta.json"]))
     end
 
@@ -213,7 +244,7 @@ defmodule OmniUI.Store.FileSystemTest do
 
       assert {:ok, _tree, metadata} = FileSystem.load("sess_1", opts(ctx))
       assert metadata[:title] == nil
-      assert Keyword.has_key?(metadata, :title)
+      assert Map.has_key?(metadata, :title)
     end
   end
 
@@ -222,7 +253,7 @@ defmodule OmniUI.Store.FileSystemTest do
       tree = sample_tree()
       :ok = FileSystem.save_tree("sess_1", tree, opts(ctx))
 
-      metadata = [model: {:anthropic, "claude-sonnet-4-20250514"}, thinking: :high]
+      metadata = %{model: {:anthropic, "claude-sonnet-4-20250514"}, thinking: :high}
       :ok = FileSystem.save_metadata("sess_1", metadata, opts(ctx))
 
       updated_tree = Tree.push(tree, msg("another"))
@@ -397,7 +428,7 @@ defmodule OmniUI.Store.FileSystemTest do
       tree = sample_tree()
       :ok = FileSystem.save_tree("sess_1", tree, opts(ctx, scope: "user_1"))
 
-      assert {:ok, loaded, []} = FileSystem.load("sess_1", opts(ctx, scope: "user_1"))
+      assert {:ok, loaded, %{}} = FileSystem.load("sess_1", opts(ctx, scope: "user_1"))
       assert loaded == tree
 
       assert {:error, :not_found} = FileSystem.load("sess_1", opts(ctx, scope: "user_2"))

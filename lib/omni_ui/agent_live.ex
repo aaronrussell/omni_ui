@@ -186,9 +186,9 @@ defmodule OmniUI.AgentLive do
     if connected?(socket) do
       case load_session(session_id) do
         {:ok, tree, metadata} ->
-          model = Keyword.get(metadata, :model, @default_model)
-          thinking = Keyword.get(metadata, :thinking, false)
-          title = Keyword.get(metadata, :title)
+          model = Map.get(metadata, :model, @default_model)
+          thinking = Map.get(metadata, :thinking, false)
+          title = Map.get(metadata, :title)
 
           socket =
             socket

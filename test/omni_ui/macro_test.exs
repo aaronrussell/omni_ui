@@ -155,7 +155,7 @@ defmodule OmniUI.MacroTest do
         |> OmniUI.Tree.push(Omni.message(role: :assistant, content: "hi"))
 
       assert :ok = StoreView.save_tree("s1", tree, base_path: tmp_dir)
-      assert {:ok, loaded_tree, []} = StoreView.load_session("s1", base_path: tmp_dir)
+      assert {:ok, loaded_tree, %{}} = StoreView.load_session("s1", base_path: tmp_dir)
       assert loaded_tree == tree
     end
 

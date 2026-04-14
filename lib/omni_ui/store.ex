@@ -31,7 +31,7 @@ defmodule OmniUI.Store do
   """
 
   @type session_id :: String.t()
-  @type metadata :: keyword()
+  @type metadata :: %{optional(atom()) => term()}
 
   @type session_info :: %{
           id: session_id(),
@@ -60,16 +60,17 @@ defmodule OmniUI.Store do
   For app-specific data such as model selection, thinking level, or title.
   Tree structural data (nodes, path, cursors) is handled by `save_tree/3`.
 
-  Merges with any existing metadata by key — partial updates are supported.
-  Explicit `nil` values overwrite, so callers can reset a field by passing
-  `key: nil`.
+  Accepts a map or a keyword list — keyword input is normalised to a map
+  before storage. Merges with any existing metadata by key; partial updates
+  are supported. Explicit `nil` values overwrite, so callers can reset a
+  field by passing `key: nil`.
   """
-  @callback save_metadata(session_id(), metadata(), opts :: keyword()) ::
+  @callback save_metadata(session_id(), metadata() | keyword(), opts :: keyword()) ::
               :ok | {:error, term()}
 
   @doc """
-  Load a session. Returns the tree and any saved metadata, or `:not_found`
-  when no session exists for the given id.
+  Load a session. Returns the tree and any saved metadata as a map, or
+  `:not_found` when no session exists for the given id.
   """
   @callback load(session_id(), opts :: keyword()) ::
               {:ok, OmniUI.Tree.t(), metadata()} | {:error, :not_found}

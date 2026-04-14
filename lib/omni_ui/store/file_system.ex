@@ -36,8 +36,9 @@ defmodule OmniUI.Store.FileSystem do
   Session-level fields (`created_at`, `updated_at`, `title`, `path`,
   `cursors`) sit at the top level. User-supplied metadata lives under
   `"metadata"` as an `Omni.Codec.encode_term/1` blob, preserving full
-  Elixir term fidelity. `"title"` is cached at the top level for cheap
-  session listing; the canonical value is the one inside the metadata blob.
+  Elixir term fidelity. `:title` is lifted out of the metadata map on write
+  and merged back in on read, so it's not duplicated inside the ETF blob
+  but is still returned as part of the metadata by `load/2`.
 
   ## Configuration
 
@@ -70,17 +71,20 @@ defmodule OmniUI.Store.FileSystem do
   end
 
   @impl true
-  def save_metadata(session_id, metadata, opts \\ []) when is_list(metadata) do
+  def save_metadata(session_id, metadata, opts \\ []) do
     dir = session_dir(session_id, opts)
     File.mkdir_p!(dir)
 
     meta_path = Path.join(dir, "meta.json")
     existing = read_meta(meta_path)
-    merged_metadata = Keyword.merge(existing.metadata, metadata)
+    merged_metadata = Map.merge(existing.metadata, normalise_metadata(metadata))
 
     update_meta(meta_path, %{metadata: merged_metadata})
     :ok
   end
+
+  defp normalise_metadata(metadata) when is_map(metadata), do: metadata
+  defp normalise_metadata(metadata) when is_list(metadata), do: Map.new(metadata)
 
   @impl true
   def load(session_id, opts \\ []) do
@@ -200,7 +204,7 @@ defmodule OmniUI.Store.FileSystem do
     base =
       case read_meta_file(path) do
         {:ok, meta} -> %{meta | updated_at: now}
-        :error -> %{created_at: now, updated_at: now, path: [], cursors: %{}, metadata: []}
+        :error -> %{created_at: now, updated_at: now, path: [], cursors: %{}, metadata: %{}}
       end
 
     meta = Map.merge(base, updates)
@@ -210,7 +214,7 @@ defmodule OmniUI.Store.FileSystem do
   defp read_meta(path) do
     case read_meta_file(path) do
       {:ok, meta} -> meta
-      :error -> %{created_at: nil, updated_at: nil, path: [], cursors: %{}, metadata: []}
+      :error -> %{created_at: nil, updated_at: nil, path: [], cursors: %{}, metadata: %{}}
     end
   end
 
@@ -222,19 +226,32 @@ defmodule OmniUI.Store.FileSystem do
   end
 
   defp encode_meta(meta) do
-    JSON.encode!(%{
-      "title" => Keyword.get(meta.metadata, :title),
+    base = %{
       "path" => meta.path,
       "cursors" => encode_cursors(meta.cursors),
-      "metadata" => Codec.encode_term(meta.metadata),
+      "metadata" => Codec.encode_term(Map.delete(meta.metadata, :title)),
       "created_at" => DateTime.to_iso8601(meta.created_at),
       "updated_at" => DateTime.to_iso8601(meta.updated_at)
-    })
+    }
+
+    base =
+      case Map.fetch(meta.metadata, :title) do
+        {:ok, title} -> Map.put(base, "title", title)
+        :error -> base
+      end
+
+    JSON.encode!(base)
   end
 
   defp decode_meta(json) do
     map = JSON.decode!(json)
     {:ok, metadata} = Codec.decode_term(map["metadata"])
+
+    metadata =
+      case Map.fetch(map, "title") do
+        {:ok, title} -> Map.put(metadata, :title, title)
+        :error -> metadata
+      end
 
     %{
       created_at: decode_datetime(map["created_at"]),
