@@ -279,10 +279,10 @@ Each function reads the configured adapter at runtime. When no adapter is config
 **Adapter configuration.**
 
 ```elixir
-config :omni_ui, store: OmniUI.Store.FileSystem
+config :omni, OmniUI.Store, adapter: OmniUI.Store.FileSystem
 ```
 
-`:store` in opts overrides the configured adapter for a specific call.
+`:adapter` in opts overrides the configured adapter for a specific call.
 
 **Why standalone rather than macro-injected?** Persistence policy — *when* to save, *what* scope to use, error handling, retry behaviour — varies between consumers. The macro provides plumbing every consumer needs; persistence is a separate concern each consumer wires up to fit their model. AgentLive is one example: it calls `save_tree` on `agent_event(:stop, ...)`, calls `save_metadata` from `ui_event/3` to persist model/thinking changes, and calls `save_metadata` directly from the title blur handler.
 

@@ -102,10 +102,10 @@ Items from the original persistence design not addressed during session manageme
 
 - **JSON serialization** — `OmniUI.Store.FileSystem` adapter ships JSON/JSONL files per session. Replaces the ETF adapter. Tree nodes round-trip via `Omni.Codec`; metadata bag preserved as ETF-in-JSON for term fidelity.
 - **Incremental saves** — `:new_node_ids` opt now appends to `tree.jsonl` rather than full-rewriting. Meta file always full-rewrites (small).
+- **Store/macro decoupling + `ui_event/3` callback** — `OmniUI.Store` is a standalone subsystem with config-based adapter resolution; the macro no longer injects store delegates. New `ui_event/3` callback symmetric with `agent_event/3`, fires for macro-handled UI events. AgentLive persists model/thinking changes immediately via `ui_event/3`. See `architecture.md` § Persistence and § `use OmniUI` Macro.
 
-**In progress / next:**
+**Next:**
 
-- **Store/macro decoupling + `ui_event/3` callback** — making `OmniUI.Store` a standalone subsystem with config-based adapter resolution, and adding `ui_event/3` as the observer hook for macro-handled UI events. Unblocks model/thinking persistence on toolbar changes. See `persistence_follow_ups.md` and `architecture.md` § Persistence.
 - **Notifications system** — kit-native toaster. UX target for the next item; also picks up several silent `Logger.warning` sites.
 - **Error handling in saves** — currently fire-and-forget; rolls in on top of notifications.
 
@@ -120,6 +120,8 @@ Smaller items that don't require major design work but need to happen before a p
 - **Per-tool timeouts** — the agent currently has a single timeout applied to all tool calls, and the REPL tool has its own separate timeout setting. Needs exploration: can tools declare their own timeout that overrides the agent default? Likely requires changes in `omni`.
 - **REPL tool packaging** — the REPL tool (`OmniUI.REPL.Sandbox`, `REPL.Tool`, `REPL.SandboxExtension`) has no UI dependency — it could live in `omni` or a separate package alongside `Omni.Agent`. Artifacts is different (needs the panel UI). Needs a conversation about where the boundary is.
 - **Project namespacing** — `OmniUI` vs `Omni.UI`. The rest of the ecosystem uses the `Omni` namespace (`Omni.Agent`, etc.). Needs a decision on whether to align (and what the migration looks like).
+- **Event name rationalisation** — across `phx-click` UI events, LiveView `handle_event` events, events scoped to AgentLive vs the macro vs LiveComponents, and the symbolic atoms fired to `ui_event/3`. Today they've accumulated organically (`"omni:*"` namespaced vs bare `"save_title"`, component-bubbled events, etc.). Review for a coherent, documented convention before the public API locks in.
+- **Config key rationalisation** — configuration spans `:omni` and `:omni_ui` atoms, with a mix of bare-app keys and module-scoped keys (`config :omni, OmniUI.Store, adapter: ...`, `config :omni, OmniUI.AgentLive, title_generation: ...`, `config :omni_ui, OmniUI.Store.FileSystem, base_path: ...`, `config :omni, providers: ...`). Needs a single coherent pattern across the Omni ecosystem before release. Dovetails with the namespacing decision.
 - **Package API surface** — decide what's public vs internal. `OmniUI.Components`, `OmniUI.Turn`, `OmniUI.Tree` are public. Helpers, TreeFaker, internal structs may not be.
 - **Documentation** — hex docs, usage guides, example configurations. Including artifact/sandbox setup (ArtifactPlug router requirements, tool registration).
 - **Cross-browser QA** — thorough testing across browsers. The artifacts panel specifically won't work well on mobile — need to figure out the responsive approach (full-screen takeover? separate route? hidden on mobile?).
