@@ -46,15 +46,3 @@ defmodule OmniUI.Test.CustomAgentEventView do
     assign(socket, :last_agent_event, {event, data})
   end
 end
-
-defmodule OmniUI.Test.StoreView do
-  @moduledoc false
-  use Phoenix.LiveView
-  use OmniUI, store: OmniUI.Store.FileSystem
-
-  @impl Phoenix.LiveView
-  def render(assigns), do: ~H"<div>store</div>"
-
-  @impl Phoenix.LiveView
-  def mount(_params, _session, socket), do: {:ok, socket}
-end

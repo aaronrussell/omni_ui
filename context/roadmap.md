@@ -96,12 +96,18 @@ Session lifecycle UI built on top of persistence: new/switch/delete/title/browse
 
 ### 5. Persistence Follow-ups
 
-Items from the original persistence design not addressed during session management. Pick up as needed.
+Items from the original persistence design not addressed during session management.
 
-- **Incremental saves** — buffer new node IDs and pass as `:new_node_ids` to `save_tree`, so adapters can append rather than full-overwrite. The API already accepts the opt; adapters ignore it for now.
-- **JSON serialization** — human-readable storage format replacing opaque ETF. Requires `Omni.Message`/`Omni.Content.*` serialization in the `omni` package.
-- **Save on metadata-only changes (model/thinking)** — title edits now persist without needing a `:stop`, but changing model or thinking mid-session still waits for the next completion before hitting disk. Options: developer overrides `handle_event`, new `ui_event/3` callback, or AgentLive handles directly.
-- **Error handling in saves** — current implementation is fire-and-forget. Will likely roll into the notifications system (see Polish) when that lands.
+**Done:**
+
+- **JSON serialization** — `OmniUI.Store.FileSystem` adapter ships JSON/JSONL files per session. Replaces the ETF adapter. Tree nodes round-trip via `Omni.Codec`; metadata bag preserved as ETF-in-JSON for term fidelity.
+- **Incremental saves** — `:new_node_ids` opt now appends to `tree.jsonl` rather than full-rewriting. Meta file always full-rewrites (small).
+
+**In progress / next:**
+
+- **Store/macro decoupling + `ui_event/3` callback** — making `OmniUI.Store` a standalone subsystem with config-based adapter resolution, and adding `ui_event/3` as the observer hook for macro-handled UI events. Unblocks model/thinking persistence on toolbar changes. See `persistence_follow_ups.md` and `architecture.md` § Persistence.
+- **Notifications system** — kit-native toaster. UX target for the next item; also picks up several silent `Logger.warning` sites.
+- **Error handling in saves** — currently fire-and-forget; rolls in on top of notifications.
 
 ### 6. Polish & Release
 

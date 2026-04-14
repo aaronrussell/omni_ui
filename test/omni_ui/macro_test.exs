@@ -1,14 +1,13 @@
 defmodule OmniUI.MacroTest do
   use ExUnit.Case, async: true
 
-  alias OmniUI.Test.{MinimalView, CustomHandlersView, CustomAgentEventView, StoreView}
+  alias OmniUI.Test.{MinimalView, CustomHandlersView, CustomAgentEventView}
 
   setup_all do
     Code.ensure_loaded!(OmniUI)
     Code.ensure_loaded!(MinimalView)
     Code.ensure_loaded!(CustomHandlersView)
     Code.ensure_loaded!(CustomAgentEventView)
-    Code.ensure_loaded!(StoreView)
     :ok
   end
 
@@ -118,62 +117,14 @@ defmodule OmniUI.MacroTest do
     end
   end
 
-  describe "store injection — MinimalView (no store configured)" do
-    test "store functions are not injected" do
-      refute function_exported?(MinimalView, :save_tree, 2)
+  describe "store decoupling" do
+    test "macro does not inject store delegate functions" do
       refute function_exported?(MinimalView, :save_tree, 3)
-      refute function_exported?(MinimalView, :save_metadata, 2)
       refute function_exported?(MinimalView, :save_metadata, 3)
       refute function_exported?(MinimalView, :load_session, 1)
-      refute function_exported?(MinimalView, :load_session, 2)
       refute function_exported?(MinimalView, :list_sessions, 0)
-      refute function_exported?(MinimalView, :list_sessions, 1)
       refute function_exported?(MinimalView, :delete_session, 1)
-      refute function_exported?(MinimalView, :delete_session, 2)
-    end
-  end
-
-  describe "store injection — StoreView (store configured)" do
-    test "exports all store functions" do
-      assert function_exported?(StoreView, :save_tree, 2)
-      assert function_exported?(StoreView, :save_tree, 3)
-      assert function_exported?(StoreView, :save_metadata, 2)
-      assert function_exported?(StoreView, :save_metadata, 3)
-      assert function_exported?(StoreView, :load_session, 1)
-      assert function_exported?(StoreView, :load_session, 2)
-      assert function_exported?(StoreView, :list_sessions, 0)
-      assert function_exported?(StoreView, :list_sessions, 1)
-      assert function_exported?(StoreView, :delete_session, 1)
-      assert function_exported?(StoreView, :delete_session, 2)
-    end
-
-    @tag :tmp_dir
-    test "save_tree + load_session round-trip", %{tmp_dir: tmp_dir} do
-      tree =
-        %OmniUI.Tree{}
-        |> OmniUI.Tree.push(Omni.message(role: :user, content: "hello"))
-        |> OmniUI.Tree.push(Omni.message(role: :assistant, content: "hi"))
-
-      assert :ok = StoreView.save_tree("s1", tree, base_path: tmp_dir)
-      assert {:ok, loaded_tree, %{}} = StoreView.load_session("s1", base_path: tmp_dir)
-      assert loaded_tree == tree
-    end
-
-    @tag :tmp_dir
-    test "list_sessions returns saved session", %{tmp_dir: tmp_dir} do
-      tree = %OmniUI.Tree{}
-      assert :ok = StoreView.save_tree("s1", tree, base_path: tmp_dir)
-
-      assert {:ok, [%{id: "s1"}]} = StoreView.list_sessions(base_path: tmp_dir)
-    end
-
-    @tag :tmp_dir
-    test "delete_session removes session", %{tmp_dir: tmp_dir} do
-      tree = %OmniUI.Tree{}
-      assert :ok = StoreView.save_tree("s1", tree, base_path: tmp_dir)
-      assert :ok = StoreView.delete_session("s1", base_path: tmp_dir)
-
-      assert {:error, :not_found} = StoreView.load_session("s1", base_path: tmp_dir)
+      refute function_exported?(MinimalView, :__omni_store__, 0)
     end
   end
 end

@@ -10,11 +10,14 @@ defmodule OmniUI.Handlers do
 
   def handle_event("omni:select_model", %{"value" => value}, socket) do
     [provider, model_id] = String.split(value, ":", parts: 2)
-    {:noreply, OmniUI.update_agent(socket, model: {String.to_existing_atom(provider), model_id})}
+    socket = OmniUI.update_agent(socket, model: {String.to_existing_atom(provider), model_id})
+    {:noreply, OmniUI.fire_ui_event(socket, :model_changed, socket.assigns.model)}
   end
 
   def handle_event("omni:select_thinking", %{"value" => value}, socket) do
-    {:noreply, OmniUI.update_agent(socket, thinking: String.to_existing_atom(value))}
+    thinking = String.to_existing_atom(value)
+    socket = OmniUI.update_agent(socket, thinking: thinking)
+    {:noreply, OmniUI.fire_ui_event(socket, :thinking_changed, thinking)}
   end
 
   def handle_event("omni:navigate", %{"node_id" => node_id}, socket) do
@@ -28,7 +31,7 @@ defmodule OmniUI.Handlers do
       |> stream(:turns, turns, reset: true)
       |> push_event("omni:updated", %{})
 
-    {:noreply, socket}
+    {:noreply, OmniUI.fire_ui_event(socket, :navigated, node_id)}
   end
 
   def handle_event("omni:regenerate", %{"turn_id" => turn_id}, socket) do
@@ -87,7 +90,7 @@ defmodule OmniUI.Handlers do
 
     socket = assign(socket, tree: tree, current_turn: current_turn)
 
-    {:noreply, socket}
+    {:noreply, OmniUI.fire_ui_event(socket, :message_sent, {id, message})}
   end
 
   def handle_info({OmniUI, :edit_message, turn_id, message}, socket) do
@@ -126,7 +129,7 @@ defmodule OmniUI.Handlers do
       |> stream(:turns, turns, reset: true)
       |> push_event("omni:updated", %{})
 
-    {:noreply, socket}
+    {:noreply, OmniUI.fire_ui_event(socket, :message_edited, {id, message})}
   end
 
   # ── Agent events (return socket, not {:noreply, socket}) ─────────

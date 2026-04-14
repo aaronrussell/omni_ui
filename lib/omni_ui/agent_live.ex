@@ -4,6 +4,7 @@ defmodule OmniUI.AgentLive do
   require Logger
 
   alias OmniUI.Artifacts
+  alias OmniUI.Store
 
   @default_model {:ollama, "gemma4:latest"}
   # @default_model {:opencode, "kimi-k2.5"}
@@ -87,7 +88,6 @@ defmodule OmniUI.AgentLive do
           <.live_component
             module={OmniUI.SessionsComponent}
             id="sessions"
-            store={__omni_store__()}
             current_id={@session_id} />
         </div>
       </div>
@@ -184,7 +184,7 @@ defmodule OmniUI.AgentLive do
   # Load existing session
   def handle_params(%{"session_id" => session_id}, _uri, socket) do
     if connected?(socket) do
-      case load_session(session_id) do
+      case Store.load(session_id) do
         {:ok, tree, metadata} ->
           model = Map.get(metadata, :model, @default_model)
           thinking = Map.get(metadata, :thinking, false)
@@ -271,21 +271,30 @@ defmodule OmniUI.AgentLive do
   end
 
   def agent_event(:stop, _response, socket) do
-    %{session_id: session_id, tree: tree, model: model, thinking: thinking} = socket.assigns
-
-    save_tree(session_id, tree)
-    save_metadata(session_id, model: Omni.Model.to_ref(model), thinking: thinking)
-
+    Store.save_tree(socket.assigns.session_id, socket.assigns.tree)
     maybe_generate_title(socket, @title_strategy)
   end
 
   def agent_event(_event, _data, socket), do: socket
 
+  @impl OmniUI
+  def ui_event(:model_changed, model, socket) do
+    Store.save_metadata(socket.assigns.session_id, model: Omni.Model.to_ref(model))
+    socket
+  end
+
+  def ui_event(:thinking_changed, thinking, socket) do
+    Store.save_metadata(socket.assigns.session_id, thinking: thinking)
+    socket
+  end
+
+  def ui_event(_event, _data, socket), do: socket
+
   @impl Phoenix.LiveView
   def handle_async(:generate_title, {:ok, {:ok, title}}, socket) do
     socket =
       if socket.assigns.title == nil do
-        save_metadata(socket.assigns.session_id, title: title)
+        Store.save_metadata(socket.assigns.session_id, title: title)
         assign(socket, :title, title)
       else
         socket
@@ -330,11 +339,11 @@ defmodule OmniUI.AgentLive do
         socket
 
       title == "" ->
-        save_metadata(socket.assigns.session_id, title: nil)
+        Store.save_metadata(socket.assigns.session_id, title: nil)
         assign(socket, :title, nil)
 
       true ->
-        save_metadata(socket.assigns.session_id, title: title)
+        Store.save_metadata(socket.assigns.session_id, title: title)
         assign(socket, :title, title)
     end
   end

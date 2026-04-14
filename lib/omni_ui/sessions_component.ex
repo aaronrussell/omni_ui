@@ -13,9 +13,10 @@ defmodule OmniUI.SessionsComponent do
   ## Assigns from parent
 
     * `id` — required Phoenix component id
-    * `store` — the store module (implementing `OmniUI.Store`) the component
-      will call for `list/1` and `delete/1`
     * `current_id` — the currently active session id (for row highlighting)
+
+  Calls `OmniUI.Store.list/1` and `OmniUI.Store.delete/2` directly —
+  the configured adapter is resolved at the call site.
 
   ## Events bubbled to the parent LiveView (not `phx-target`-ed)
 
@@ -28,7 +29,7 @@ defmodule OmniUI.SessionsComponent do
 
   use Phoenix.LiveComponent
 
-  alias OmniUI.Components
+  alias OmniUI.{Components, Store}
 
   @page_size 50
 
@@ -152,7 +153,7 @@ defmodule OmniUI.SessionsComponent do
   end
 
   def handle_event("delete", %{"id" => id}, socket) do
-    :ok = socket.assigns.store.delete(id)
+    :ok = Store.delete(id)
 
     if id == socket.assigns.current_id do
       send(self(), {OmniUI, :active_session_deleted})
@@ -169,7 +170,7 @@ defmodule OmniUI.SessionsComponent do
   end
 
   defp load_page(socket, offset, opts \\ []) do
-    {:ok, page} = socket.assigns.store.list(limit: @page_size, offset: offset)
+    {:ok, page} = Store.list(limit: @page_size, offset: offset)
 
     sessions =
       if Keyword.get(opts, :append, false) do

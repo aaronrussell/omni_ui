@@ -101,14 +101,28 @@ The macro adds agent chat capabilities to any LiveView. The developer writes `us
 
 **What the macro injects:**
 
-- `handle_event/3` clauses for `"omni:*"` events (navigate, regenerate, select_model, select_thinking)
+- `handle_event/3` clauses for `"omni:*"` events (navigate, regenerate, select_model, select_thinking, plus message events from live components)
 - `handle_info/2` clauses for `{OmniUI, ...}` component messages and `{:agent, ...}` streaming events
-- Default `agent_event/3` callback (pass-through) if the developer doesn't define one
+- Default `agent_event/3` and `ui_event/3` callbacks (pass-through) if the developer doesn't define them
 - Imports: `OmniUI.Components`, `start_agent/2`, `update_agent/2`
 
 **Coexistence with developer handlers:** Uses `@before_compile` with `defoverridable` — OmniUI events are dispatched first, unrecognised events fall through to the developer's clauses via `super`. The wrapping is transparent.
 
-**`agent_event/3` callback:** Fires for every agent event after OmniUI's default handling. Receives the event atom, event data, and already-updated socket. The developer can observe any event — streaming deltas, completions, errors — and mutate the socket further.
+**`agent_event/3` callback:** Fires for every agent streaming event after OmniUI's default handling. Receives the event atom, event data, and already-updated socket. The developer can observe any event — streaming deltas, completions, errors — and mutate the socket further.
+
+**`ui_event/3` callback:** Fires for UI events that OmniUI itself handles, after the macro has processed them. Receives the event atom, event data, and updated socket. Use it to observe or react to user actions that mutate agent-related state — for example, persisting model/thinking changes.
+
+Events that fire:
+
+| Event | Data | Represents |
+|-------|------|------------|
+| `:model_changed` | `%Omni.Model{}` | toolbar selection |
+| `:thinking_changed` | `false \| :low \| :medium \| :high \| :max` | toolbar toggle |
+| `:navigated` | `node_id` | tree cursor moved to a branch |
+| `:message_sent` | `{node_id, %Omni.Message{}}` | user sent a message |
+| `:message_edited` | `{node_id, %Omni.Message{}}` | user edited a prior message (new branch) |
+
+**Event ownership.** The rule: *the macro handles events that mutate agent state or agent context; everything else is the consumer's.* Consumer-owned events (title editing, session management, artifacts, custom UI) go through standard `handle_event/3` — they never reach `ui_event/3`. This keeps the boundary clean: `ui_event/3` is for observing macro-handled state changes, nothing else.
 
 **Key modules:**
 
@@ -246,12 +260,42 @@ Both flows end with the same streaming lifecycle: `@current_turn` accumulates de
 
 ---
 
+## Persistence
+
+Session persistence is provided by `OmniUI.Store` as a standalone subsystem — it has no integration with the `use OmniUI` macro, and the macro has no knowledge of it. The macro is focused on agent-streaming plumbing and UI event handling; persistence is something consumers call into directly.
+
+**Public API.** `OmniUI.Store` is both a behaviour (for adapters) and a public module (for consumers). Consumers call it directly:
+
+```elixir
+OmniUI.Store.save_tree(session_id, tree, opts)
+OmniUI.Store.save_metadata(session_id, metadata, opts)
+OmniUI.Store.load(session_id, opts)
+OmniUI.Store.list(opts)
+OmniUI.Store.delete(session_id, opts)
+```
+
+Each function reads the configured adapter at runtime. When no adapter is configured, the functions are no-ops (return `:ok` or `{:ok, []}` as appropriate). Scoping, limits, and offsets pass through `opts`.
+
+**Adapter configuration.**
+
+```elixir
+config :omni_ui, store: OmniUI.Store.FileSystem
+```
+
+`:store` in opts overrides the configured adapter for a specific call.
+
+**Why standalone rather than macro-injected?** Persistence policy — *when* to save, *what* scope to use, error handling, retry behaviour — varies between consumers. The macro provides plumbing every consumer needs; persistence is a separate concern each consumer wires up to fit their model. AgentLive is one example: it calls `save_tree` on `agent_event(:stop, ...)`, calls `save_metadata` from `ui_event/3` to persist model/thinking changes, and calls `save_metadata` directly from the title blur handler.
+
+**Adapters.** `OmniUI.Store.FileSystem` is the shipped adapter — JSON/JSONL files per session directory (see the adapter's moduledoc for the file format). Consumers implement the `OmniUI.Store` behaviour for Ecto, Redis, or other backends.
+
+---
+
 ## Sessions
 
-Sessions are identified by a URL param (`?session_id=<id>`) and persisted via the configured `OmniUI.Store`. `AgentLive.handle_params/3` has three clauses:
+Sessions are identified by a URL param (`?session_id=<id>`) and persisted via `OmniUI.Store`. `AgentLive.handle_params/3` has three clauses:
 
 1. **Re-entry guard** — matches when the URL's `session_id` equals the current assign; no-op. Prevents our own `push_patch` from triggering another load cycle.
-2. **Load existing** — session id present. Calls `load_session/1`, assigns title + tree + model + thinking, and wires up session-scoped tools via `create_tools/1`.
+2. **Load existing** — session id present. Calls `OmniUI.Store.load/1`, assigns title + tree + model + thinking, and wires up session-scoped tools via `create_tools/1`.
 3. **No session id** — fresh mount or navigation to `/`. Routes through `start_new_session/2` with `replace: true`.
 
 A private `start_new_session/2` helper is the single path for resetting to a fresh session. It's called from:
@@ -303,7 +347,7 @@ Mirrors the Layer 1 / Layer 2 split:
 - **`OmniUI.Components.session_list/1`** — function component. One row per session, current-session highlight, `:actions` slot for per-row controls.
 - **`OmniUI.SessionsComponent`** — LiveComponent wrapping the list with drawer chrome. Overlays the main content with a backdrop; ESC or click-outside closes. Fetches the first page on mount; "Load more" appends; deletes use inline two-step confirm. Deleting the active session sends `{OmniUI, :active_session_deleted}` to the parent.
 
-The LiveComponent needs the store to call `list/1` and `delete/1`. The macro injects `__omni_store__/0` alongside the other store helpers so collaborators receive the resolved module as an assign: `store={__omni_store__()}`.
+The LiveComponent calls `OmniUI.Store.list/1` and `OmniUI.Store.delete/1` directly — no store module needs to be threaded through from the parent.
 
 ### Store pagination
 
@@ -352,7 +396,7 @@ Files created by the agent, persisted in the session. Artifacts are **session-sc
 
 **Data model:** `OmniUI.Artifacts.Artifact` struct — `filename`, `mime_type` (derived from extension), `size`, `updated_at`. Content lives on disk, not in assigns. Metadata is recovered by scanning the session's artifacts directory — no separate metadata persistence.
 
-**Filesystem layout:** Artifacts are co-located with session data under `{base_path}/sessions/{session_id}/artifacts/`. Uses the same base path as `Store.Filesystem`. Session deletion (`File.rm_rf`) naturally cleans up artifacts.
+**Filesystem layout:** Artifacts are co-located with session data under `{base_path}/sessions/{session_id}/artifacts/`. Uses the same base path as `Store.FileSystem`. Session deletion (`File.rm_rf`) naturally cleans up artifacts.
 
 **Tool:** Single Omni tool (`OmniUI.Artifacts.Tool`) with a `command` discriminator — `write`, `patch`, `get`, `list`, `delete`. Stateful: `init/1` receives `:session_id`, `call/2` delegates to `OmniUI.Artifacts.FileSystem`. `patch` is a targeted find-replace, more token-efficient than `write` for small changes.
 

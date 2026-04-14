@@ -4,4 +4,4 @@ import Config
 # etc. which are only injected by `use OmniUI` when a store is configured.
 # Without this, `mix compile` at the library root produces Dialyzer warnings
 # (unreachable clauses) or outright compilation errors.
-config :omni, OmniUI.AgentLive, store: OmniUI.Store.FileSystem
+config :omni, OmniUI.Store, adapter: OmniUI.Store.FileSystem

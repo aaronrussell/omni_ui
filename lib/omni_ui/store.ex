@@ -1,27 +1,45 @@
 defmodule OmniUI.Store do
   @moduledoc """
-  Behaviour for session persistence backends.
+  Session persistence subsystem — both behaviour and public API.
 
-  Defines the contract for saving and loading conversation trees and
-  session metadata. OmniUI ships a filesystem adapter for development
-  (`OmniUI.Store.FileSystem`); consumers implement their own for Ecto,
-  Redis, or other backends.
+  Consumers call this module directly:
 
-  ## Callbacks
+      OmniUI.Store.save_tree(session_id, tree, opts)
+      OmniUI.Store.save_metadata(session_id, metadata, opts)
+      OmniUI.Store.load(session_id, opts)
+      OmniUI.Store.list(opts)
+      OmniUI.Store.delete(session_id, opts)
 
-  All callbacks accept `opts :: keyword()` as an extension point for
-  scoping, pagination, and adapter-specific options.
+  Each function resolves the configured adapter at runtime. When no
+  adapter is configured the functions are no-ops — `save_*`/`delete`
+  return `:ok`, `load` returns `{:error, :not_found}`, `list` returns
+  `{:ok, []}`. This makes the API safe to call from code that may run
+  with or without persistence configured.
+
+  ## Adapter configuration
+
+      config :omni, OmniUI.Store, adapter: OmniUI.Store.FileSystem
+
+  Or pass `:adapter` in opts to override for a specific call:
+
+      OmniUI.Store.save_tree(id, tree, adapter: MyApp.CustomStore)
 
   ## Scoping
 
   Multi-tenant applications pass `scope: value` in opts to isolate
   sessions by user, organization, or other tenant key:
 
-      save_tree(session_id, tree, scope: current_user.id)
-      load(session_id, scope: current_user.id)
-      list(scope: current_user.id)
+      OmniUI.Store.save_tree(id, tree, scope: current_user.id)
+      OmniUI.Store.load(id, scope: current_user.id)
+      OmniUI.Store.list(scope: current_user.id)
 
   Adapters that don't need scoping ignore the option.
+
+  ## Implementing an adapter
+
+  Implement the `OmniUI.Store` behaviour. All callbacks accept
+  `opts :: keyword()` as an extension point for scoping, pagination,
+  and adapter-specific options.
 
   ## Timestamps
 
@@ -32,6 +50,7 @@ defmodule OmniUI.Store do
 
   @type session_id :: String.t()
   @type metadata :: %{optional(atom()) => term()}
+  @type adapter :: module()
 
   @type session_info :: %{
           id: session_id(),
@@ -95,4 +114,62 @@ defmodule OmniUI.Store do
   Delete a session and all its data.
   """
   @callback delete(session_id(), opts :: keyword()) :: :ok | {:error, term()}
+
+  # ── Public API ─────────────────────────────────────────────────────
+
+  @doc "Save a conversation tree via the configured adapter."
+  @spec save_tree(session_id(), OmniUI.Tree.t(), keyword()) :: :ok | {:error, term()}
+  def save_tree(session_id, tree, opts \\ []) do
+    case adapter(opts) do
+      nil -> :ok
+      mod -> mod.save_tree(session_id, tree, drop_adapter(opts))
+    end
+  end
+
+  @doc "Save session metadata via the configured adapter."
+  @spec save_metadata(session_id(), metadata() | keyword(), keyword()) :: :ok | {:error, term()}
+  def save_metadata(session_id, metadata, opts \\ []) do
+    case adapter(opts) do
+      nil -> :ok
+      mod -> mod.save_metadata(session_id, metadata, drop_adapter(opts))
+    end
+  end
+
+  @doc "Load a session via the configured adapter."
+  @spec load(session_id(), keyword()) ::
+          {:ok, OmniUI.Tree.t(), metadata()} | {:error, :not_found}
+  def load(session_id, opts \\ []) do
+    case adapter(opts) do
+      nil -> {:error, :not_found}
+      mod -> mod.load(session_id, drop_adapter(opts))
+    end
+  end
+
+  @doc "List session summaries via the configured adapter."
+  @spec list(keyword()) :: {:ok, [session_info()]}
+  def list(opts \\ []) do
+    case adapter(opts) do
+      nil -> {:ok, []}
+      mod -> mod.list(drop_adapter(opts))
+    end
+  end
+
+  @doc "Delete a session via the configured adapter."
+  @spec delete(session_id(), keyword()) :: :ok | {:error, term()}
+  def delete(session_id, opts \\ []) do
+    case adapter(opts) do
+      nil -> :ok
+      mod -> mod.delete(session_id, drop_adapter(opts))
+    end
+  end
+
+  @doc "Returns the currently configured adapter (or `nil`)."
+  @spec adapter(keyword()) :: adapter() | nil
+  def adapter(opts \\ []) do
+    Keyword.get_lazy(opts, :adapter, fn ->
+      Application.get_env(:omni, __MODULE__, []) |> Keyword.get(:adapter)
+    end)
+  end
+
+  defp drop_adapter(opts), do: Keyword.delete(opts, :adapter)
 end

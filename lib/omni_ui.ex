@@ -37,7 +37,13 @@ defmodule OmniUI do
   - Injects `handle_info/2` clauses for agent streaming and component messages
   - Wraps developer-defined handlers via `defoverridable` so OmniUI events
     are dispatched first and unrecognised events fall through
-  - Injects a default `agent_event/3` pass-through if the developer doesn't define one
+  - Injects default `agent_event/3` and `ui_event/3` pass-throughs if the
+    developer doesn't define them
+
+  Persistence is a separate subsystem (`OmniUI.Store`) — the macro has no
+  knowledge of it. Consumers call `OmniUI.Store.save_tree/3` and friends
+  directly, and use the `ui_event/3` callback to observe macro-handled
+  events worth persisting.
   """
 
   import Phoenix.Component
@@ -55,15 +61,32 @@ defmodule OmniUI do
   @callback agent_event(event :: atom(), data :: term(), Phoenix.LiveView.Socket.t()) ::
               Phoenix.LiveView.Socket.t()
 
+  @doc """
+  Called after OmniUI handles a UI event that mutates agent-related state.
+
+  Fires for:
+
+    * `:model_changed` — `data` is the resolved `%Omni.Model{}`
+    * `:thinking_changed` — `data` is the new thinking level (`false | :low | :medium | :high | :max`)
+    * `:navigated` — `data` is the target `node_id`
+    * `:message_sent` — `data` is `{node_id, %Omni.Message{}}` for the new user node
+    * `:message_edited` — `data` is `{node_id, %Omni.Message{}}` for the new branch node
+
+  Use it to observe macro-handled state changes — for example, to persist
+  model/thinking changes via `OmniUI.Store.save_metadata/3`. The macro
+  handles agent-state events; consumer-owned events (title editing,
+  session management, custom UI) go through standard `handle_event/3`
+  and never reach this callback.
+  """
+  @callback ui_event(event :: atom(), data :: term(), Phoenix.LiveView.Socket.t()) ::
+              Phoenix.LiveView.Socket.t()
+
   # ── Macro ──────────────────────────────────────────────────────────
 
-  defmacro __using__(opts) do
-    store = Keyword.get(opts, :store)
-
+  defmacro __using__(_opts) do
     quote do
       @behaviour OmniUI
       @before_compile OmniUI
-      @__omni_store__ unquote(store) || Application.compile_env(:omni, [__MODULE__, :store])
       import OmniUI.Components
       import OmniUI, only: [start_agent: 2, update_agent: 2]
     end
@@ -73,18 +96,18 @@ defmodule OmniUI do
     has_handle_event = Module.defines?(env.module, {:handle_event, 3})
     has_handle_info = Module.defines?(env.module, {:handle_info, 2})
     has_agent_event = Module.defines?(env.module, {:agent_event, 3})
-    store = Module.get_attribute(env.module, :__omni_store__)
+    has_ui_event = Module.defines?(env.module, {:ui_event, 3})
 
     event_clauses = inject_handle_event(has_handle_event)
     info_clauses = inject_handle_info(has_handle_info)
     agent_event_clause = unless has_agent_event, do: inject_default_agent_event()
-    store_clauses = inject_store_functions(store)
+    ui_event_clause = unless has_ui_event, do: inject_default_ui_event()
 
     quote do
       unquote(event_clauses)
       unquote(info_clauses)
       unquote(agent_event_clause)
-      unquote(store_clauses)
+      unquote(ui_event_clause)
     end
   end
 
@@ -166,36 +189,32 @@ defmodule OmniUI do
     end
   end
 
-  defp inject_store_functions(nil), do: nil
-
-  defp inject_store_functions(store) do
+  defp inject_default_ui_event do
     quote do
-      @doc false
-      def __omni_store__, do: unquote(store)
-
-      @doc false
-      def save_tree(session_id, tree, opts \\ []),
-        do: unquote(store).save_tree(session_id, tree, opts)
-
-      @doc false
-      def save_metadata(session_id, metadata, opts \\ []),
-        do: unquote(store).save_metadata(session_id, metadata, opts)
-
-      @doc false
-      def load_session(session_id, opts \\ []),
-        do: unquote(store).load(session_id, opts)
-
-      @doc false
-      def list_sessions(opts \\ []),
-        do: unquote(store).list(opts)
-
-      @doc false
-      def delete_session(session_id, opts \\ []),
-        do: unquote(store).delete(session_id, opts)
+      @impl OmniUI
+      def ui_event(_event, _data, socket), do: socket
     end
   end
 
   # ── Public API ─────────────────────────────────────────────────────
+
+  @doc """
+  Dispatches a UI event to the consuming LiveView's `ui_event/3` callback.
+
+  Internal — called by `OmniUI.Handlers` after handling a UI event the
+  macro is responsible for. Returns the (possibly mutated) socket.
+  """
+  @spec fire_ui_event(Phoenix.LiveView.Socket.t(), atom(), term()) ::
+          Phoenix.LiveView.Socket.t()
+  def fire_ui_event(%Phoenix.LiveView.Socket{view: view} = socket, event, data) do
+    case view.ui_event(event, data, socket) do
+      %Phoenix.LiveView.Socket{} = s ->
+        s
+
+      other ->
+        raise "#{inspect(view)}.ui_event/3 must return a socket, got: #{inspect(other)}"
+    end
+  end
 
   @doc """
   Initialises the OmniUI agent system on a socket.
