@@ -183,6 +183,42 @@ defmodule OmniUI.Helpers do
   def format_token_count(count), do: "#{round(count / 1000)}k"
 
   @doc """
+  Formats a datetime as a short "time ago" label.
+
+  Returns one of:
+
+    * `"just now"` for under a minute
+    * `"Xm ago"` / `"Xh ago"` / `"Xd ago"` for up to a week
+    * a formatted absolute date beyond that (default: `"Apr 13"`)
+
+  The second argument is the `Calendar.strftime/2` format string used for
+  the absolute-date fallback, so callers can control how old dates render
+  (e.g. the chat timestamp might want to include the year, the sessions
+  list might prefer month + day).
+
+  ## Examples
+
+      iex> OmniUI.Helpers.time_ago(DateTime.utc_now())
+      "just now"
+
+      iex> dt = DateTime.add(DateTime.utc_now(), -300, :second)
+      iex> OmniUI.Helpers.time_ago(dt)
+      "5m ago"
+  """
+  @spec time_ago(DateTime.t(), String.t()) :: String.t()
+  def time_ago(%DateTime{} = dt, fallback_format \\ "%Y-%m-%d %H:%M") do
+    diff = DateTime.diff(DateTime.utc_now(), dt, :second)
+
+    cond do
+      diff < 60 -> "just now"
+      diff < 3_600 -> "#{div(diff, 60)}m ago"
+      diff < 86_400 -> "#{div(diff, 3_600)}h ago"
+      diff < 604_800 -> "#{div(diff, 86_400)}d ago"
+      true -> Calendar.strftime(dt, fallback_format)
+    end
+  end
+
+  @doc """
   Formats a token cost as a dollar amount with 4 decimal places.
 
   Returns `"-"` for `nil`.

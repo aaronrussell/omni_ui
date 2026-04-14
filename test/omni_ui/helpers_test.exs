@@ -120,6 +120,44 @@ defmodule OmniUI.HelpersTest do
     end
   end
 
+  # ── time_ago/2 ───────────────────────────────────────────────────
+
+  describe "time_ago/2" do
+    defp ago(seconds), do: DateTime.add(DateTime.utc_now(), -seconds, :second)
+
+    test "returns 'just now' for under a minute" do
+      assert Helpers.time_ago(ago(0)) == "just now"
+      assert Helpers.time_ago(ago(59)) == "just now"
+    end
+
+    test "returns minutes for under an hour" do
+      assert Helpers.time_ago(ago(60)) == "1m ago"
+      assert Helpers.time_ago(ago(300)) == "5m ago"
+      assert Helpers.time_ago(ago(3_599)) == "59m ago"
+    end
+
+    test "returns hours for under a day" do
+      assert Helpers.time_ago(ago(3_600)) == "1h ago"
+      assert Helpers.time_ago(ago(7_200)) == "2h ago"
+      assert Helpers.time_ago(ago(86_399)) == "23h ago"
+    end
+
+    test "returns days for under a week" do
+      assert Helpers.time_ago(ago(86_400)) == "1d ago"
+      assert Helpers.time_ago(ago(604_799)) == "6d ago"
+    end
+
+    test "falls back to strftime for older dates" do
+      dt = ~U[2024-01-05 10:00:00Z]
+      assert Helpers.time_ago(dt) == "2024-01-05 10:00"
+    end
+
+    test "accepts a custom fallback format" do
+      dt = ~U[2024-01-05 10:00:00Z]
+      assert Helpers.time_ago(dt, "%Y-%m-%d") == "2024-01-05"
+    end
+  end
+
   # ── format_token_count/1 ─────────────────────────────────────────
 
   describe "format_token_count/1" do

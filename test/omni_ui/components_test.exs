@@ -283,27 +283,18 @@ defmodule OmniUI.ComponentsTest do
   # ── timestamp/1 ─────────────────────────────────────────────────
 
   describe "timestamp/1" do
-    test "renders formatted time" do
+    test "renders a time-ago label" do
       assigns = %{time: ~U[2026-03-15 14:30:00Z]}
 
       html =
         rendered_to_string(~H"""
-        <.timestamp time={@time} />
+        <.timestamp time={@time} format="%-d %B" />
         """)
 
       assert html =~ "<time"
-      assert html =~ "02:30pm"
-    end
-
-    test "includes datetime attribute" do
-      assigns = %{time: ~U[2026-03-15 14:30:00Z]}
-
-      html =
-        rendered_to_string(~H"""
-        <.timestamp time={@time} />
-        """)
-
       assert html =~ "datetime="
+      assert html =~ "title="
+      assert html =~ "15 March"
     end
   end
 

@@ -292,7 +292,11 @@ defmodule OmniUI do
 
           {:error, reason} ->
             require Logger
-            Logger.warning("update_agent: ignoring unresolvable model #{inspect(value)} (#{inspect(reason)})")
+
+            Logger.warning(
+              "update_agent: ignoring unresolvable model #{inspect(value)} (#{inspect(reason)})"
+            )
+
             socket
         end
 

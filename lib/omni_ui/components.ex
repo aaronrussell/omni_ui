@@ -167,7 +167,10 @@ defmodule OmniUI.Components do
   def user_message_actions(assigns) do
     ~H"""
     <div class="flex items-center gap-4">
-      <.timestamp time={@timestamp} />
+      <.timestamp
+        class="text-xs text-omni-text-4"
+        time={@timestamp}
+        format="%-d %B" />
 
       <button
         phx-click={
@@ -537,17 +540,17 @@ defmodule OmniUI.Components do
 
   @doc "Formatted time display with tooltip showing full date."
   attr :time, DateTime, required: true
+  attr :format, :string, default: "%Y-%m-%d %H:%M"
+  attr :rest, :global, default: %{class: ""}
 
   def timestamp(assigns) do
     ~H"""
-    <div>
-      <time
-        class="text-xs text-omni-text-4"
-        datetime={Calendar.strftime(@time, "%c")}
-        title={Calendar.strftime(@time, "%c")}>
-        {Calendar.strftime(@time, "%I:%M%P")}
-      </time>
-    </div>
+    <time
+      class={@rest.class}
+      datetime={Calendar.strftime(@time, "%c")}
+      title={Calendar.strftime(@time, "%c")}>
+      {time_ago(@time, @format)}
+    </time>
     """
   end
 
@@ -844,9 +847,10 @@ defmodule OmniUI.Components do
             <div class="text-sm text-omni-text-1 truncate">
               {session.title || "Untitled"}
             </div>
-            <div class="text-xs text-omni-text-3 mt-0.5">
-              {Calendar.strftime(session.updated_at, "%Y-%m-%d %H:%M")}
-            </div>
+            <.timestamp
+              class="text-xs text-omni-text-4"
+              time={session.updated_at}
+              format="%-d %B" />
           </button>
 
           <div :if={@actions != []} class="shrink-0">
