@@ -91,6 +91,8 @@ defmodule OmniUI.AgentLive do
             current_id={@session_id} />
         </div>
       </div>
+
+      <.notifications stream={@streams.notifications} />
     </div>
     """
   end
@@ -303,14 +305,14 @@ defmodule OmniUI.AgentLive do
     {:noreply, socket}
   end
 
-  def handle_async(:generate_title, result, socket) do
-    reason =
-      case result do
-        {:ok, {:error, reason}} -> reason
-        {:exit, reason} -> reason
-      end
+  def handle_async(:generate_title, {:ok, {:error, reason}}, socket) do
+    notify(:warning, "Title generation failed.")
+    {:noreply, socket}
+  end
 
-    Logger.error("Title generation crashed: #{inspect(reason)}")
+  def handle_async(:generate_title, {:exit, reason}, socket) do
+    #Logger.error("Title generation crashed: #{inspect(reason)}")
+    notify(:warning, "Title generation failed.")
     {:noreply, socket}
   end
 

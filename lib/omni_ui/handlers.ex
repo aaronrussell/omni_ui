@@ -6,6 +6,8 @@ defmodule OmniUI.Handlers do
 
   require Logger
 
+  @notification_cap 5
+
   # ── Events ───────────────────────────────────────────────────────
 
   def handle_event("omni:select_model", %{"value" => value}, socket) do
@@ -32,6 +34,10 @@ defmodule OmniUI.Handlers do
       |> push_event("omni:updated", %{})
 
     {:noreply, OmniUI.fire_ui_event(socket, :navigated, node_id)}
+  end
+
+  def handle_event("omni:dismiss_notification", %{"id" => id}, socket) do
+    handle_info({OmniUI, :dismiss_notification, String.to_integer(id)}, socket)
   end
 
   def handle_event("omni:regenerate", %{"turn_id" => turn_id}, socket) do
@@ -132,6 +138,42 @@ defmodule OmniUI.Handlers do
     {:noreply, OmniUI.fire_ui_event(socket, :message_edited, {id, message})}
   end
 
+  # ── Notifications ────────────────────────────────────────────────
+
+  def handle_info({OmniUI, :notify, notification}, socket) do
+    Process.send_after(
+      self(),
+      {OmniUI, :dismiss_notification, notification.id},
+      notification.timeout
+    )
+
+    ids = socket.assigns.notification_ids ++ [notification.id]
+    {evicted, kept} = split_evicted(ids)
+
+    socket =
+      Enum.reduce(evicted, socket, fn id, s ->
+        stream_delete(s, :notifications, %{id: id})
+      end)
+
+    {:noreply,
+     socket
+     |> stream_insert(:notifications, notification, at: 0)
+     |> assign(:notification_ids, kept)}
+  end
+
+  def handle_info({OmniUI, :dismiss_notification, id}, socket) do
+    {:noreply,
+     socket
+     |> stream_delete(:notifications, %{id: id})
+     |> update(:notification_ids, &List.delete(&1, id))}
+  end
+
+  defp split_evicted(ids) when length(ids) > @notification_cap do
+    Enum.split(ids, length(ids) - @notification_cap)
+  end
+
+  defp split_evicted(ids), do: {[], ids}
+
   # ── Agent events (return socket, not {:noreply, socket}) ─────────
 
   @doc false
@@ -188,11 +230,11 @@ defmodule OmniUI.Handlers do
     Logger.error("Agent error: #{inspect(reason)}")
 
     turn = Map.put(socket.assigns.current_turn, :status, :error)
+    OmniUI.notify(:error, "Something went wrong")
 
     socket
     |> assign(current_turn: nil)
     |> stream_insert(:turns, turn)
-    |> put_flash(:error, "Something went wrong")
   end
 
   # Catch-all for unhandled agent events

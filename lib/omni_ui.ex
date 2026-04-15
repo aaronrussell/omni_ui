@@ -88,7 +88,7 @@ defmodule OmniUI do
       @behaviour OmniUI
       @before_compile OmniUI
       import OmniUI.Components
-      import OmniUI, only: [start_agent: 2, update_agent: 2]
+      import OmniUI, only: [start_agent: 2, update_agent: 2, notify: 2, notify: 3]
     end
   end
 
@@ -160,6 +160,14 @@ defmodule OmniUI do
       end
 
       def handle_info({OmniUI, :edit_message, _turn_id, _message} = msg, socket) do
+        OmniUI.Handlers.handle_info(msg, socket)
+      end
+
+      def handle_info({OmniUI, :notify, _notification} = msg, socket) do
+        OmniUI.Handlers.handle_info(msg, socket)
+      end
+
+      def handle_info({OmniUI, :dismiss_notification, _id} = msg, socket) do
         OmniUI.Handlers.handle_info(msg, socket)
       end
 
@@ -271,9 +279,11 @@ defmodule OmniUI do
       model: model,
       thinking: thinking,
       usage: usage,
-      tool_components: tool_components
+      tool_components: tool_components,
+      notification_ids: []
     )
     |> stream(:turns, turns)
+    |> stream(:notifications, [])
   end
 
   @doc """
@@ -302,8 +312,6 @@ defmodule OmniUI do
         # A bad model ref here usually means a session persisted a model that
         # has since been deregistered (renamed, provider removed, etc.). Skip
         # the update and keep the current model rather than raising.
-        # TODO: surface this to the user via a notification once the
-        # notifications system lands (see roadmap § Polish & Release).
         case resolve_model(value) do
           {:ok, model} ->
             :ok = Omni.Agent.set_state(agent, :model, model)
@@ -316,6 +324,7 @@ defmodule OmniUI do
               "update_agent: ignoring unresolvable model #{inspect(value)} (#{inspect(reason)})"
             )
 
+            notify(:warning, "Previous model is no longer available — keeping the current model.")
             socket
         end
 
@@ -340,6 +349,40 @@ defmodule OmniUI do
         |> assign(tree: tree, current_turn: nil, usage: OmniUI.Tree.usage(tree))
         |> stream(:turns, OmniUI.Turn.all(tree), reset: true)
     end)
+  end
+
+  @doc """
+  Pushes a notification to the calling LiveView's toaster.
+
+  Must be called from within the LiveView process (including from child
+  LiveComponents, whose `self()` is the parent LiveView). The LiveView must
+  be using `use OmniUI` — the macro injects the `handle_info` clauses that
+  receive the message, and `start_agent/2` initialises the stream.
+
+  If the consumer does not render `<.notifications>` in their template, the
+  notification is still accepted and auto-dismissed but is not visible.
+
+  ## Levels
+
+    * `:info` — neutral informational message
+    * `:success` — confirmation of a completed action
+    * `:warning` — something went wrong but was handled
+    * `:error` — something failed
+
+  ## Options
+
+    * `:timeout` — ms until auto-dismiss (default `5000`)
+
+  ## Example
+
+      OmniUI.notify(:warning, "Couldn't auto-generate a title.")
+      OmniUI.notify(:error, "Save failed", timeout: 10_000)
+  """
+  @spec notify(OmniUI.Notification.level(), String.t(), keyword()) :: :ok
+  def notify(level, message, opts \\ [])
+      when level in [:info, :success, :warning, :error] do
+    send(self(), {OmniUI, :notify, OmniUI.Notification.new(level, message, opts)})
+    :ok
   end
 
   # ── Private ────────────────────────────────────────────────────────

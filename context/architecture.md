@@ -101,10 +101,10 @@ The macro adds agent chat capabilities to any LiveView. The developer writes `us
 
 **What the macro injects:**
 
-- `handle_event/3` clauses for `"omni:*"` events (navigate, regenerate, select_model, select_thinking, plus message events from live components)
-- `handle_info/2` clauses for `{OmniUI, ...}` component messages and `{:agent, ...}` streaming events
+- `handle_event/3` clauses for `"omni:*"` events (navigate, regenerate, select_model, select_thinking, dismiss_notification, plus message events from live components)
+- `handle_info/2` clauses for `{OmniUI, ...}` component messages (including notify/dismiss_notification) and `{:agent, ...}` streaming events
 - Default `agent_event/3` and `ui_event/3` callbacks (pass-through) if the developer doesn't define them
-- Imports: `OmniUI.Components`, `start_agent/2`, `update_agent/2`
+- Imports: `OmniUI.Components`, `start_agent/2`, `update_agent/2`, `notify/2,3`
 
 **Coexistence with developer handlers:** Uses `@before_compile` with `defoverridable` — OmniUI events are dispatched first, unrecognised events fall through to the developer's clauses via `super`. The wrapping is transparent.
 
@@ -357,7 +357,30 @@ The LiveComponent calls `OmniUI.Store.list/1` and `OmniUI.Store.delete/1` direct
 
 `update_agent/2`'s `:model` clause is lenient on unresolvable refs: calls `Omni.get_model/2` and logs a warning on `{:error, _}` rather than raising. A session persisted with a model that's since been deregistered still loads, keeping the current model instead. `start_agent/2` stays strict — construction-time failures are developer errors.
 
-Warnings are silent for now. Once the notifications system (roadmap § Polish & Release) lands, this is a prime candidate to surface to the user.
+This surfaces to the user via the notifications system (see below) — the warning is logged and a toast is pushed.
+
+---
+
+## Notifications
+
+A kit-native toaster for transient in-app messages. Replaces Phoenix flash because flash is tied to mount/navigate — we need a surface we can push to at any point in the LiveView's lifecycle (streaming events, async callbacks, ui_event handlers).
+
+**API.** `OmniUI.notify(level, message, opts \\ [])` where `level` is `:info | :success | :warning | :error`. Imported into the consumer's LiveView via `use OmniUI`, so it's in scope wherever the consumer writes code. Also available from child LiveComponents (whose `self()` is the parent LiveView process) and from internal library code running inside the LiveView (e.g. the lenient model branch of `update_agent/2`).
+
+**In-process only.** `notify/2,3` does `send(self(), {OmniUI, :notify, notification})`. No PubSub, no registry. Cross-process notifications (e.g. from a GenServer) are out of scope for v1.
+
+**Design shape.**
+
+- **Struct** — `%OmniUI.Notification{id, level, message, timeout}`. Id is a unique positive integer (`System.unique_integer/1`); default timeout is 5s; per-call override via `:timeout` opt.
+- **Macro injection** — `start_agent/2` initialises `stream(:notifications, [])` and a `:notification_ids` assign (FIFO bookkeeping list). The macro injects `handle_info` clauses for `{OmniUI, :notify, _}` and `{OmniUI, :dismiss_notification, _}`, and the existing `omni:*` `handle_event` dispatcher already covers `omni:dismiss_notification` from the close button.
+- **Function component** — `OmniUI.Components.notifications/1` takes `stream={@streams.notifications}` and renders a fixed-position bottom-right stack. Pure Layer 1 — no component-local state. If the consumer doesn't render it, notifications are still accepted and auto-dismissed but invisible (negligible cost).
+- **No JavaScript** — auto-dismiss via `Process.send_after`. Timers fire in the LiveView process; terminated processes clean up their timers automatically.
+
+**FIFO cap.** Hard-coded at 5 visible notifications. When a new one arrives at the cap, oldest is `stream_delete`d. `:notification_ids` tracks insertion order; on insert the handler splits it at the cap, evicts the head, keeps the tail.
+
+**Timer races.** A user manually dismissing a notification doesn't cancel its pending `send_after`; when the timer fires later, the second dismiss is a no-op (`stream_delete` on a missing id, `List.delete` on a missing element). Idempotent by construction.
+
+**Levels.** Each level has a distinct border color and icon (from Lucide): info (neutral), success (green check), warning (amber triangle), error (red x-circle).
 
 ---
 
@@ -367,7 +390,7 @@ When the agent errors during a turn:
 
 1. Push the current turn to the stream with `status: :error`
 2. The turn component renders the user message normally + error state where the assistant response would be
-3. Flash message notifies the user
+3. `OmniUI.notify(:error, ...)` surfaces a toast
 
 The user message is never lost because the turn is always pushed to the stream.
 

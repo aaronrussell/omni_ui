@@ -103,17 +103,16 @@ Items from the original persistence design not addressed during session manageme
 - **JSON serialization** — `OmniUI.Store.FileSystem` adapter ships JSON/JSONL files per session. Replaces the ETF adapter. Tree nodes round-trip via `Omni.Codec`; metadata bag preserved as ETF-in-JSON for term fidelity.
 - **Incremental saves** — `:new_node_ids` opt now appends to `tree.jsonl` rather than full-rewriting. Meta file always full-rewrites (small).
 - **Store/macro decoupling + `ui_event/3` callback** — `OmniUI.Store` is a standalone subsystem with config-based adapter resolution; the macro no longer injects store delegates. New `ui_event/3` callback symmetric with `agent_event/3`, fires for macro-handled UI events. AgentLive persists model/thinking changes immediately via `ui_event/3`. See `architecture.md` § Persistence and § `use OmniUI` Macro.
+- **Notifications system** — `OmniUI.notify/2,3` imported via the macro; pure LiveView with BEAM-side timers; four levels; FIFO cap at 5; `notifications/1` function component. Lights up previously silent sites (lenient model resolution in `update_agent/2`, title generation failures). Replaces the flash call in the agent-error path. See `architecture.md` § Notifications.
 
 **Next:**
 
-- **Notifications system** — kit-native toaster. UX target for the next item; also picks up several silent `Logger.warning` sites.
 - **Error handling in saves** — currently fire-and-forget; rolls in on top of notifications.
 
 ### 6. Polish & Release
 
 Smaller items that don't require major design work but need to happen before a public release.
 
-- **Notifications system** — a kit-native toaster for surfacing transient warnings and errors to the user (bad persisted model refs, title generation failures, save errors, etc.). Flash doesn't fit because it's tied to mount/navigate; we need something we can push messages into at any time with auto-dismiss. Likely a small LiveComponent or socket-assign-backed stack. Several silent `Logger.warning` call sites should be retro-fitted to light it up once it lands.
 - **Error retry** — errored turns preserve the user message. Add a retry button that re-prompts the agent. Straightforward given the current tree/turn architecture.
 - **Streaming tool-use headers** — tool_use blocks currently only render once the tool_use content has fully streamed. Should render the header (icon, tool name/title) as soon as the first chunk arrives so the user gets visual feedback that something is happening.
 - **Streaming performance** — debounce text deltas (50-100ms timer) to reduce re-renders during fast streaming. Called out as a TODO in the code.

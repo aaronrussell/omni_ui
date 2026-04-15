@@ -34,6 +34,7 @@ defmodule OmniUI.Components do
     * `usage_block/1` — compact token count and cost display
     * `toolbar/1` — model selector, thinking toggle, and usage summary
     * `select/1` — dropdown select with grouped options
+    * `notifications/1` — stacked toaster for in-app notifications
   """
 
   use Phoenix.Component
@@ -859,6 +860,77 @@ defmodule OmniUI.Components do
         </li>
       </ul>
     </div>
+    """
+  end
+
+  @doc """
+  Stacked toaster for in-app notifications.
+
+  Renders the LiveView's `@streams.notifications` stream as a fixed-position
+  stack in the bottom-right corner. Notifications are pushed via `OmniUI.notify/2,3`
+  and dismissed either manually (X button) or automatically after their timeout.
+  """
+  attr :stream, :any, required: true, doc: "the @streams.notifications assign"
+
+  def notifications(assigns) do
+    ~H"""
+    <div
+      id="omni-notifications"
+      class="fixed top-16 right-4 z-50 flex flex-col gap-2 pointer-events-none"
+      phx-update="stream">
+      <div
+        :for={{dom_id, n} <- @stream}
+        id={dom_id}
+        class={[
+          "flex items-center gap-2.5 min-w-64 max-w-96 px-3 py-2.5 shadow-lg pointer-events-auto",
+          "bg-omni-bg border border-l-4",
+          notification_border_class(n.level)
+        ]}>
+        <.notification_icon level={n.level} />
+        <div class="flex-1 pr-1.5 text-sm text-omni-text-1">{n.message}</div>
+        <button
+          type="button"
+          class={[
+            "flex items-center justify-center size-6 rounded cursor-pointer",
+            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+          ]}
+          phx-click="omni:dismiss_notification"
+          phx-value-id={n.id}>
+          <Lucideicons.x class="size-4" />
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  defp notification_border_class(:info), do: "border-omni-border-2"
+  defp notification_border_class(:success), do: "border-green-500/50"
+  defp notification_border_class(:warning), do: "border-amber-500/50"
+  defp notification_border_class(:error), do: "border-red-500/50"
+
+  attr :level, :atom, required: true
+
+  defp notification_icon(%{level: :info} = assigns) do
+    ~H"""
+    <Lucideicons.info class="size-4 shrink-0 text-blue-500" />
+    """
+  end
+
+  defp notification_icon(%{level: :success} = assigns) do
+    ~H"""
+    <Lucideicons.circle_check class="size-4 shrink-0 text-green-500" />
+    """
+  end
+
+  defp notification_icon(%{level: :warning} = assigns) do
+    ~H"""
+    <Lucideicons.triangle_alert class="size-4 shrink-0 text-amber-500" />
+    """
+  end
+
+  defp notification_icon(%{level: :error} = assigns) do
+    ~H"""
+    <Lucideicons.circle_x class="size-4 shrink-0 text-red-500" />
     """
   end
 end
