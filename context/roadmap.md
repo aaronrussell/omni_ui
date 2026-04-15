@@ -104,15 +104,17 @@ Items from the original persistence design not addressed during session manageme
 - **Incremental saves** — `:new_node_ids` opt now appends to `tree.jsonl` rather than full-rewriting. Meta file always full-rewrites (small).
 - **Store/macro decoupling + `ui_event/3` callback** — `OmniUI.Store` is a standalone subsystem with config-based adapter resolution; the macro no longer injects store delegates. New `ui_event/3` callback symmetric with `agent_event/3`, fires for macro-handled UI events. AgentLive persists model/thinking changes immediately via `ui_event/3`. See `architecture.md` § Persistence and § `use OmniUI` Macro.
 - **Notifications system** — `OmniUI.notify/2,3` imported via the macro; pure LiveView with BEAM-side timers; four levels; FIFO cap at 5; `notifications/1` function component. Lights up previously silent sites (lenient model resolution in `update_agent/2`, title generation failures). Replaces the flash call in the agent-error path. See `architecture.md` § Notifications.
-- **Error handling in saves** — private `save/1` helper in `AgentLive` wraps each `Store.save_*` call with try/rescue + case. Failures log and notify; success is silent. Covers all six save sites (tree on `:stop`, model/thinking via `ui_event/3`, title from blur and auto-generation).
+- **Error handling in saves** — `FileSystem` adapter converted to honour the `{:ok, _} | {:error, term()}` contract (non-raising `File.write/2` + `File.mkdir_p/1`). `AgentLive` pipes every `Store.save_*` call through `surface_save_error/1`, which logs and notifies on failure. Covers all six save sites (tree on `:stop`, model/thinking via `ui_event/3`, title from blur and auto-generation).
 
-The persistence workstream is now fully closed. Remaining items live in Polish & Release.
+The persistence workstream is now fully closed. Follow-up considerations (retry policy, async saves) live under Polish & Release.
 
 ### 6. Polish & Release
 
 Smaller items that don't require major design work but need to happen before a public release.
 
 - **Error retry** — errored turns preserve the user message. Add a retry button that re-prompts the agent. Straightforward given the current tree/turn architecture.
+- **Save retry policy** — saves currently one-shot with log + notify on failure. If filesystem failures prove transient in practice (brief I/O contention), a bounded retry-with-backoff at `surface_save_error/1` would be straightforward.
+- **Async saves** — saves are synchronous in the LiveView process. For slow adapters (network-backed stores) this blocks the UI. `Task.start` around the save call would decouple latency at the cost of losing the `:error` return.
 - **Streaming tool-use headers** — tool_use blocks currently only render once the tool_use content has fully streamed. Should render the header (icon, tool name/title) as soon as the first chunk arrives so the user gets visual feedback that something is happening.
 - **Streaming performance** — debounce text deltas (50-100ms timer) to reduce re-renders during fast streaming. Called out as a TODO in the code.
 - **Per-tool timeouts** — the agent currently has a single timeout applied to all tool calls, and the REPL tool has its own separate timeout setting. Needs exploration: can tools declare their own timeout that overrides the agent default? Likely requires changes in `omni`.
