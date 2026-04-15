@@ -386,13 +386,24 @@ A kit-native toaster for transient in-app messages. Replaces Phoenix flash becau
 
 ## Error Handling
 
-When the agent errors during a turn:
+**Agent errors during a turn:**
 
 1. Push the current turn to the stream with `status: :error`
 2. The turn component renders the user message normally + error state where the assistant response would be
 3. `OmniUI.notify(:error, ...)` surfaces a toast
 
 The user message is never lost because the turn is always pushed to the stream.
+
+**Persistence errors:**
+
+Every `OmniUI.Store.save_*` call in `AgentLive` is piped through a private `surface_save_error/1` helper:
+
+```elixir
+Store.save_tree(session_id, tree)
+|> surface_save_error()
+```
+
+The helper is a two-clause function — `:ok` passes through silently; `{:error, reason}` logs and emits `notify(:error, ...)`. This keeps Store decoupled from the notifications system and leaves each consumer free to choose its own policy (the helper is ~5 lines). The pipe form works because the `OmniUI.Store` behaviour declares `:ok | {:error, term()}` and all shipped adapters honour that contract — the `FileSystem` adapter uses `File.write/2` and `File.mkdir_p/1` (non-raising), threading errors through with `with`.
 
 ---
 

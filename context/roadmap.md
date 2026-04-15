@@ -104,10 +104,9 @@ Items from the original persistence design not addressed during session manageme
 - **Incremental saves** — `:new_node_ids` opt now appends to `tree.jsonl` rather than full-rewriting. Meta file always full-rewrites (small).
 - **Store/macro decoupling + `ui_event/3` callback** — `OmniUI.Store` is a standalone subsystem with config-based adapter resolution; the macro no longer injects store delegates. New `ui_event/3` callback symmetric with `agent_event/3`, fires for macro-handled UI events. AgentLive persists model/thinking changes immediately via `ui_event/3`. See `architecture.md` § Persistence and § `use OmniUI` Macro.
 - **Notifications system** — `OmniUI.notify/2,3` imported via the macro; pure LiveView with BEAM-side timers; four levels; FIFO cap at 5; `notifications/1` function component. Lights up previously silent sites (lenient model resolution in `update_agent/2`, title generation failures). Replaces the flash call in the agent-error path. See `architecture.md` § Notifications.
+- **Error handling in saves** — private `save/1` helper in `AgentLive` wraps each `Store.save_*` call with try/rescue + case. Failures log and notify; success is silent. Covers all six save sites (tree on `:stop`, model/thinking via `ui_event/3`, title from blur and auto-generation).
 
-**Next:**
-
-- **Error handling in saves** — currently fire-and-forget; rolls in on top of notifications.
+The persistence workstream is now fully closed. Remaining items live in Polish & Release.
 
 ### 6. Polish & Release
 

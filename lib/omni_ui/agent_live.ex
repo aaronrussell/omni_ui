@@ -274,6 +274,8 @@ defmodule OmniUI.AgentLive do
 
   def agent_event(:stop, _response, socket) do
     Store.save_tree(socket.assigns.session_id, socket.assigns.tree)
+    |> surface_save_error()
+
     maybe_generate_title(socket, @title_strategy)
   end
 
@@ -282,11 +284,15 @@ defmodule OmniUI.AgentLive do
   @impl OmniUI
   def ui_event(:model_changed, model, socket) do
     Store.save_metadata(socket.assigns.session_id, model: Omni.Model.to_ref(model))
+    |> surface_save_error()
+
     socket
   end
 
   def ui_event(:thinking_changed, thinking, socket) do
     Store.save_metadata(socket.assigns.session_id, thinking: thinking)
+    |> surface_save_error()
+
     socket
   end
 
@@ -297,6 +303,8 @@ defmodule OmniUI.AgentLive do
     socket =
       if socket.assigns.title == nil do
         Store.save_metadata(socket.assigns.session_id, title: title)
+        |> surface_save_error()
+
         assign(socket, :title, title)
       else
         socket
@@ -306,12 +314,13 @@ defmodule OmniUI.AgentLive do
   end
 
   def handle_async(:generate_title, {:ok, {:error, reason}}, socket) do
+    Logger.error("Title generation failed: #{inspect(reason)}")
     notify(:warning, "Title generation failed.")
     {:noreply, socket}
   end
 
   def handle_async(:generate_title, {:exit, reason}, socket) do
-    #Logger.error("Title generation crashed: #{inspect(reason)}")
+    Logger.error("Title generation crashed: #{inspect(reason)}")
     notify(:warning, "Title generation failed.")
     {:noreply, socket}
   end
@@ -342,12 +351,24 @@ defmodule OmniUI.AgentLive do
 
       title == "" ->
         Store.save_metadata(socket.assigns.session_id, title: nil)
+        |> surface_save_error()
+
         assign(socket, :title, nil)
 
       true ->
         Store.save_metadata(socket.assigns.session_id, title: title)
+        |> surface_save_error()
+
         assign(socket, :title, title)
     end
+  end
+
+  defp surface_save_error(:ok), do: :ok
+
+  defp surface_save_error({:error, reason}) do
+    Logger.error("Save failed: #{inspect(reason)}")
+    notify(:error, "Couldn't save your changes.")
+    :error
   end
 
   defp start_new_session(socket, opts \\ []) do

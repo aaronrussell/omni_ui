@@ -58,29 +58,26 @@ defmodule OmniUI.Store.FileSystem do
   @impl true
   def save_tree(session_id, %Tree{} = tree, opts \\ []) do
     dir = session_dir(session_id, opts)
-    File.mkdir_p!(dir)
+    tree_path = Path.join(dir, "tree.jsonl")
+    meta_path = Path.join(dir, "meta.json")
 
-    write_tree_file(Path.join(dir, "tree.jsonl"), tree, Keyword.get(opts, :new_node_ids))
-
-    update_meta(Path.join(dir, "meta.json"), %{
-      path: tree.path,
-      cursors: tree.cursors
-    })
-
-    :ok
+    with :ok <- File.mkdir_p(dir),
+         :ok <- write_tree_file(tree_path, tree, Keyword.get(opts, :new_node_ids)),
+         :ok <- update_meta(meta_path, %{path: tree.path, cursors: tree.cursors}) do
+      :ok
+    end
   end
 
   @impl true
   def save_metadata(session_id, metadata, opts \\ []) do
     dir = session_dir(session_id, opts)
-    File.mkdir_p!(dir)
-
     meta_path = Path.join(dir, "meta.json")
-    existing = read_meta(meta_path)
-    merged_metadata = Map.merge(existing.metadata, normalise_metadata(metadata))
 
-    update_meta(meta_path, %{metadata: merged_metadata})
-    :ok
+    with :ok <- File.mkdir_p(dir) do
+      existing = read_meta(meta_path)
+      merged_metadata = Map.merge(existing.metadata, normalise_metadata(metadata))
+      update_meta(meta_path, %{metadata: merged_metadata})
+    end
   end
 
   defp normalise_metadata(metadata) when is_map(metadata), do: metadata
@@ -146,7 +143,7 @@ defmodule OmniUI.Store.FileSystem do
       |> Enum.sort_by(& &1.id)
       |> Enum.map(&encode_node/1)
 
-    File.write!(path, Enum.map(lines, &(&1 <> "\n")))
+    File.write(path, Enum.map(lines, &(&1 <> "\n")))
   end
 
   defp write_tree_file(path, %Tree{nodes: nodes}, new_ids) when is_list(new_ids) do
@@ -155,7 +152,7 @@ defmodule OmniUI.Store.FileSystem do
       |> Enum.map(&Map.fetch!(nodes, &1))
       |> Enum.map(&(encode_node(&1) <> "\n"))
 
-    File.write!(path, lines, [:append])
+    File.write(path, lines, [:append])
   end
 
   defp encode_node(node) do
@@ -208,7 +205,7 @@ defmodule OmniUI.Store.FileSystem do
       end
 
     meta = Map.merge(base, updates)
-    File.write!(path, encode_meta(meta))
+    File.write(path, encode_meta(meta))
   end
 
   defp read_meta(path) do
