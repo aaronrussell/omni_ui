@@ -1,10 +1,8 @@
 defmodule OmniUI.AgentLive do
   use Phoenix.LiveView
   use OmniUI
-  require Logger
 
   @default_model {:ollama, "gemma4:latest"}
-  # @default_model {:opencode, "kimi-k2.5"}
 
   attr :current_turn, OmniUI.Turn
   attr :usage, Omni.Usage, required: true
@@ -12,7 +10,15 @@ defmodule OmniUI.AgentLive do
   def render(assigns) do
     ~H"""
     <div class="relative h-screen flex bg-omni-bg text-omni-text">
-      <div class="flex flex-col h-full w-full">
+      <div class="w-64 h-full z-10 bg-omni-bg border-r border-omni-border-2 shadow-[4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
+        <.live_component
+          module={OmniUI.SessionsComponent}
+          id="sessions"
+          manager={OmniUI.Sessions}
+          current_id={@session_id} />
+      </div>
+
+      <div class="flex-auto flex flex-col h-full">
         <div class="flex-1 min-h-0">
           <.chat_interface>
             <.message_list id="turns" phx-update="stream">
@@ -63,78 +69,46 @@ defmodule OmniUI.AgentLive do
   def mount(_params, _session, socket) do
     {:ok, models1} = Omni.list_models(:ollama)
     {:ok, models2} = Omni.list_models(:opencode)
-    models = models1 ++ models2
 
-    socket =
-      socket
-      |> assign(
-        session_id: nil,
-        title: nil,
-        model_options: models
-      )
-      |> start_session(
-        model: @default_model,
-        store: store(),
-        tool_timeout: 120_000
-      )
+    if connected?(socket), do: OmniUI.Sessions.subscribe()
 
-    {:ok, socket}
+    {:ok,
+     socket
+     |> assign(:model_options, models1 ++ models2)
+     |> init_session(model: @default_model, tool_timeout: 120_000)}
   end
 
-  # Re-entry guard: push_patch triggers handle_params with the same session_id
   @impl Phoenix.LiveView
-  def handle_params(%{"session_id" => id}, _uri, socket) when socket.assigns.session_id == id do
-    {:noreply, socket}
-  end
-
-  # Load existing session
-  def handle_params(%{"session_id" => session_id}, _uri, socket) do
+  def handle_params(params, _uri, socket) do
     if connected?(socket) do
       try do
-        {:noreply,
-         start_session(socket,
-           load: session_id,
-           model: @default_model,
-           store: store(),
-           tool_timeout: 120_000
-         )}
+        {:noreply, attach_session(socket, id: params["session_id"])}
       rescue
-        e ->
-          Logger.error("Failed to load session #{session_id}: #{inspect(e)}")
-          {:noreply, push_navigate(socket, to: "/")}
-      catch
-        :exit, reason ->
-          Logger.error("Failed to load session #{session_id}: #{inspect(reason)}")
-          {:noreply, push_navigate(socket, to: "/")}
+        _ ->
+          notify(:warning, "Session not found.")
+          {:noreply, push_patch(socket, to: "/")}
       end
     else
       {:noreply, socket}
     end
   end
 
-  # New session — auto id, URL stays at "/" until first store save event
-  # (handled in OmniUI.Handlers).
-  def handle_params(_params, _uri, socket) do
-    if connected?(socket) do
-      {:noreply,
-       start_session(socket,
-         model: @default_model,
-         store: store(),
-         tool_timeout: 120_000
-       )}
-    else
-      {:noreply, socket}
-    end
+  @impl Phoenix.LiveView
+  def handle_event("switch_session", %{"session-id" => id}, socket) do
+    {:noreply, push_patch(socket, to: "/?session_id=#{id}")}
   end
 
-  defp store do
-    case Application.get_env(:omni, __MODULE__, []) |> Keyword.get(:store) do
-      nil ->
-        raise "OmniUI.AgentLive store is not configured. " <>
-                "Set config :omni, OmniUI.AgentLive, store: {Module, opts}"
+  def handle_event("new_session", _params, socket) do
+    {:noreply, push_patch(socket, to: "/")}
+  end
 
-      store ->
-        store
-    end
+  @impl Phoenix.LiveView
+  def handle_info({:manager, _, _, _} = msg, socket) do
+    send_update(OmniUI.SessionsComponent, id: "sessions", manager_event: msg)
+    {:noreply, socket}
+  end
+
+  def handle_info({OmniUI, :active_session_deleted}, socket) do
+    {:noreply, push_patch(socket, to: "/")}
   end
 end

@@ -53,7 +53,7 @@ config :phoenix, :json_library, Jason
 
 config :omni, providers: [:anthropic, :openai, :google, :opencode, :openrouter, :ollama]
 
-config :omni, OmniUI.AgentLive,
+config :omni_ui_dev, OmniUI.Sessions,
   store: {Omni.Session.Store.FileSystem, base_path: "priv/sessions"}
 
 config :omni, Omni.Providers.Ollama,

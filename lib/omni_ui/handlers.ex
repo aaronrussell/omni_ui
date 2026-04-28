@@ -82,6 +82,7 @@ defmodule OmniUI.Handlers do
   # ── Messages ─────────────────────────────────────────────────────
 
   def handle_info({OmniUI, :new_message, message}, socket) do
+    socket = OmniUI.ensure_session(socket)
     :ok = Omni.Session.prompt(socket.assigns.session, message.content)
 
     current_turn = %OmniUI.Turn{

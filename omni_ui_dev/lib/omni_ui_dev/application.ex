@@ -11,9 +11,7 @@ defmodule OmniUIDev.Application do
       OmniUIDevWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:omni_ui_dev, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: OmniUIDev.PubSub},
-      # Start a worker by calling: OmniUIDev.Worker.start_link(arg)
-      # {OmniUIDev.Worker, arg},
-      # Start to serve requests, typically the last entry
+      {OmniUI.Sessions, Application.fetch_env!(:omni_ui_dev, OmniUI.Sessions)},
       OmniUIDevWeb.Endpoint
     ]
 

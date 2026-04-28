@@ -7,6 +7,10 @@ config :omni_ui_dev, OmniUIDevWeb.Endpoint,
   secret_key_base: "YEYVl1pLygKbsbrboNKMI1BKoRqcamuva8dA+ZmgwlTQa4772Qyu022WQzQpsC3v",
   server: false
 
+# Isolate the test sessions store from dev/prod data.
+config :omni_ui_dev, OmniUI.Sessions,
+  store: {Omni.Session.Store.FileSystem, base_path: "tmp/test_sessions"}
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 
