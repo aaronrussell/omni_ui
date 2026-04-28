@@ -17,12 +17,15 @@ defmodule OmniUI do
         end
 
         def mount(_params, _session, socket) do
-          {:ok, start_agent(socket, model: {:anthropic, "claude-sonnet-4-20250514"})}
+          {:ok, start_session(socket,
+            model: {:anthropic, "claude-sonnet-4-20250514"},
+            store: {Omni.Session.Store.FileSystem, base_path: "priv/sessions"}
+          )}
         end
 
         # Optional: observe agent events after default handling
         @impl OmniUI
-        def agent_event(:stop, response, socket) do
+        def agent_event(:turn, {:stop, response}, socket) do
           MyApp.Analytics.track(response.usage)
           socket
         end
@@ -32,53 +35,31 @@ defmodule OmniUI do
 
   The macro:
 
-  - Imports `OmniUI.Components` and `start_agent/2` / `update_agent/2`
+  - Imports `OmniUI.Components` and `start_session/2` / `update_session/2`
   - Injects `handle_event/3` clauses for OmniUI-namespaced events
-  - Injects `handle_info/2` clauses for agent streaming and component messages
+  - Injects `handle_info/2` clauses for session streaming and component messages
   - Wraps developer-defined handlers via `defoverridable` so OmniUI events
     are dispatched first and unrecognised events fall through
-  - Injects default `agent_event/3` and `ui_event/3` pass-throughs if the
-    developer doesn't define them
+  - Injects a default `agent_event/3` pass-through if the developer doesn't define one
 
-  Persistence is a separate subsystem (`OmniUI.Store`) — the macro has no
-  knowledge of it. Consumers call `OmniUI.Store.save_tree/3` and friends
-  directly, and use the `ui_event/3` callback to observe macro-handled
-  events worth persisting.
+  Persistence is handled by `Omni.Session` itself — the LiveView mirrors the
+  session's tree from `:tree` events and observes `:store` events for save
+  outcomes.
   """
 
   import Phoenix.Component
-  import Phoenix.LiveView, only: [stream: 3, stream: 4]
+  import Phoenix.LiveView, only: [stream: 4]
   import Omni.Util, only: [maybe_put: 3]
 
   # ── Behaviour ─────────────────────────────────────────────────────
 
   @doc """
-  Called after OmniUI's default handling for `:done` and `:error` agent events.
+  Called after OmniUI's default handling for session events.
 
   Receives the event type, event data, and the already-updated socket.
   Must return the socket (possibly with additional assign mutations).
   """
   @callback agent_event(event :: atom(), data :: term(), Phoenix.LiveView.Socket.t()) ::
-              Phoenix.LiveView.Socket.t()
-
-  @doc """
-  Called after OmniUI handles a UI event that mutates agent-related state.
-
-  Fires for:
-
-    * `:model_changed` — `data` is the resolved `%Omni.Model{}`
-    * `:thinking_changed` — `data` is the new thinking level (`false | :low | :medium | :high | :max`)
-    * `:navigated` — `data` is the target `node_id`
-    * `:message_sent` — `data` is `{node_id, %Omni.Message{}}` for the new user node
-    * `:message_edited` — `data` is `{node_id, %Omni.Message{}}` for the new branch node
-
-  Use it to observe macro-handled state changes — for example, to persist
-  model/thinking changes via `OmniUI.Store.save_metadata/3`. The macro
-  handles agent-state events; consumer-owned events (title editing,
-  session management, custom UI) go through standard `handle_event/3`
-  and never reach this callback.
-  """
-  @callback ui_event(event :: atom(), data :: term(), Phoenix.LiveView.Socket.t()) ::
               Phoenix.LiveView.Socket.t()
 
   # ── Macro ──────────────────────────────────────────────────────────
@@ -88,7 +69,7 @@ defmodule OmniUI do
       @behaviour OmniUI
       @before_compile OmniUI
       import OmniUI.Components
-      import OmniUI, only: [start_agent: 2, update_agent: 2, notify: 2, notify: 3]
+      import OmniUI, only: [start_session: 2, update_session: 2, notify: 2, notify: 3]
     end
   end
 
@@ -96,18 +77,15 @@ defmodule OmniUI do
     has_handle_event = Module.defines?(env.module, {:handle_event, 3})
     has_handle_info = Module.defines?(env.module, {:handle_info, 2})
     has_agent_event = Module.defines?(env.module, {:agent_event, 3})
-    has_ui_event = Module.defines?(env.module, {:ui_event, 3})
 
     event_clauses = inject_handle_event(has_handle_event)
     info_clauses = inject_handle_info(has_handle_info)
     agent_event_clause = unless has_agent_event, do: inject_default_agent_event()
-    ui_event_clause = unless has_ui_event, do: inject_default_ui_event()
 
     quote do
       unquote(event_clauses)
       unquote(info_clauses)
       unquote(agent_event_clause)
-      unquote(ui_event_clause)
     end
   end
 
@@ -171,7 +149,7 @@ defmodule OmniUI do
         OmniUI.Handlers.handle_info(msg, socket)
       end
 
-      def handle_info({:agent, _pid, event, data}, socket) do
+      def handle_info({:session, _pid, event, data}, socket) do
         socket = OmniUI.Handlers.handle_agent_event(event, data, socket)
 
         socket =
@@ -197,43 +175,21 @@ defmodule OmniUI do
     end
   end
 
-  defp inject_default_ui_event do
-    quote do
-      @impl OmniUI
-      def ui_event(_event, _data, socket), do: socket
-    end
-  end
-
   # ── Public API ─────────────────────────────────────────────────────
 
   @doc """
-  Dispatches a UI event to the consuming LiveView's `ui_event/3` callback.
+  Starts an `Omni.Session` and initialises the OmniUI assigns on a socket.
 
-  Internal — called by `OmniUI.Handlers` after handling a UI event the
-  macro is responsible for. Returns the (possibly mutated) socket.
-  """
-  @spec fire_ui_event(Phoenix.LiveView.Socket.t(), atom(), term()) ::
-          Phoenix.LiveView.Socket.t()
-  def fire_ui_event(%Phoenix.LiveView.Socket{view: view} = socket, event, data) do
-    case view.ui_event(event, data, socket) do
-      %Phoenix.LiveView.Socket{} = s ->
-        s
-
-      other ->
-        raise "#{inspect(view)}.ui_event/3 must return a socket, got: #{inspect(other)}"
-    end
-  end
-
-  @doc """
-  Initialises the OmniUI agent system on a socket.
-
-  Called in `mount/3`. Returns the socket with all OmniUI assigns populated
-  and the `:turns` stream initialised.
+  Called in `mount/3` (or `handle_params/3`). Returns the socket with all
+  OmniUI assigns populated and the `:turns` stream initialised from the
+  session's snapshot.
 
   ## Options
 
     * `:model` (required) — `%Omni.Model{}` struct or `{provider_id, model_id}` tuple
-    * `:tree` — `%OmniUI.Tree{}` to restore a conversation (default: empty tree)
+    * `:store` (required) — `Omni.Session.Store` adapter tuple `{module, opts}`
+    * `:load` — session id to load. When absent, a new session is created with
+      an auto-generated id.
     * `:thinking` — thinking mode: `false | :low | :medium | :high | :max` (default: `false`)
     * `:system` — system prompt string (default: `nil`)
     * `:tools` — list of tool entries (default: `[]`). Each entry is either:
@@ -241,71 +197,86 @@ defmodule OmniUI do
       * `{%Omni.Tool{}, opts}` where `opts` is a keyword list. The only supported
         option is `component: (assigns -> rendered)` — a 1-arity function component
         that replaces the default content block rendering for that tool's uses.
+    * `:tool_timeout` — per-tool execution timeout in ms
+
   ## Example
 
-      def mount(_params, _session, socket) do
-        {:ok, start_agent(socket,
+      def handle_params(_params, _uri, socket) do
+        {:noreply, start_session(socket,
           model: {:anthropic, "claude-sonnet-4-20250514"},
+          store: {Omni.Session.Store.FileSystem, base_path: "priv/sessions"},
           system: "You are a helpful assistant.",
           thinking: :high
         )}
       end
   """
-  @spec start_agent(Phoenix.LiveView.Socket.t(), keyword()) :: Phoenix.LiveView.Socket.t()
-  def start_agent(socket, opts) do
+  @spec start_session(Phoenix.LiveView.Socket.t(), keyword()) :: Phoenix.LiveView.Socket.t()
+  def start_session(socket, opts) do
     model = resolve_model!(Keyword.fetch!(opts, :model))
-    tree = Keyword.get(opts, :tree, %OmniUI.Tree{})
+    store = Keyword.fetch!(opts, :store)
+    load = Keyword.get(opts, :load)
     thinking = Keyword.get(opts, :thinking, false)
     system = Keyword.get(opts, :system)
     {tools, tool_components} = normalise_tools(Keyword.get(opts, :tools, []))
     tool_timeout = Keyword.get(opts, :tool_timeout)
 
     agent_opts =
-      [model: model, messages: OmniUI.Tree.messages(tree), opts: [thinking: thinking]]
+      [model: model, opts: [thinking: thinking]]
       |> maybe_put(:system, system)
       |> maybe_put(:tools, tools)
       |> maybe_put(:tool_timeout, tool_timeout)
 
-    {:ok, agent} = Omni.Agent.start_link(agent_opts)
+    session_opts =
+      [agent: agent_opts, store: store, subscribe: true]
+      |> maybe_put(:load, load)
 
-    turns = OmniUI.Turn.all(tree)
-    usage = OmniUI.Tree.usage(tree)
+    {:ok, session} = Omni.Session.start_link(session_opts)
+    snapshot = Omni.Session.get_snapshot(session)
+
+    resolved_model = snapshot.agent.state.model
+    resolved_thinking = Keyword.get(snapshot.agent.state.opts, :thinking, thinking)
+
+    turns = OmniUI.Turn.all(snapshot.tree)
+    usage = Omni.Session.Tree.usage(snapshot.tree)
 
     socket
     |> assign(
-      agent: agent,
-      tree: tree,
+      session: session,
+      session_id: snapshot.id,
+      title: snapshot.title,
+      tree: snapshot.tree,
       current_turn: nil,
-      model: model,
-      thinking: thinking,
+      model: resolved_model,
+      thinking: resolved_thinking,
       usage: usage,
       tool_components: tool_components,
-      notification_ids: []
+      notification_ids: [],
+      url_synced: not is_nil(load)
     )
-    |> stream(:turns, turns)
-    |> stream(:notifications, [])
+    |> stream(:turns, turns, reset: true)
+    |> stream(:notifications, [], reset: true)
   end
 
   @doc """
-  Updates agent configuration on a running system.
+  Updates session/agent configuration on a running system.
 
   Accepts any subset of options. For each provided option, updates the
-  appropriate combination of socket assign and agent state.
+  appropriate combination of socket assign and session state.
 
   ## Options
 
-    * `:model` — updates both socket assign and agent model
-    * `:thinking` — updates both socket assign and agent opts
-    * `:system` — updates agent context only (not surfaced in UI)
-    * `:tools` — updates agent context and the `:tool_components` assign. Accepts
-      the same list shape as `start_agent/2` — bare structs or `{tool, opts}` tuples.
+    * `:model` — updates both socket assign and the session's agent model
+    * `:thinking` — updates both socket assign and the session's agent opts
+    * `:system` — updates the session's agent system prompt (not surfaced in UI)
+    * `:tools` — updates the session's agent tools and the `:tool_components` assign
+
   ## Example
 
-      OmniUI.update_agent(socket, model: {:anthropic, "claude-opus-4-20250514"})
+      OmniUI.update_session(socket, model: {:anthropic, "claude-opus-4-20250514"})
   """
-  @spec update_agent(Phoenix.LiveView.Socket.t(), keyword()) :: Phoenix.LiveView.Socket.t()
-  def update_agent(socket, opts) do
-    agent = socket.assigns.agent
+  @spec update_session(Phoenix.LiveView.Socket.t(), keyword()) :: Phoenix.LiveView.Socket.t()
+  def update_session(socket, opts) do
+    session = socket.assigns.session
 
     Enum.reduce(opts, socket, fn
       {:model, value}, socket ->
@@ -314,14 +285,14 @@ defmodule OmniUI do
         # the update and keep the current model rather than raising.
         case resolve_model(value) do
           {:ok, model} ->
-            :ok = Omni.Agent.set_state(agent, :model, model)
+            :ok = Omni.Session.set_agent(session, :model, model)
             assign(socket, :model, model)
 
           {:error, reason} ->
             require Logger
 
             Logger.warning(
-              "update_agent: ignoring unresolvable model #{inspect(value)} (#{inspect(reason)})"
+              "update_session: ignoring unresolvable model #{inspect(value)} (#{inspect(reason)})"
             )
 
             notify(:warning, "Previous model is no longer available — keeping the current model.")
@@ -329,25 +300,17 @@ defmodule OmniUI do
         end
 
       {:thinking, thinking}, socket ->
-        :ok = Omni.Agent.set_state(agent, :opts, &Keyword.put(&1, :thinking, thinking))
+        :ok = Omni.Session.set_agent(session, :opts, &Keyword.put(&1, :thinking, thinking))
         assign(socket, :thinking, thinking)
 
       {:system, system}, socket ->
-        :ok = Omni.Agent.set_state(agent, :context, &%{&1 | system: system})
+        :ok = Omni.Session.set_agent(session, :system, system)
         socket
 
       {:tools, entries}, socket ->
         {tools, tool_components} = normalise_tools(entries)
-        :ok = Omni.Agent.set_state(agent, :context, &%{&1 | tools: tools})
+        :ok = Omni.Session.set_agent(session, :tools, tools)
         assign(socket, :tool_components, tool_components)
-
-      {:tree, tree}, socket ->
-        :ok = Omni.Agent.set_state(agent, :context, &%{&1 | messages: OmniUI.Tree.messages(tree)})
-        :ok = Omni.Agent.set_state(agent, :meta, %{})
-
-        socket
-        |> assign(tree: tree, current_turn: nil, usage: OmniUI.Tree.usage(tree))
-        |> stream(:turns, OmniUI.Turn.all(tree), reset: true)
     end)
   end
 
@@ -357,7 +320,7 @@ defmodule OmniUI do
   Must be called from within the LiveView process (including from child
   LiveComponents, whose `self()` is the parent LiveView). The LiveView must
   be using `use OmniUI` — the macro injects the `handle_info` clauses that
-  receive the message, and `start_agent/2` initialises the stream.
+  receive the message, and `start_session/2` initialises the stream.
 
   If the consumer does not render `<.notifications>` in their template, the
   notification is still accepted and auto-dismissed but is not visible.

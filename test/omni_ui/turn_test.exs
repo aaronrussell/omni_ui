@@ -1,7 +1,8 @@
 defmodule OmniUI.TurnTest do
   use ExUnit.Case, async: true
 
-  alias OmniUI.{Tree, Turn}
+  alias Omni.Session.Tree
+  alias OmniUI.Turn
   alias Omni.{Content, Message, Usage}
 
   defp msg(text), do: Message.new(text)

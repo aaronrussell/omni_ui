@@ -29,9 +29,14 @@ defmodule OmniUI.SessionsComponent do
 
   use Phoenix.LiveComponent
 
-  alias OmniUI.{Components, Store}
+  alias OmniUI.Components
 
   @page_size 50
+
+  # NOTE: this component is unmounted while the codebase is migrated to
+  # `Omni.Session`. The Store calls below are stubbed so the file compiles.
+  # When this drawer is re-wired against `Omni.Session.Manager` (or directly
+  # against `Omni.Session.Store`), restore the real list/delete calls.
 
   @impl true
   def render(assigns) do
@@ -153,7 +158,9 @@ defmodule OmniUI.SessionsComponent do
   end
 
   def handle_event("delete", %{"id" => id}, socket) do
-    :ok = Store.delete(id)
+    # TODO(session-migration): wire up to Omni.Session.Store.delete/2 once
+    # this component is re-mounted against the new session API.
+    :ok = :ok
 
     if id == socket.assigns.current_id do
       send(self(), {OmniUI, :active_session_deleted})
@@ -169,8 +176,10 @@ defmodule OmniUI.SessionsComponent do
      )}
   end
 
-  defp load_page(socket, offset, opts \\ []) do
-    {:ok, page} = Store.list(limit: @page_size, offset: offset)
+  defp load_page(socket, _offset, opts \\ []) do
+    # TODO(session-migration): wire up to Omni.Session.Store.list/2 once
+    # this component is re-mounted against the new session API.
+    page = []
 
     sessions =
       if Keyword.get(opts, :append, false) do

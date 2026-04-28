@@ -39,7 +39,7 @@ defmodule OmniUI.Turn do
       Length > 1 means the user regenerated the response.
   """
 
-  alias OmniUI.Tree
+  alias Omni.Session.Tree
 
   defstruct [
     :id,

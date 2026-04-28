@@ -53,13 +53,8 @@ config :phoenix, :json_library, Jason
 
 config :omni, providers: [:anthropic, :openai, :google, :opencode, :openrouter, :ollama]
 
-config :omni, OmniUI.Store, adapter: OmniUI.Store.FileSystem
-
 config :omni, OmniUI.AgentLive,
-  # :heuristic | :main | {provider, model}
-  # Omit (or set to nil) to disable auto-generation.
-  # e.g. title_generation: {:anthropic, "claude-haiku-4-5"}
-  title_generation: {:openai, "gpt-5.4-nano"}
+  store: {Omni.Session.Store.FileSystem, base_path: "priv/sessions"}
 
 config :omni, Omni.Providers.Ollama,
   models: [

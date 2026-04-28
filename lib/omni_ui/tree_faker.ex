@@ -22,7 +22,7 @@ defmodule OmniUI.TreeFaker do
   #     Node 29 is a sibling of node 10 — two assistant messages sharing the same parent.
 
   alias Omni.{Content, Usage}
-  alias OmniUI.Tree
+  alias Omni.Session.Tree
 
   @spec generate() :: Tree.t()
   def generate do
