@@ -8,8 +8,8 @@ config :omni_ui_dev, OmniUIDevWeb.Endpoint,
   server: false
 
 # Isolate the test sessions store from dev/prod data.
-config :omni_ui_dev, OmniUI.Sessions,
-  store: {Omni.Session.Store.FileSystem, base_path: "tmp/test_sessions"}
+config :omni_ui, OmniUI.Sessions,
+  store: {Omni.Session.Store.FileSystem, base_path: "tmp/test_sessions", otp_app: :omni_ui_dev}
 
 # Print only warnings and errors during test
 config :logger, level: :warning
