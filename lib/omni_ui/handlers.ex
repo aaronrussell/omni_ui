@@ -28,112 +28,60 @@ defmodule OmniUI.Handlers do
     handle_info({OmniUI, :dismiss_notification, String.to_integer(id)}, socket)
   end
 
-  # Branching ops are temporarily disabled while the codebase is migrated to
-  # `Omni.Session`. The new home for these is `Omni.Session.navigate/2` and
-  # `Omni.Session.branch/2,3`. Re-enable the handler bodies (and their
-  # accompanying tests) when re-wiring branching against the session API.
-  #
-  # def handle_event("omni:navigate", %{"node_id" => node_id}, socket) do
-  #   {:ok, tree} = OmniUI.Tree.navigate(socket.assigns.tree, node_id)
-  #   tree = OmniUI.Tree.extend(tree)
-  #   turns = OmniUI.Turn.all(tree)
-  #
-  #   socket =
-  #     socket
-  #     |> assign(tree: tree)
-  #     |> stream(:turns, turns, reset: true)
-  #     |> push_event("omni:updated", %{})
-  #
-  #   {:noreply, socket}
-  # end
-  #
-  # def handle_event("omni:regenerate", %{"turn_id" => turn_id}, socket) do
-  #   turn = OmniUI.Turn.get(socket.assigns.tree, turn_id)
-  #   {:ok, tree} = OmniUI.Tree.navigate(socket.assigns.tree, turn_id)
-  #   messages = OmniUI.Tree.messages(tree) |> Enum.drop(-1)
-  #
-  #   :ok =
-  #     Omni.Agent.set_state(socket.assigns.agent, :context, fn ctx ->
-  #       Map.put(ctx, :messages, messages)
-  #     end)
-  #
-  #   turns = OmniUI.Turn.all(tree) |> Enum.drop(-1)
-  #
-  #   current_turn = %OmniUI.Turn{
-  #     id: turn_id,
-  #     status: :streaming,
-  #     user_text: turn.user_text,
-  #     user_attachments: turn.user_attachments,
-  #     user_timestamp: turn.user_timestamp
-  #   }
-  #
-  #   content = turn.user_text ++ turn.user_attachments
-  #   :ok = Omni.Agent.prompt(socket.assigns.agent, content)
-  #
-  #   socket =
-  #     socket
-  #     |> assign(tree: tree, current_turn: current_turn)
-  #     |> stream(:turns, turns, reset: true)
-  #     |> push_event("omni:updated", %{})
-  #
-  #   {:noreply, socket}
-  # end
+  def handle_event("omni:navigate", %{"node_id" => node_id}, socket) do
+    case Omni.Session.navigate(socket.assigns.session, node_id) do
+      :ok ->
+        {:noreply, push_event(socket, "omni:updated", %{})}
+
+      {:error, reason} ->
+        notify_branch_error(reason)
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("omni:regenerate", %{"turn_id" => turn_id}, socket) do
+    case Omni.Session.branch(socket.assigns.session, turn_id) do
+      :ok ->
+        message = socket.assigns.tree.nodes[turn_id].message
+
+        {:noreply,
+         socket
+         |> assign(:current_turn, streaming_turn(turn_id, message))
+         |> push_event("omni:updated", %{})}
+
+      {:error, reason} ->
+        notify_branch_error(reason)
+        {:noreply, socket}
+    end
+  end
 
   # ── Messages ─────────────────────────────────────────────────────
 
   def handle_info({OmniUI, :new_message, message}, socket) do
     socket = OmniUI.ensure_session(socket)
     :ok = Omni.Session.prompt(socket.assigns.session, message.content)
-
-    current_turn = %OmniUI.Turn{
-      id: nil,
-      status: :streaming,
-      user_text: Enum.filter(message.content, &match?(%Omni.Content.Text{}, &1)),
-      user_attachments: Enum.filter(message.content, &match?(%Omni.Content.Attachment{}, &1)),
-      user_timestamp: message.timestamp
-    }
-
-    {:noreply, assign(socket, current_turn: current_turn)}
+    {:noreply, assign(socket, :current_turn, streaming_turn(nil, message))}
   end
 
-  # Editing a user message is a tree-mutating branch op. Disabled during the
-  # session migration; re-enable against `Omni.Session.branch/3` when wiring
-  # branching back in.
-  #
-  # def handle_info({OmniUI, :edit_message, turn_id, message}, socket) do
-  #   %{parent_id: parent_id} = socket.assigns.tree.nodes[turn_id]
-  #   {:ok, tree} = OmniUI.Tree.navigate(socket.assigns.tree, parent_id)
-  #   {id, tree} = OmniUI.Tree.push_node(tree, message)
-  #   messages = OmniUI.Tree.messages(tree) |> Enum.drop(-1)
-  #
-  #   :ok =
-  #     Omni.Agent.set_state(socket.assigns.agent, :context, fn ctx ->
-  #       Map.put(ctx, :messages, messages)
-  #     end)
-  #
-  #   :ok = Omni.Agent.prompt(socket.assigns.agent, message.content)
-  #
-  #   turns = OmniUI.Turn.all(tree) |> Enum.drop(-1)
-  #
-  #   current_turn = %OmniUI.Turn{
-  #     id: id,
-  #     status: :streaming,
-  #     user_text: Enum.filter(message.content, &match?(%Omni.Content.Text{}, &1)),
-  #     user_attachments: Enum.filter(message.content, &match?(%Omni.Content.Attachment{}, &1)),
-  #     user_timestamp: message.timestamp
-  #   }
-  #
-  #   socket =
-  #     socket
-  #     |> assign(tree: tree, current_turn: current_turn)
-  #     |> stream(:turns, turns, reset: true)
-  #     |> push_event("omni:updated", %{})
-  #
-  #   {:noreply, socket}
-  # end
-  def handle_info({OmniUI, :edit_message, _turn_id, _message}, socket) do
-    OmniUI.notify(:info, "Editing messages is temporarily disabled.")
-    {:noreply, socket}
+  # Editing a user message branches from its parent. Per `Omni.Session.branch/3`
+  # semantics, the target is the assistant above the edited user (or `nil` for
+  # a root user, which creates a new disjoint root). The new user + assistant
+  # turn appends as children — opposite asymmetry from the old tree-owned-state
+  # model, which navigated to the user's parent and pushed a sibling user.
+  def handle_info({OmniUI, :edit_message, turn_id, message}, socket) do
+    parent_id = socket.assigns.tree.nodes[turn_id].parent_id
+
+    case Omni.Session.branch(socket.assigns.session, parent_id, message.content) do
+      :ok ->
+        {:noreply,
+         socket
+         |> assign(:current_turn, streaming_turn(nil, message))
+         |> push_event("omni:updated", %{})}
+
+      {:error, reason} ->
+        notify_branch_error(reason)
+        {:noreply, socket}
+    end
   end
 
   # ── Notifications ────────────────────────────────────────────────
@@ -219,24 +167,28 @@ defmodule OmniUI.Handlers do
 
   def handle_agent_event(:turn, {:continue, _response}, socket), do: socket
 
-  # Tree mirror. Session emits this after every tree mutation (turn commit,
-  # navigate, branch). new_nodes is non-empty only on a turn commit.
+  # Tree mirror. Session emits this after every tree mutation: turn commit
+  # (with new node ids), navigate (empty new_nodes), and the apply_navigation
+  # step inside branch ops (also empty new_nodes). Rebuild the turn list from
+  # the new tree on each event — Turn.all walks the active path so navigates
+  # and branches naturally drop turns that have left the path.
+  #
+  # During streaming, the in-flight turn is rendered separately via
+  # @current_turn. We filter it out of the rebuilt list to avoid duplicating
+  # it once the turn (or a continuation step) commits to the tree.
   def handle_agent_event(:tree, %{tree: tree, new_nodes: new_nodes}, socket) do
-    socket = assign(socket, tree: tree, usage: Tree.usage(tree))
+    socket = adopt_current_turn_id(socket, new_nodes)
 
-    case new_nodes do
-      [] ->
-        socket
+    in_flight_id = if socket.assigns.current_turn, do: socket.assigns.current_turn.id
 
-      [first_id | _] ->
-        # The first new node id is the user message that started this turn
-        # (`Turn.get/2` walks forward to the next non-tool-result user
-        # boundary, so a multi-step turn collapses correctly).
-        case OmniUI.Turn.get(tree, first_id) do
-          nil -> socket
-          turn -> stream_insert(socket, :turns, turn)
-        end
-    end
+    turns =
+      tree
+      |> OmniUI.Turn.all()
+      |> Enum.reject(&(&1.id == in_flight_id))
+
+    socket
+    |> assign(tree: tree, usage: Tree.usage(tree))
+    |> stream(:turns, turns, reset: true)
   end
 
   # Persistence acks. The first save after starting a fresh session is the
@@ -295,4 +247,48 @@ defmodule OmniUI.Handlers do
 
   # Catch-all for unhandled session events
   def handle_agent_event(_event, _data, socket), do: socket
+
+  # ── Helpers ──────────────────────────────────────────────────────
+
+  # New-message and edit flows start streaming with `current_turn.id == nil`
+  # because the new user node hasn't been created yet. On the first commit
+  # (the first :tree event with non-empty new_nodes after streaming starts),
+  # the user node is the head of new_nodes — adopt it so subsequent rebuilds
+  # can filter the in-flight turn out by id. Regen flows already have
+  # current_turn.id set up front, and continuation commits leave it alone.
+  defp adopt_current_turn_id(socket, [first_id | _]) do
+    case socket.assigns.current_turn do
+      %OmniUI.Turn{id: nil} = turn ->
+        assign(socket, :current_turn, %{turn | id: first_id})
+
+      _ ->
+        socket
+    end
+  end
+
+  defp adopt_current_turn_id(socket, []), do: socket
+
+  defp streaming_turn(id, %Omni.Message{} = message) do
+    %OmniUI.Turn{
+      id: id,
+      status: :streaming,
+      user_text: Enum.filter(message.content, &match?(%Omni.Content.Text{}, &1)),
+      user_attachments: Enum.filter(message.content, &match?(%Omni.Content.Attachment{}, &1)),
+      user_timestamp: message.timestamp
+    }
+  end
+
+  defp notify_branch_error(:busy),
+    do: OmniUI.notify(:warning, "Wait for the current turn to finish.")
+
+  defp notify_branch_error(:paused),
+    do: OmniUI.notify(:warning, "Resume the paused turn before branching.")
+
+  defp notify_branch_error(:not_found),
+    do: OmniUI.notify(:warning, "Couldn't find that point in the conversation.")
+
+  defp notify_branch_error(reason) do
+    Logger.warning("Branch op failed: #{inspect(reason)}")
+    OmniUI.notify(:error, "Couldn't switch branches.")
+  end
 end
