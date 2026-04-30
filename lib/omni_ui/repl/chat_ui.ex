@@ -24,7 +24,7 @@ defmodule OmniUI.REPL.ChatUI do
   import OmniUI.Components, only: [expandable: 1]
 
   import OmniUI.Helpers,
-    only: [highlight_code: 1, highlight_code: 2, format_json: 1, format_tool_result: 1]
+    only: [highlight_code: 1, highlight_code: 2, format_json: 1, format_tool_result: 1, cls: 1]
 
   @doc """
   Renders a ToolUse content block for the REPL tool.
@@ -45,7 +45,10 @@ defmodule OmniUI.REPL.ChatUI do
     ~H"""
     <.expandable>
       <:icon>
-        <Lucideicons.terminal class="size-4 text-omni-text-4" />
+        <Lucideicons.terminal class={cls([
+          "size-4 text-omni-text-4",
+          if(@streaming, do: "animate-spin", else: "")
+        ])} />
       </:icon>
 
       <:toggle>

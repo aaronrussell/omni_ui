@@ -104,7 +104,12 @@ defmodule OmniUI.REPL.Sandbox do
     :erpc.call(peer_node, :logger, :set_primary_config, [:level, :warning])
   end
 
-  defp ensure_distributed! do
+  # Call this eagerly at application boot (before Phoenix.Endpoint starts),
+  # otherwise the first REPL invocation flips the VM into distributed mode
+  # mid-request and invalidates any PIDs already encoded into Phoenix tokens
+  # (notably LongPoll session_refs), which then fail `is_process_alive/1`.
+  @doc false
+  def ensure_distributed! do
     unless Node.alive?() do
       # EPMD must be running before Node.start/2 can enable distribution.
       # When the VM was started without --sname/--name, EPMD won't be up yet.

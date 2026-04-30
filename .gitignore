@@ -26,7 +26,7 @@ omni_ui-*.tar
 /.claude/settings.local.json
 
 # Omni sessions
-/omni_ui_dev/priv/sessions
+/omni_ui_dev/priv/omni/sessions
 
 # Environment variables
 .env

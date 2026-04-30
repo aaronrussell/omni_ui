@@ -139,3 +139,9 @@ The workstreams are sequential where it matters:
 4. ~~**Session management**~~ — done. New/switch/delete, title editing + LLM generation, sessions drawer. See `architecture.md` § Sessions.
 5. **Persistence follow-ups** — incremental saves, JSON format, metadata-only saves (model/thinking). Can be picked up as needed.
 6. **Polish** items can be picked up incrementally at any point.
+
+---
+
+## Unresolved Issues
+
+- **REPL distribution boot** — `OmniUI.REPL.Sandbox.ensure_distributed!/0` must be called eagerly at app boot, before `Phoenix.Endpoint` starts, otherwise the first REPL invocation flips the VM into distributed mode mid-request and any PIDs already encoded into Phoenix tokens (notably LongPoll session_refs) become "remote" and crash `is_process_alive/1`. Currently the dev app calls it from `application.ex` as a workaround. Revisit whether a `Sandbox.Boot` child spec or supervision-tree entry would be a more discoverable / less-bypassable shape for downstream consumers.

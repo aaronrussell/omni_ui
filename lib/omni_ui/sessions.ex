@@ -9,7 +9,7 @@ defmodule OmniUI.Sessions do
       config :omni_ui, OmniUI.Sessions,
         store:
           {Omni.Session.Store.FileSystem,
-           base_path: "priv/sessions", otp_app: :my_app}
+           base_path: "priv/omni/sessions", otp_app: :my_app}
 
       # application.ex
       children = [OmniUI.Sessions]

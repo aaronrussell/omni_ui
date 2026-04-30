@@ -45,10 +45,11 @@ defmodule OmniUI do
   Two sets of assigns live on a LiveView using `OmniUI`:
 
   - **OmniUI-owned**: session lifecycle (`:session`, `:session_id`,
-    `:title`, `:tree`, `:current_turn`), agent config (`:manager`, `:model`,
-    `:thinking`, `:system`, `:tools`, `:tool_timeout`, `:tool_components`),
-    UI state (`:usage`, `:url_synced`, `:notification_ids`), and the
-    `:turns` and `:notifications` streams. Initialised by `init_session/2`
+    `:title`, `:tree`, `:current_turn`), agent config (`:manager`,
+    `:agent_module`, `:model`, `:thinking`, `:system`, `:tools`,
+    `:tool_timeout`, `:tool_components`), UI state (`:usage`,
+    `:url_synced`, `:notification_ids`), and the `:turns` and
+    `:notifications` streams. Initialised by `init_session/2`
     in `mount/3`; mutated by `attach_session/2`, `ensure_session/1`,
     `update_session/2`, and the macro-injected handlers.
   - **Consumer-owned**: anything else — UI-driven state (`:model_options`,
@@ -235,6 +236,9 @@ defmodule OmniUI do
     * `:model` (required) — `%Omni.Model{}` struct or `{provider_id, model_id}` tuple
     * `:manager` — Manager module (default `OmniUI.Sessions`). Must be
       running under the application supervision tree with a configured store.
+    * `:agent_module` — module that `use`s `Omni.Agent` (default `nil`,
+      meaning the stock `Omni.Agent`). Use this to bake in tools, system
+      prompt, or other defaults via the agent's `init/1` callback.
     * `:thinking` — thinking mode: `false | :low | :medium | :high | :max` (default: `false`)
     * `:system` — system prompt string (default: `nil`)
     * `:tools` — list of tool entries (default: `[]`). Each entry is either:
@@ -242,6 +246,10 @@ defmodule OmniUI do
       * `{%Omni.Tool{}, opts}` where `opts` is a keyword list. The only supported
         option is `component: (assigns -> rendered)` — a 1-arity function component
         that replaces the default content block rendering for that tool's uses.
+    * `:tool_components` — map of `tool_name => (assigns -> rendered)` for tools
+      that aren't constructed by the consumer (typically tools added by an
+      `:agent_module`'s `init/1` callback). Merged with components extracted
+      from `:tools` entries; this map wins on key conflicts.
     * `:tool_timeout` — per-tool execution timeout in ms
 
   ## Example
@@ -256,15 +264,18 @@ defmodule OmniUI do
   @spec init_session(Phoenix.LiveView.Socket.t(), keyword()) :: Phoenix.LiveView.Socket.t()
   def init_session(socket, opts) do
     manager = Keyword.get(opts, :manager, OmniUI.Sessions)
+    agent_module = Keyword.get(opts, :agent_module)
     model = resolve_model!(Keyword.fetch!(opts, :model))
     thinking = Keyword.get(opts, :thinking, false)
     system = Keyword.get(opts, :system)
     {tools, tool_components} = normalise_tools(Keyword.get(opts, :tools, []))
+    tool_components = Map.merge(tool_components, Keyword.get(opts, :tool_components, %{}))
     tool_timeout = Keyword.get(opts, :tool_timeout)
 
     socket
     |> assign(
       manager: manager,
+      agent_module: agent_module,
       model: model,
       thinking: thinking,
       system: system,
@@ -339,7 +350,17 @@ defmodule OmniUI do
       id ->
         detach_previous_session(socket)
         a = socket.assigns
-        agent_opts = build_agent_opts(a.model, a.thinking, a.system, a.tools, a.tool_timeout)
+
+        agent_opts =
+          build_agent_opts(
+            a.agent_module,
+            a.model,
+            a.thinking,
+            a.system,
+            a.tools,
+            a.tool_timeout
+          )
+
         session = open_session!(a.manager, id, agent_opts)
         {:ok, snapshot} = Omni.Session.subscribe(session, mode: :controller)
         apply_snapshot(socket, session, snapshot, url_synced: true)
@@ -369,7 +390,17 @@ defmodule OmniUI do
 
       _ ->
         a = socket.assigns
-        agent_opts = build_agent_opts(a.model, a.thinking, a.system, a.tools, a.tool_timeout)
+
+        agent_opts =
+          build_agent_opts(
+            a.agent_module,
+            a.model,
+            a.thinking,
+            a.system,
+            a.tools,
+            a.tool_timeout
+          )
+
         {:ok, pid} = a.manager.create(subscribe: false, agent: agent_opts)
         {:ok, snapshot} = Omni.Session.subscribe(pid, mode: :controller)
         apply_snapshot(socket, pid, snapshot, url_synced: false)
@@ -414,11 +445,17 @@ defmodule OmniUI do
     |> stream(:turns, turns, reset: true)
   end
 
-  defp build_agent_opts(model, thinking, system, tools, tool_timeout) do
-    [model: model, opts: [thinking: thinking]]
-    |> maybe_put(:system, system)
-    |> maybe_put(:tools, tools)
-    |> maybe_put(:tool_timeout, tool_timeout)
+  defp build_agent_opts(agent_module, model, thinking, system, tools, tool_timeout) do
+    opts =
+      [model: model, opts: [thinking: thinking]]
+      |> maybe_put(:system, system)
+      |> maybe_put(:tools, tools)
+      |> maybe_put(:tool_timeout, tool_timeout)
+
+    case agent_module do
+      nil -> opts
+      mod when is_atom(mod) -> {mod, opts}
+    end
   end
 
   # If the snapshot was taken while the agent is mid-turn, reconstruct a

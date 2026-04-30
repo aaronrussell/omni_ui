@@ -7,6 +7,9 @@ defmodule OmniUIDev.Application do
 
   @impl true
   def start(_type, _args) do
+    # TODO - see comment above OmniUI.REPL.Sandbox.ensure_distributed!/0
+    OmniUI.REPL.Sandbox.ensure_distributed!()
+
     children = [
       OmniUIDevWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:omni_ui_dev, :dns_cluster_query) || :ignore},

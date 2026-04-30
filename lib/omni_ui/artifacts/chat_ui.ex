@@ -19,7 +19,7 @@ defmodule OmniUI.Artifacts.ChatUI do
   aside content varies per command:
 
     * **`write` / `patch`** — a button labelled with the filename that
-      dispatches a `view_artifact` event, opening the artifact in the panel.
+      dispatches a `open_artifact` event, opening the artifact in the panel.
     * **`get` / `delete`** — a short status label referencing the filename.
     * **`list`** — a "Listed artifacts" label.
   """
@@ -61,7 +61,7 @@ defmodule OmniUI.Artifacts.ChatUI do
         "inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-sm border transition-colors cursor-pointer",
         "text-omni-text-1 border-omni-border-3 hover:text-omni-accent-1 hover:bg-omni-accent-2/5 hover:border-omni-accent-2"
       ]}
-      phx-click="view_artifact"
+      phx-click="open_artifact"
       phx-value-filename={@filename}>
       <Lucideicons.square_arrow_out_up_right class="size-4" />
       <span class="font-medium">{@filename}</span>

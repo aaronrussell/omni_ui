@@ -123,18 +123,31 @@ defmodule OmniUI.Artifacts.PanelComponent do
     old_session_id = socket.assigns.session_id
     socket = assign(socket, assigns)
 
-    if new_session_id != old_session_id and new_session_id != nil do
-      {:ok,
-       assign(socket,
-         artifacts: scan_artifacts(new_session_id),
-         active_artifact: nil,
-         content: nil,
-         view: nil,
-         view_source: false,
-         token: URL.sign_token(socket, new_session_id)
-       )}
-    else
-      {:ok, socket}
+    cond do
+      new_session_id == old_session_id ->
+        {:ok, socket}
+
+      new_session_id == nil ->
+        {:ok,
+         assign(socket,
+           artifacts: %{},
+           active_artifact: nil,
+           content: nil,
+           view: nil,
+           view_source: false,
+           token: nil
+         )}
+
+      true ->
+        {:ok,
+         assign(socket,
+           artifacts: scan_artifacts(new_session_id),
+           active_artifact: nil,
+           content: nil,
+           view: nil,
+           view_source: false,
+           token: URL.sign_token(socket, new_session_id)
+         )}
     end
   end
 

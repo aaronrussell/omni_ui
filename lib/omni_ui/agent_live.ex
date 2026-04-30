@@ -2,6 +2,8 @@ defmodule OmniUI.AgentLive do
   use Phoenix.LiveView
   use OmniUI
 
+  alias OmniUI.Artifacts
+
   @default_model {:ollama, "gemma4:latest"}
 
   attr :current_turn, OmniUI.Turn
@@ -35,7 +37,9 @@ defmodule OmniUI.AgentLive do
             <.turn :if={@current_turn} id="current-turn">
               <:user>
                 <.user_message text={@current_turn.user_text} attachments={@current_turn.user_attachments} />
-                <.timestamp time={@current_turn.user_timestamp} />
+                <.timestamp
+                  class="text-xs text-omni-text-4"
+                  time={@current_turn.user_timestamp} />
               </:user>
               <:assistant>
                 <.assistant_message
@@ -59,6 +63,14 @@ defmodule OmniUI.AgentLive do
             </:footer>
           </.chat_interface>
         </div>
+      </div>
+
+      <div
+        class="h-full w-[calc(50%-8rem)] border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
+        <.live_component
+          module={Artifacts.PanelComponent}
+          id="artifacts-panel"
+          session_id={@session_id} />
       </div>
 
       <.notifications stream={@streams.notifications} />
@@ -132,7 +144,15 @@ defmodule OmniUI.AgentLive do
     {:ok,
      socket
      |> assign(:model_options, models1 ++ models2)
-     |> init_session(model: @default_model, tool_timeout: 120_000)}
+     |> init_session(
+       agent_module: OmniUI.AgentLive.Agent,
+       tool_components: %{
+         "artifacts" => &OmniUI.Artifacts.ChatUI.tool_use/1,
+         "repl" => &OmniUI.REPL.ChatUI.tool_use/1
+       },
+       model: @default_model,
+       tool_timeout: 120_000
+     )}
   end
 
   @impl Phoenix.LiveView
@@ -170,9 +190,14 @@ defmodule OmniUI.AgentLive do
     {:noreply, socket}
   end
 
-  defp save_title(pid, ""), do: save_title(pid, nil)
-  defp save_title(pid, title) when is_pid(pid), do: Omni.Session.set_title(pid, title)
-  defp save_title(_pid, _raw), do: :ok
+  def handle_event("open_artifact", %{"filename" => filename}, socket) do
+    send_update(Artifacts.PanelComponent,
+      id: "artifacts-panel",
+      action: {:view, filename}
+    )
+
+    {:noreply, socket}
+  end
 
   @impl Phoenix.LiveView
   def handle_info({:manager, _, _, _} = msg, socket) do
@@ -183,4 +208,16 @@ defmodule OmniUI.AgentLive do
   def handle_info({OmniUI, :active_session_deleted}, socket) do
     {:noreply, push_patch(socket, to: "/")}
   end
+
+  @impl OmniUI
+  def agent_event(:tool_result, %{name: name}, socket) when name in ["artifacts", "repl"] do
+    send_update(Artifacts.PanelComponent, id: "artifacts-panel", action: :rescan)
+    socket
+  end
+
+  def agent_event(_event, _data, socket), do: socket
+
+  defp save_title(pid, ""), do: save_title(pid, nil)
+  defp save_title(pid, title) when is_pid(pid), do: Omni.Session.set_title(pid, title)
+  defp save_title(_pid, _raw), do: :ok
 end
