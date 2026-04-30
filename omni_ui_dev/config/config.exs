@@ -56,6 +56,10 @@ config :omni, providers: [:anthropic, :openai, :google, :opencode, :openrouter, 
 config :omni_ui, OmniUI.Sessions,
   store: {Omni.Session.Store.FileSystem, base_path: "priv/sessions", otp_app: :omni_ui_dev}
 
+config :omni_ui, OmniUI.TitleService,
+  manager: OmniUI.Sessions,
+  model: {:openai, "gpt-5.4-nano"}
+
 config :omni, Omni.Providers.Ollama,
   models: [
     [id: "gemma4:latest", reasoning: true]

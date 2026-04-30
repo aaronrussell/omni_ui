@@ -18,28 +18,34 @@ defmodule OmniUI.TitleTest do
 
   defp stub_opts(stub_name), do: [api_key: "test-key", plug: {Req.Test, stub_name}]
 
-  # ── heuristic/1 ────────────────────────────────────────────────────
+  # ── generate/3 with nil model (heuristic) ──────────────────────────
 
-  describe "heuristic/1" do
+  describe "generate/3 with nil model" do
     test "returns the first user message text" do
       messages = [user("Deep dive into Elixir"), assistant("Sure!")]
-      assert Title.heuristic(messages) == "Deep dive into Elixir"
+      assert Title.generate(nil, messages) == {:ok, "Deep dive into Elixir"}
+    end
+
+    test "uses the first message's text regardless of role" do
+      assert Title.generate(nil, [assistant("Hello")]) == {:ok, "Hello"}
     end
 
     test "trims surrounding whitespace" do
-      assert Title.heuristic([user("  Hello world  ")]) == "Hello world"
+      assert Title.generate(nil, [user("  Hello world  ")]) == {:ok, "Hello world"}
     end
 
     test "truncates at word boundary when text exceeds 50 characters" do
       msg = user("What is Elixir and why should I use it for web development?")
-      assert Title.heuristic([msg]) == "What is Elixir and why should I use it for web..."
+
+      assert Title.generate(nil, [msg]) ==
+               {:ok, "What is Elixir and why should I use it for web..."}
     end
 
     test "hard-slices a single word that is longer than 50 characters" do
       long = String.duplicate("a", 60)
-      result = Title.heuristic([user(long)])
 
-      assert result == String.duplicate("a", 50) <> "..."
+      assert Title.generate(nil, [user(long)]) ==
+               {:ok, String.duplicate("a", 50) <> "..."}
     end
 
     test "keeps full last word when slice ends exactly on a word boundary" do
@@ -47,23 +53,12 @@ defmodule OmniUI.TitleTest do
       # would have dropped "stuff" unnecessarily. reduce_while keeps it.
       text = "Hello world wonderful programming stuff wonderful! stuff"
 
-      assert Title.heuristic([user(text)]) ==
-               "Hello world wonderful programming stuff wonderful!..."
+      assert Title.generate(nil, [user(text)]) ==
+               {:ok, "Hello world wonderful programming stuff wonderful!..."}
     end
 
-    test "returns empty string when there are no user messages" do
-      assert Title.heuristic([]) == ""
-      assert Title.heuristic([assistant("Hello")]) == ""
-    end
-
-    test "returns empty string when the first user message has no text content" do
-      image_msg =
-        Omni.message(
-          role: :user,
-          content: [%Omni.Content.Attachment{media_type: "image/png", source: {:base64, "x"}}]
-        )
-
-      assert Title.heuristic([image_msg]) == ""
+    test "returns {:error, :no_text} for an empty messages list" do
+      assert Title.generate(nil, []) == {:error, :no_text}
     end
 
     test "normalises whitespace so newlines between text blocks collapse to single spaces" do
@@ -76,29 +71,16 @@ defmodule OmniUI.TitleTest do
           ]
         )
 
-      assert Title.heuristic([msg]) == "hello world"
+      assert Title.generate(nil, [msg]) == {:ok, "hello world"}
     end
 
     test "collapses internal whitespace runs (tabs, newlines, double spaces)" do
-      assert Title.heuristic([user("hello\n\n\tworld   today")]) == "hello world today"
-    end
-  end
-
-  # ── generate/3 with :heuristic ─────────────────────────────────────
-
-  describe "generate/3 with :heuristic" do
-    test "returns {:ok, title} when user text is present" do
-      assert Title.generate(:heuristic, [user("What is Phoenix?")]) ==
-               {:ok, "What is Phoenix?"}
-    end
-
-    test "returns {:error, :no_text} when there is no extractable text" do
-      assert Title.generate(:heuristic, []) == {:error, :no_text}
-      assert Title.generate(:heuristic, [assistant("Hi")]) == {:error, :no_text}
+      assert Title.generate(nil, [user("hello\n\n\tworld   today")]) ==
+               {:ok, "hello world today"}
     end
 
     test "ignores any opts passed" do
-      assert Title.generate(:heuristic, [user("Hello")], foo: :bar) == {:ok, "Hello"}
+      assert Title.generate(nil, [user("Hello")], foo: :bar) == {:ok, "Hello"}
     end
   end
 

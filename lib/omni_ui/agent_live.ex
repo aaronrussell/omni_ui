@@ -19,6 +19,7 @@ defmodule OmniUI.AgentLive do
       </div>
 
       <div class="flex-auto flex flex-col h-full">
+        <.header title={@title} />
         <div class="flex-1 min-h-0">
           <.chat_interface>
             <.message_list id="turns" phx-update="stream">
@@ -65,6 +66,62 @@ defmodule OmniUI.AgentLive do
     """
   end
 
+  attr :title, :string, default: nil
+
+  defp header(assigns) do
+    ~H"""
+    <div class="grid grid-cols-[1fr_auto_1fr] gap-2 h-12 px-4 border-b border-omni-border-3">
+      <div class="flex items-center gap-1">
+        <button
+          class={[
+            "flex items-center justify-center size-8 rounded cursor-pointer",
+            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+          ]}
+          title="Sessions">
+          <Lucideicons.history class="size-4" />
+        </button>
+
+        <button
+          class={[
+            "flex items-center justify-center size-8 rounded cursor-pointer",
+            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+          ]}
+          title="New session"
+          phx-click="new_session">
+          <Lucideicons.plus class="size-4" />
+        </button>
+      </div>
+
+      <form phx-submit="save_title" class="flex items-center justify-center">
+        <input
+          type="text"
+          name="title"
+          value={@title || ""}
+          placeholder="Untitled"
+          phx-blur="save_title"
+          autocomplete="off"
+          class={[
+            "field-sizing-content min-w-18 max-w-80 px-2 py-1.5 text-ellipsis overflow-hidden",
+            "bg-transparent border-0 outline-none text-center text-sm",
+            "text-omni-text-1 placeholder:text-omni-text-1 focus:placeholder:opacity-0",
+            "hover:bg-omni-accent-2/10 focus:text-omni-text focus:bg-omni-accent-2/10 focus:max-w-none"
+          ]} />
+      </form>
+
+      <div class="flex items-center justify-end gap-1">
+        <button
+          class={[
+            "flex items-center justify-center size-8 rounded cursor-pointer",
+            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+          ]}
+          title="Open artifacts panel">
+          <Lucideicons.panel_right_open class="size-4" />
+        </button>
+      </div>
+    </div>
+    """
+  end
+
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
     {:ok, models1} = Omni.list_models(:ollama)
@@ -101,6 +158,21 @@ defmodule OmniUI.AgentLive do
   def handle_event("new_session", _params, socket) do
     {:noreply, push_patch(socket, to: "/")}
   end
+
+  # phx-submit sends form fields keyed by `name`; phx-blur sends the input's value as `"value"`.
+  def handle_event("save_title", %{"title" => raw}, socket) do
+    save_title(socket.assigns.session, raw)
+    {:noreply, socket}
+  end
+
+  def handle_event("save_title", %{"value" => raw}, socket) do
+    save_title(socket.assigns.session, raw)
+    {:noreply, socket}
+  end
+
+  defp save_title(pid, ""), do: save_title(pid, nil)
+  defp save_title(pid, title) when is_pid(pid), do: Omni.Session.set_title(pid, title)
+  defp save_title(_pid, _raw), do: :ok
 
   @impl Phoenix.LiveView
   def handle_info({:manager, _, _, _} = msg, socket) do

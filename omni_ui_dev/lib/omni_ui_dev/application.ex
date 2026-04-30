@@ -12,6 +12,7 @@ defmodule OmniUIDev.Application do
       {DNSCluster, query: Application.get_env(:omni_ui_dev, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: OmniUIDev.PubSub},
       OmniUI.Sessions,
+      OmniUI.TitleService,
       OmniUIDevWeb.Endpoint
     ]
 

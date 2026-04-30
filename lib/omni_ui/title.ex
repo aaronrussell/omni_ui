@@ -1,115 +1,93 @@
 defmodule OmniUI.Title do
   @moduledoc """
-  Generates titles for conversation sessions.
+  Generates titles for conversations.
 
-  Two strategies:
+  Two strategies are exposed through a single entry point, `generate/3`:
 
-    * `:heuristic` — truncates the first user message text. No LLM call.
-    * `{provider, model}` — asks the given model to summarise the
-      conversation into a concise title.
+    * **Heuristic** (`model: nil`) — picks the first message with
+      extractable text and truncates it. No LLM call.
+    * **Model** (`model: Omni.Model.ref()`) — asks the given model to
+      summarise the first few turns into a concise title.
 
-  The caller supplies a message list (typically from `OmniUI.Tree.messages/1`)
-  and the chosen strategy. Non-text content (attachments, thinking blocks,
-  tool uses, tool results) is filtered out — only `%Omni.Content.Text{}`
-  blocks contribute.
+  Both branches return `{:error, :no_text}` when no message contains any
+  `%Omni.Content.Text{}` content. Attachments, thinking blocks, tool
+  uses, and tool results are filtered out — only text contributes.
 
-  ## Examples
-
-      iex> messages = [Omni.message("What is Elixir?"), Omni.message(role: :assistant, content: "...")]
-      iex> OmniUI.Title.generate(:heuristic, messages)
-      {:ok, "What is Elixir?"}
-
-      iex> OmniUI.Title.generate({:anthropic, "claude-haiku-4-5"}, messages)
-      {:ok, "Intro to Elixir"}
-
-  Returns `{:error, :no_text}` when the conversation contains no extractable
-  text (e.g. the first user message is all attachments and no assistant has
-  responded yet).
+  This module is pure: it makes at most one HTTP call (in the model
+  branch) and holds no state. `OmniUI.TitleService` uses it from inside
+  its async generation tasks; callers wanting on-demand title
+  generation (e.g. a manual rename flow) can call `generate/3` directly.
   """
 
   @heuristic_length 50
   @max_tokens 50
 
   @system_prompt """
-  Generate a concise 3-6 word title for the following conversation.
+  You generate concise 3-6 word titles for conversations.
   Reply with only the title. No quotes, no punctuation, no explanation.
   """
 
-  @spec generate(Omni.Model.ref() | :heuristic, [Omni.Message.t()], keyword()) ::
+  @doc """
+  Generates a title for the given conversation.
+
+  When `model` is `nil`, falls back to the heuristic strategy
+  (truncating the first text-bearing message). When `model` is an
+  `Omni.Model.ref()` (or `%Omni.Model{}`), asks the model to summarise
+  the conversation.
+
+  Returns `{:error, :no_text}` when no extractable text exists in any
+  message — for the model branch, this is checked against the same
+  window the prompt actually uses (the first four messages).
+  """
+  @spec generate(Omni.Model.t() | Omni.Model.ref() | nil, [Omni.Message.t()], keyword()) ::
           {:ok, String.t()} | {:error, term()}
-  def generate(strategy, messages, opts \\ [])
+  def generate(model, messages, opts \\ [])
 
-  def generate(:heuristic, messages, _opts) do
-    case heuristic(messages) do
-      "" -> {:error, :no_text}
-      title -> {:ok, title}
-    end
-  end
-
-  def generate(model, messages, opts) do
-    case format_conversation(messages) do
-      "" ->
+  def generate(nil, messages, _opts) when is_list(messages) do
+    case Enum.find(messages, &has_text?/1) do
+      nil ->
         {:error, :no_text}
 
-      prompt ->
-        context = Omni.context(system: @system_prompt, messages: [Omni.message(prompt)])
-        opts = Keyword.merge([max_tokens: @max_tokens], opts)
-
-        case Omni.generate_text(model, context, opts) do
-          {:ok, response} ->
-            case extract_title(response) do
-              "" -> {:error, :empty_response}
-              title -> {:ok, title}
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+      msg ->
+        title = msg |> extract_text() |> truncate(@heuristic_length)
+        {:ok, title}
     end
   end
 
-  @doc """
-  Returns the first user message's text, trimmed and truncated to 50
-  characters. Returns an empty string when no user text is present.
-  """
-  @spec heuristic([Omni.Message.t()]) :: String.t()
-  def heuristic(messages) do
-    messages
-    |> first_text(:user)
-    |> truncate(@heuristic_length)
+  def generate(model, messages, opts) when is_list(messages) do
+    if Enum.any?(Enum.take(messages, 4), &has_text?/1) do
+      context = Omni.context(system: @system_prompt, messages: [format_prompt(messages)])
+      opts = Keyword.put_new(opts, :max_tokens, @max_tokens)
+
+      case Omni.generate_text(model, context, opts) do
+        {:ok, response} ->
+          case extract_title(response) do
+            "" -> {:error, :empty_response}
+            title -> {:ok, title}
+          end
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      {:error, :no_text}
+    end
   end
+
+  def generate(_model, _messages, _opts), do: {:error, :no_text}
 
   # ── Private ────────────────────────────────────────────────────────
 
-  defp format_conversation(messages) do
-    user = first_text(messages, :user)
-    assistant = first_text(messages, :assistant)
-
-    []
-    |> prepend_part("User", user)
-    |> prepend_part("Assistant", assistant)
-    |> Enum.reverse()
-    |> Enum.join("\n\n")
+  defp has_text?(%Omni.Message{content: content}) do
+    Enum.any?(content, &match?(%Omni.Content.Text{}, &1))
   end
 
-  defp prepend_part(parts, _label, ""), do: parts
-  defp prepend_part(parts, label, text), do: ["#{label}: #{text}" | parts]
-
-  defp first_text(messages, role) do
-    case Enum.find(messages, &match?(%{role: ^role}, &1)) do
-      nil -> ""
-      msg -> extract_text(msg.content)
-    end
-  end
-
-  defp extract_text(content) when is_list(content) do
+  defp extract_text(%Omni.Message{content: content}) do
     content
     |> Enum.filter(&match?(%Omni.Content.Text{}, &1))
-    |> Enum.map_join("\n", & &1.text)
+    |> Enum.map_join("\n\n", & &1.text)
     |> String.trim()
   end
-
-  defp extract_text(content) when is_binary(content), do: String.trim(content)
 
   defp extract_title(response) do
     response.message.content
@@ -119,6 +97,27 @@ defmodule OmniUI.Title do
     end)
     |> String.replace(~r/\s+/, " ")
     |> String.trim()
+  end
+
+  defp format_prompt(messages) do
+    conversation_text =
+      messages
+      |> Enum.take(4)
+      |> Enum.chunk_every(2)
+      |> Enum.map_join("\n---\n", fn pairs ->
+        pairs
+        |> Enum.map_join("\n", fn msg ->
+          role = msg.role |> to_string() |> String.capitalize()
+          "#{role}: #{extract_text(msg)}"
+        end)
+      end)
+
+    Omni.message("""
+    Generate a title for this conversation:
+    <conversation>
+    #{conversation_text}
+    </conversation>
+    """)
   end
 
   defp truncate(text, max) do
