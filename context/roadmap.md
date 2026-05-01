@@ -18,12 +18,6 @@ before a public release.
   re-prompts the agent. Straightforward given the current tree/turn
   architecture.
 
-- **Streaming tool-use header** — tool-use blocks currently only
-  render once the tool_use content has fully streamed. Should render
-  the header (icon, tool name/title) as soon as the first chunk
-  arrives so the user gets visual feedback that something is
-  happening. TODO marker exists in code.
-
 - **Streaming-perf delta debounce** — debounce text deltas (50–100ms
   timer) to reduce re-renders during fast streaming. Optional —
   current performance is acceptable.

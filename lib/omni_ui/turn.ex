@@ -161,6 +161,19 @@ defmodule OmniUI.Turn do
   end
 
   @doc """
+  Replaces the last content block in the turn.
+
+  Called during streaming when a content block is finalised — e.g. a tool-use
+  block that started as a stub on `:tool_use_start` and is replaced with the
+  fully-formed struct on `:tool_use_end`.
+  """
+  @spec replace_content(t(), Omni.Message.content()) :: t()
+  def replace_content(%__MODULE__{} = turn, content_block) do
+    content = List.replace_at(turn.content, -1, content_block)
+    %{turn | content: content}
+  end
+
+  @doc """
   Stores a tool result, keyed by its `tool_use_id`.
 
   Called during streaming when a tool execution completes. The result is

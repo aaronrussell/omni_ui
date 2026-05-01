@@ -144,9 +144,19 @@ defmodule OmniUI.Handlers do
     end)
   end
 
+  # Push a stub ToolUse on start so the header (icon, tool name) renders
+  # immediately. The fully-formed struct replaces it on :tool_use_end.
+  def handle_agent_event(:tool_use_start, %{id: id, name: name} = data, socket) do
+    stub = %Omni.Content.ToolUse{id: id, name: name, input: Map.get(data, :input, %{})}
+
+    update(socket, :current_turn, fn turn ->
+      OmniUI.Turn.push_content(turn, stub)
+    end)
+  end
+
   def handle_agent_event(:tool_use_end, %{content: tool_use}, socket) do
     update(socket, :current_turn, fn turn ->
-      OmniUI.Turn.push_content(turn, tool_use)
+      OmniUI.Turn.replace_content(turn, tool_use)
     end)
   end
 

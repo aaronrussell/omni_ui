@@ -53,7 +53,7 @@ defmodule OmniUI.REPL.ChatUI do
 
       <:toggle>
         <div class="flex items-center gap-2">
-          <span>{@tool_use.input["title"]}</span>
+          <span>{@title}</span>
           <%= if @tool_result do %>
             <Lucideicons.check
               :if={@tool_result.is_error == false}

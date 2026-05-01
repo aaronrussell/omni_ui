@@ -479,6 +479,33 @@ defmodule OmniUI.TurnTest do
     end
   end
 
+  describe "replace_content/2" do
+    test "replaces the last content block" do
+      turn = Turn.new(1, [msg("hi"), assistant("hey")], %Usage{})
+      stub = %Content.ToolUse{id: "tc1", name: "search", input: %{}}
+      turn = Turn.push_content(turn, stub)
+
+      final = %Content.ToolUse{id: "tc1", name: "search", input: %{"q" => "elixir"}}
+      turn = Turn.replace_content(turn, final)
+
+      assert length(turn.content) == 2
+      assert %Content.ToolUse{input: %{"q" => "elixir"}} = List.last(turn.content)
+    end
+
+    test "does not affect earlier content blocks" do
+      turn = Turn.new(1, [msg("hi"), assistant("hey")], %Usage{})
+      turn = Turn.push_content(turn, %Content.Thinking{text: "thinking"})
+      stub = %Content.ToolUse{id: "tc1", name: "search", input: %{}}
+      turn = Turn.push_content(turn, stub)
+
+      final = %Content.ToolUse{id: "tc1", name: "search", input: %{"q" => "elixir"}}
+      turn = Turn.replace_content(turn, final)
+
+      assert %Content.Thinking{text: "thinking"} = Enum.at(turn.content, 1)
+      assert %Content.ToolUse{input: %{"q" => "elixir"}} = List.last(turn.content)
+    end
+  end
+
   describe "put_tool_result/2" do
     test "stores tool result keyed by tool_use_id" do
       turn = Turn.new(1, [msg("hi"), assistant("hey")], %Usage{})

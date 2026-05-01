@@ -137,13 +137,14 @@ defmodule OmniUI.AgentLive do
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
     {:ok, models1} = Omni.list_models(:ollama)
-    {:ok, models2} = Omni.list_models(:opencode)
+    {:ok, models2} = Omni.list_models(:alibaba)
+    {:ok, models3} = Omni.list_models(:opencode)
 
     if connected?(socket), do: OmniUI.Sessions.subscribe()
 
     {:ok,
      socket
-     |> assign(:model_options, models1 ++ models2)
+     |> assign(:model_options, models1 ++ models2 ++ models3)
      |> init_session(
        agent_module: OmniUI.AgentLive.Agent,
        tool_components: %{
