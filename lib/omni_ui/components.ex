@@ -339,10 +339,12 @@ defmodule OmniUI.Components do
   end
 
   def content_block(%{content: %Omni.Content.ToolUse{} = tool_use} = assigns) do
-    # __changed__ is required so that custom components called dynamically can
-    # still use `Phoenix.Component.assign/3` and participate in change tracking.
+    # `__changed__: nil` forces a full re-render of the inner component on
+    # every parent update. Setting it to `%{}` would tell change tracking
+    # "nothing changed" and the component would never reflect new tool
+    # results that arrive after its first render.
     tool_use_assigns = %{
-      __changed__: %{},
+      __changed__: nil,
       tool_use: tool_use,
       tool_result: assigns[:tool_results][tool_use.id],
       streaming: assigns[:streaming] || false
