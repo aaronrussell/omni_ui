@@ -1,20 +1,29 @@
 defmodule OmniUI.MacroTest do
   use ExUnit.Case, async: true
 
-  # Skipped during the Omni.Session migration — start_agent/update_agent
-  # have been renamed to start_session/update_session and the ui_event/3
-  # callback has been removed. Restore (and rewrite to match the new API)
-  # once the session-based macro shape settles.
-  @moduletag :wip
+  alias Phoenix.LiveView.Socket
 
-  alias OmniUI.Test.{MinimalView, CustomHandlersView, CustomAgentEventView}
+  alias OmniUI.Test.{
+    BadAgentEventView,
+    CustomAgentEventView,
+    CustomHandlersView,
+    MinimalView
+  }
 
   setup_all do
     Code.ensure_loaded!(OmniUI)
     Code.ensure_loaded!(MinimalView)
     Code.ensure_loaded!(CustomHandlersView)
     Code.ensure_loaded!(CustomAgentEventView)
+    Code.ensure_loaded!(BadAgentEventView)
     :ok
+  end
+
+  defp build_socket(assigns \\ %{}) do
+    %Socket{
+      assigns: Map.merge(%{__changed__: %{}}, assigns),
+      private: %{live_temp: %{}, lifecycle: %Phoenix.LiveView.Lifecycle{}}
+    }
   end
 
   describe "behaviour" do
@@ -59,12 +68,219 @@ defmodule OmniUI.MacroTest do
   end
 
   describe "public API" do
-    test "start_agent/2 is exported" do
-      assert function_exported?(OmniUI, :start_agent, 2)
+    test "init_session/2 is exported" do
+      assert function_exported?(OmniUI, :init_session, 2)
     end
 
-    test "update_agent/2 is exported" do
-      assert function_exported?(OmniUI, :update_agent, 2)
+    test "attach_session/2 is exported" do
+      assert function_exported?(OmniUI, :attach_session, 2)
+    end
+
+    test "ensure_session/1 is exported" do
+      assert function_exported?(OmniUI, :ensure_session, 1)
+    end
+
+    test "update_session/2 is exported" do
+      assert function_exported?(OmniUI, :update_session, 2)
+    end
+
+    test "notify/2 and notify/3 are exported" do
+      assert function_exported?(OmniUI, :notify, 2)
+      assert function_exported?(OmniUI, :notify, 3)
+    end
+  end
+
+  describe "init_session/2" do
+    test "populates every OmniUI-owned assign" do
+      socket = OmniUI.init_session(build_socket(), model: {:anthropic, "claude-haiku-4-5"})
+
+      for key <- [
+            :manager,
+            :agent_module,
+            :model,
+            :thinking,
+            :system,
+            :tools,
+            :tool_timeout,
+            :tool_components,
+            :session,
+            :session_id,
+            :title,
+            :tree,
+            :current_turn,
+            :usage,
+            :notification_ids,
+            :url_synced
+          ] do
+        assert Map.has_key?(socket.assigns, key), "missing assign: #{inspect(key)}"
+      end
+    end
+
+    test "leaves session-state assigns blank — session is attached later" do
+      socket = OmniUI.init_session(build_socket(), model: {:anthropic, "claude-haiku-4-5"})
+
+      assert socket.assigns.session == nil
+      assert socket.assigns.session_id == nil
+      assert socket.assigns.title == nil
+      assert socket.assigns.tree == nil
+      assert socket.assigns.current_turn == nil
+      assert socket.assigns.usage == %Omni.Usage{}
+      assert socket.assigns.notification_ids == []
+      assert socket.assigns.url_synced == false
+    end
+
+    test "initialises :turns and :notifications streams" do
+      socket = OmniUI.init_session(build_socket(), model: {:anthropic, "claude-haiku-4-5"})
+
+      assert Map.has_key?(socket.assigns, :streams)
+      assert Map.has_key?(socket.assigns.streams, :turns)
+      assert Map.has_key?(socket.assigns.streams, :notifications)
+    end
+
+    test ":manager defaults to OmniUI.Sessions" do
+      socket = OmniUI.init_session(build_socket(), model: {:anthropic, "claude-haiku-4-5"})
+
+      assert socket.assigns.manager == OmniUI.Sessions
+    end
+
+    test ":manager honours an explicit override" do
+      socket =
+        OmniUI.init_session(build_socket(),
+          model: {:anthropic, "claude-haiku-4-5"},
+          manager: SomeOtherManager
+        )
+
+      assert socket.assigns.manager == SomeOtherManager
+    end
+
+    test "resolves a {provider, model_id} tuple to %Omni.Model{}" do
+      socket = OmniUI.init_session(build_socket(), model: {:anthropic, "claude-haiku-4-5"})
+
+      assert %Omni.Model{} = socket.assigns.model
+    end
+
+    test "raises ArgumentError on an unresolvable model ref" do
+      assert_raise ArgumentError, ~r/failed to resolve model/, fn ->
+        OmniUI.init_session(build_socket(), model: {:nope, "nothing"})
+      end
+    end
+
+    test "normalises :tools entries into flat tools list and components map" do
+      tool_a = Omni.Tool.new(name: "a", description: "test")
+      tool_b = Omni.Tool.new(name: "b", description: "test")
+      renderer = fn assigns -> assigns end
+
+      socket =
+        OmniUI.init_session(build_socket(),
+          model: {:anthropic, "claude-haiku-4-5"},
+          tools: [{tool_a, component: renderer}, tool_b]
+        )
+
+      assert socket.assigns.tools == [tool_a, tool_b]
+      assert socket.assigns.tool_components == %{"a" => renderer}
+    end
+
+    test "explicit :tool_components wins over tuple-extracted components on key conflict" do
+      tool_a = Omni.Tool.new(name: "a", description: "test")
+      tuple_renderer = fn assigns -> assigns end
+      explicit_renderer = fn assigns -> assigns end
+
+      socket =
+        OmniUI.init_session(build_socket(),
+          model: {:anthropic, "claude-haiku-4-5"},
+          tools: [{tool_a, component: tuple_renderer}],
+          tool_components: %{"a" => explicit_renderer}
+        )
+
+      assert socket.assigns.tool_components == %{"a" => explicit_renderer}
+    end
+  end
+
+  describe "update_session/2 (no session attached)" do
+    defp init_socket do
+      OmniUI.init_session(build_socket(), model: {:anthropic, "claude-haiku-4-5"})
+    end
+
+    test "updates :model when ref resolves" do
+      socket = OmniUI.update_session(init_socket(), model: {:anthropic, "claude-sonnet-4-5"})
+
+      assert %Omni.Model{id: "claude-sonnet-4-5"} = socket.assigns.model
+    end
+
+    @tag :capture_log
+    test "ignores an unresolvable model ref and warns the user" do
+      socket = init_socket()
+      original_model = socket.assigns.model
+
+      socket = OmniUI.update_session(socket, model: {:nope, "nothing"})
+
+      assert socket.assigns.model == original_model
+      assert_received {OmniUI, :notify, %OmniUI.Notification{level: :warning}}
+    end
+
+    test "updates :thinking" do
+      socket = OmniUI.update_session(init_socket(), thinking: :high)
+
+      assert socket.assigns.thinking == :high
+    end
+
+    test "updates :system" do
+      socket = OmniUI.update_session(init_socket(), system: "be helpful")
+
+      assert socket.assigns.system == "be helpful"
+    end
+
+    test "updates :tools and :tool_components together" do
+      tool_a = Omni.Tool.new(name: "a", description: "test")
+      renderer = fn assigns -> assigns end
+
+      socket = OmniUI.update_session(init_socket(), tools: [{tool_a, component: renderer}])
+
+      assert socket.assigns.tools == [tool_a]
+      assert socket.assigns.tool_components == %{"a" => renderer}
+    end
+  end
+
+  describe "macro-injected handle_info — session-event filter" do
+    test "dispatches a session event when pid matches socket.assigns.session" do
+      socket = build_socket(%{session: self(), current_turn: nil, tree: nil})
+
+      assert {:noreply, %Socket{}} =
+               MinimalView.handle_info({:session, self(), :status, :idle}, socket)
+    end
+
+    test "drops a session event from a different pid" do
+      stale_pid = spawn(fn -> :ok end)
+      socket = build_socket(%{session: self(), title: "untouched"})
+
+      assert {:noreply, ^socket} =
+               MinimalView.handle_info({:session, stale_pid, :title, "tampered"}, socket)
+    end
+  end
+
+  describe "agent_event/3 return-value contract" do
+    test "MinimalView round-trips a session event cleanly" do
+      socket = build_socket(%{session: self(), current_turn: nil, tree: nil})
+
+      assert {:noreply, %Socket{}} =
+               MinimalView.handle_info({:session, self(), :status, :idle}, socket)
+    end
+
+    test "CustomAgentEventView round-trips a session event cleanly" do
+      socket = build_socket(%{session: self(), current_turn: nil, tree: nil})
+
+      assert {:noreply, %Socket{} = result} =
+               CustomAgentEventView.handle_info({:session, self(), :status, :idle}, socket)
+
+      assert result.assigns.last_agent_event == {:status, :idle}
+    end
+
+    test "raises if the developer's agent_event/3 returns a non-socket" do
+      socket = build_socket(%{session: self(), current_turn: nil, tree: nil})
+
+      assert_raise RuntimeError, ~r/agent_event\/3 must return a socket/, fn ->
+        BadAgentEventView.handle_info({:session, self(), :status, :idle}, socket)
+      end
     end
   end
 
