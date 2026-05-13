@@ -7,10 +7,6 @@ config :omni_ui_dev, OmniUIDevWeb.Endpoint,
   secret_key_base: "YEYVl1pLygKbsbrboNKMI1BKoRqcamuva8dA+ZmgwlTQa4772Qyu022WQzQpsC3v",
   server: false
 
-# Isolate the test sessions store from dev/prod data.
-config :omni_ui, OmniUI.Sessions,
-  store: {Omni.Session.Store.FileSystem, base_path: "tmp/test_sessions", otp_app: :omni_ui_dev}
-
 # Print only warnings and errors during test
 config :logger, level: :warning
 
@@ -24,3 +20,12 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# Configure Omni
+# Isolate the test sessions store from dev/prod data.
+sessions_dir = Path.expand("tmp/test_sessions")
+
+config :omni_ui, :sessions_base_dir, sessions_dir
+
+config :omni_ui, OmniUI.Sessions,
+  store: {Omni.Session.Store.FileSystem, base_dir: sessions_dir}

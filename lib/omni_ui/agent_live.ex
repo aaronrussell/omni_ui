@@ -148,7 +148,7 @@ defmodule OmniUI.AgentLive do
      |> init_session(
        agent_module: OmniUI.AgentLive.Agent,
        tool_components: %{
-         "artifacts" => &OmniUI.Artifacts.ChatUI.tool_use/1,
+         "files" => &OmniUI.Artifacts.ChatUI.tool_use/1,
          "repl" => &OmniUI.REPL.ChatUI.tool_use/1
        },
        model: @default_model,
@@ -211,7 +211,7 @@ defmodule OmniUI.AgentLive do
   end
 
   @impl OmniUI
-  def agent_event(:tool_result, %{name: name}, socket) when name in ["artifacts", "repl"] do
+  def agent_event(:tool_result, %{name: name}, socket) when name in ["files", "repl"] do
     send_update(Artifacts.PanelComponent, id: "artifacts-panel", action: :rescan)
     socket
   end

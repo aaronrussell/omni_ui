@@ -1,8 +1,8 @@
 defmodule OmniUI.Artifacts.PanelUI do
   use Phoenix.Component
-  alias OmniUI.Artifacts.Artifact
+  alias Omni.Tools.Files.Entry
 
-  attr :artifact, Artifact, default: nil
+  attr :artifact, Entry, default: nil
   attr :view_source, :boolean, default: false
   attr :token, :string, required: true
   attr :target, :any, default: nil
@@ -126,7 +126,7 @@ defmodule OmniUI.Artifacts.PanelUI do
               <span class="font-medium">{filename}</span>
             </div>
             <div>{format_bytes(artifact.size)}</div>
-            <div>{Calendar.strftime(artifact.updated_at, "%d %b %Y, %I:%M%P")}</div>
+            <div>{Calendar.strftime(artifact.mtime, "%d %b %Y, %I:%M%P")}</div>
           </div>
         </div>
       <% end %>
@@ -138,7 +138,7 @@ defmodule OmniUI.Artifacts.PanelUI do
     ~H"""
     <iframe
       src={artifact_url(@token, @artifact.filename)}
-      sandbox={if(@artifact.mime_type == "text/html", do: "allow-scripts")}
+      sandbox={if(@artifact.media_type == "text/html", do: "allow-scripts")}
       class="size-full border-0" />
     """
   end
@@ -200,7 +200,7 @@ defmodule OmniUI.Artifacts.PanelUI do
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
   defp format_bytes(bytes), do: "#{Float.round(bytes / 1024, 1)} KB"
 
-  defp toggleable?(%Artifact{mime_type: mime_type})
+  defp toggleable?(%Entry{media_type: mime_type})
        when mime_type in ["text/html", "text/markdown", "image/svg+xml"],
        do: true
 
@@ -212,6 +212,6 @@ defmodule OmniUI.Artifacts.PanelUI do
 
   defp url_prefix do
     Application.get_env(:omni_ui, OmniUI.Artifacts, [])
-    |> Keyword.get(:url_prefix, "/omni_artifacts")
+    |> Keyword.get(:url_prefix, "/omni_files")
   end
 end

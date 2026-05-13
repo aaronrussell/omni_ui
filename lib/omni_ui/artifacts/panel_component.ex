@@ -39,7 +39,8 @@ defmodule OmniUI.Artifacts.PanelComponent do
   import OmniUI.Artifacts.PanelUI
   import OmniUI.Helpers, only: [highlight_code: 2, md_styles: 0, to_md: 1]
 
-  alias OmniUI.Artifacts.{FileSystem, URL}
+  alias Omni.Tools.Files.FS
+  alias OmniUI.Artifacts.URL
 
   @iframe_mime_types ~w(
     text/html application/pdf
@@ -188,7 +189,7 @@ defmodule OmniUI.Artifacts.PanelComponent do
     view =
       case socket.assigns.view_source do
         true -> :source
-        _ -> view_mode(artifact.mime_type)
+        _ -> view_mode(artifact.media_type)
       end
 
     assign(socket,
@@ -212,19 +213,25 @@ defmodule OmniUI.Artifacts.PanelComponent do
   end
 
   defp load_content(:markdown, artifact, session_id) do
-    {:ok, data} = FileSystem.read(artifact.filename, session_id: session_id)
+    {:ok, data} = FS.read(session_fs(session_id), artifact.filename)
     to_md(data)
   end
 
   defp load_content(:source, artifact, session_id) do
-    {:ok, code} = FileSystem.read(artifact.filename, session_id: session_id)
+    {:ok, code} = FS.read(session_fs(session_id), artifact.filename)
     highlight_code(code, artifact.filename)
   end
 
   defp load_content(_view, _artifact, _session_id), do: nil
 
   defp scan_artifacts(session_id) do
-    {:ok, artifacts} = FileSystem.list(session_id: session_id)
-    Map.new(artifacts, &{&1.filename, &1})
+    {:ok, entries} = FS.list(session_fs(session_id))
+    Map.new(entries, &{&1.filename, &1})
+  end
+
+  defp session_fs(nil), do: nil
+
+  defp session_fs(session_id) do
+    FS.new(base_dir: OmniUI.Sessions.session_files_dir(session_id), nested: false)
   end
 end

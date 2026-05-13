@@ -4,7 +4,7 @@ defmodule OmniUI.Artifacts.Plug do
 
   Mount in your router with `forward`:
 
-      forward "/omni_artifacts", OmniUI.Artifacts.Plug
+      forward "/omni_files", OmniUI.Artifacts.Plug
 
   Artifact URLs use signed tokens that encode the session ID, so only the
   LiveView that created the token can authorize access to a session's artifacts.
@@ -12,19 +12,18 @@ defmodule OmniUI.Artifacts.Plug do
 
   ## URL format
 
-      GET /omni_artifacts/{token}/{filename}
+      GET /omni_files/{token}/{filename}
 
   ## Options
 
     * `:max_age` — maximum token age in seconds (default: 86400 = 24 hours)
-    * `:base_path` — override the artifacts base path (default: app config)
   """
 
   @behaviour Plug
 
   import Plug.Conn
 
-  alias OmniUI.Artifacts.FileSystem
+  alias Omni.Tools.Files.FS
   alias OmniUI.Artifacts.URL
 
   @default_max_age 86_400
@@ -32,22 +31,18 @@ defmodule OmniUI.Artifacts.Plug do
   @impl Plug
   def init(opts) do
     %{
-      max_age: Keyword.get(opts, :max_age, @default_max_age),
-      base_path: Keyword.get(opts, :base_path)
+      max_age: Keyword.get(opts, :max_age, @default_max_age)
     }
   end
 
   @impl Plug
-  def call(%Plug.Conn{path_info: [token, raw_filename]} = conn, %{max_age: max_age} = opts) do
+  def call(%Plug.Conn{path_info: [token, raw_filename]} = conn, %{max_age: max_age}) do
     endpoint = conn.private[:phoenix_endpoint]
     filename = URI.decode(raw_filename)
 
-    fs_opts = if opts[:base_path], do: [base_path: opts.base_path], else: []
-
     with {:ok, session_id} <- URL.verify_token(endpoint, token, max_age: max_age),
-         dir = FileSystem.artifacts_dir([session_id: session_id] ++ fs_opts),
-         path = Path.join(dir, filename),
-         :ok <- verify_containment(path, dir),
+         fs = FS.new(base_dir: OmniUI.Sessions.session_files_dir(session_id), nested: false),
+         {:ok, path} <- FS.resolve(fs, filename),
          true <- File.regular?(path) do
       content_type = MIME.from_path(filename)
 
@@ -58,8 +53,14 @@ defmodule OmniUI.Artifacts.Plug do
       |> put_resp_header("cache-control", "no-store")
       |> send_file(200, path)
     else
-      {:error, _reason} -> send_resp(conn, 401, "Unauthorized")
-      false -> send_resp(conn, 404, "Not Found")
+      {:error, reason} when reason in [:invalid, :expired] ->
+        send_resp(conn, 401, "Unauthorized")
+
+      {:error, _reason} ->
+        send_resp(conn, 404, "Not Found")
+
+      false ->
+        send_resp(conn, 404, "Not Found")
     end
   end
 
@@ -72,15 +73,6 @@ defmodule OmniUI.Artifacts.Plug do
 
   def call(conn, _opts) do
     send_resp(conn, 400, "Bad Request")
-  end
-
-  # Verifies the resolved path is inside the artifacts directory.
-  # Prevents directory traversal via filenames like "../../etc/passwd".
-  defp verify_containment(path, dir) do
-    expanded = Path.expand(path)
-    safe_dir = Path.expand(dir) <> "/"
-
-    if String.starts_with?(expanded, safe_dir), do: :ok, else: false
   end
 
   # Sandboxed iframes have origin "null", so artifact sub-resources (fetch, img,

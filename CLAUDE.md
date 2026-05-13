@@ -13,7 +13,7 @@ want:
 
 ```
 OmniUI.AgentLive       — mountable LiveView. Header, sessions drawer,
-                         artifacts panel, REPL+Artifacts tools, chat.
+                         files panel, Files+REPL+WebFetch tools, chat.
        │
 use OmniUI             — macro. Adds session streaming, state, and
                          event handling to any LiveView.
@@ -94,6 +94,9 @@ mix format                      # Auto-format
   OpenRouter, OpenCode, Ollama).
 - **`omni_agent`** — `Omni.Agent`, `Omni.Session`, `Omni.Session.Manager`,
   `Omni.Session.Store`. Path dep at `../omni_agent` during development.
+- **`omni_tools`** — `Omni.Tools.Files`, `Omni.Tools.Repl`,
+  `Omni.Tools.WebFetch`. AgentLive's default agent wires these in.
+  Path dep at `../omni_tools` during development.
 - **`phoenix_live_view`** — real-time UI.
 - **Tailwind 4** — styling via OKLCH semantic tokens defined in
   `priv/static/omni_ui.css`.

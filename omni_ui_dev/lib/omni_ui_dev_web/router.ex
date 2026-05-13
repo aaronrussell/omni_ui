@@ -19,7 +19,7 @@ defmodule OmniUIDevWeb.Router do
     live "/", OmniUI.AgentLive
   end
 
-  forward "/omni_artifacts", OmniUI.Artifacts.Plug
+  forward "/omni_files", OmniUI.Artifacts.Plug
 
   # Other scopes may use custom stacks.
   # scope "/api", OmniUIDevWeb do

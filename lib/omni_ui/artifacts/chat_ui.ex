@@ -4,10 +4,11 @@ defmodule OmniUI.Artifacts.ChatUI do
   activity.
 
   The entry point is `tool_use/1`, designed to be registered as a custom
-  tool-use component for the artifacts tool:
+  tool-use component for the files tool:
 
-      {OmniUI.Artifacts.Tool.new(session_id: session_id),
-       component: &OmniUI.Artifacts.ChatUI.tool_use/1}
+      tool_components: %{
+        "files" => &OmniUI.Artifacts.ChatUI.tool_use/1
+      }
 
   It wraps `OmniUI.Components.tool_use/1` — the default tool-use renderer —
   and slots command-specific content into its `:aside` slot. This keeps the
@@ -20,8 +21,8 @@ defmodule OmniUI.Artifacts.ChatUI do
 
     * **`write` / `patch`** — a button labelled with the filename that
       dispatches a `open_artifact` event, opening the artifact in the panel.
-    * **`get` / `delete`** — a short status label referencing the filename.
-    * **`list`** — a "Listed artifacts" label.
+    * **`read` / `delete`** — a short status label referencing the filename.
+    * **`list`** — a "Listed files" label.
   """
 
   use Phoenix.Component
@@ -45,7 +46,7 @@ defmodule OmniUI.Artifacts.ChatUI do
       <:aside :if={@tool_result}>
         <.aside
           command={@tool_use.input["command"]}
-          filename={@tool_use.input["filename"]} />
+          filename={@tool_use.input["id"]} />
       </:aside>
     </Components.tool_use>
     """
@@ -77,7 +78,7 @@ defmodule OmniUI.Artifacts.ChatUI do
     """
   end
 
-  defp aside(%{command: "get"} = assigns) do
+  defp aside(%{command: "read"} = assigns) do
     ~H"""
     <div class="text-xs text-omni-text-4">
       Read

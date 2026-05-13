@@ -4,17 +4,28 @@ defmodule OmniUI.Artifacts.PlugTest.Endpoint do
 end
 
 defmodule OmniUI.Artifacts.PlugTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   import Plug.Conn
 
-  alias OmniUI.Artifacts.{FileSystem, URL}
+  alias Omni.Tools.Files.FS
+  alias OmniUI.Artifacts.URL
   alias OmniUI.Artifacts.Plug, as: ArtifactPlug
   alias OmniUI.Artifacts.PlugTest.Endpoint
 
   @moduletag :tmp_dir
+  @session_id "test-session"
 
-  defp opts(%{tmp_dir: tmp_dir}), do: [session_id: "test-session", base_path: tmp_dir]
+  setup %{tmp_dir: tmp_dir} do
+    Application.put_env(:omni_ui, :sessions_base_dir, tmp_dir)
+    on_exit(fn -> Application.delete_env(:omni_ui, :sessions_base_dir) end)
+
+    files_dir = OmniUI.Sessions.session_files_dir(@session_id)
+    File.mkdir_p!(files_dir)
+    fs = FS.new(base_dir: files_dir, nested: false)
+
+    %{fs: fs}
+  end
 
   defp sign(session_id), do: URL.sign_token(Endpoint, session_id)
 
@@ -23,24 +34,17 @@ defmodule OmniUI.Artifacts.PlugTest do
     |> put_private(:phoenix_endpoint, Endpoint)
   end
 
-  defp call_plug(conn, plug_opts \\ [], ctx \\ %{})
-
-  defp call_plug(conn, plug_opts, %{tmp_dir: tmp_dir}) do
-    opts = ArtifactPlug.init([base_path: tmp_dir] ++ plug_opts)
-    ArtifactPlug.call(conn, opts)
-  end
-
-  defp call_plug(conn, plug_opts, _ctx) do
+  defp call_plug(conn, plug_opts \\ []) do
     opts = ArtifactPlug.init(plug_opts)
     ArtifactPlug.call(conn, opts)
   end
 
   describe "successful serving" do
-    test "serves HTML file with correct headers", ctx do
-      FileSystem.write("page.html", "<h1>Hello</h1>", opts(ctx))
-      token = sign("test-session")
+    test "serves HTML file with correct headers", %{fs: fs} do
+      FS.write(fs, "page.html", "<h1>Hello</h1>")
+      token = sign(@session_id)
 
-      conn = build_conn(token, "page.html") |> call_plug([], ctx)
+      conn = build_conn(token, "page.html") |> call_plug()
 
       assert conn.status == 200
       assert conn.resp_body == "<h1>Hello</h1>"
@@ -49,11 +53,11 @@ defmodule OmniUI.Artifacts.PlugTest do
       assert get_resp_header(conn, "cache-control") == ["no-store"]
     end
 
-    test "serves JSON file as inline", ctx do
-      FileSystem.write("data.json", ~s({"key": "value"}), opts(ctx))
-      token = sign("test-session")
+    test "serves JSON file as inline", %{fs: fs} do
+      FS.write(fs, "data.json", ~s({"key": "value"}))
+      token = sign(@session_id)
 
-      conn = build_conn(token, "data.json") |> call_plug([], ctx)
+      conn = build_conn(token, "data.json") |> call_plug()
 
       assert conn.status == 200
       assert conn.resp_body == ~s({"key": "value"})
@@ -61,22 +65,22 @@ defmodule OmniUI.Artifacts.PlugTest do
       assert get_resp_header(conn, "content-disposition") == ["inline"]
     end
 
-    test "serves image file as inline", ctx do
-      FileSystem.write("photo.png", "fake-png-data", opts(ctx))
-      token = sign("test-session")
+    test "serves image file as inline", %{fs: fs} do
+      FS.write(fs, "photo.png", "fake-png-data")
+      token = sign(@session_id)
 
-      conn = build_conn(token, "photo.png") |> call_plug([], ctx)
+      conn = build_conn(token, "photo.png") |> call_plug()
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-type") == ["image/png"]
       assert get_resp_header(conn, "content-disposition") == ["inline"]
     end
 
-    test "serves binary file as attachment", ctx do
-      FileSystem.write("report.xlsx", "fake-xlsx-data", opts(ctx))
-      token = sign("test-session")
+    test "serves binary file as attachment", %{fs: fs} do
+      FS.write(fs, "report.xlsx", "fake-xlsx-data")
+      token = sign(@session_id)
 
-      conn = build_conn(token, "report.xlsx") |> call_plug([], ctx)
+      conn = build_conn(token, "report.xlsx") |> call_plug()
 
       assert conn.status == 200
 
@@ -85,12 +89,11 @@ defmodule OmniUI.Artifacts.PlugTest do
              ]
     end
 
-    test "serves file whose name needs URI encoding", ctx do
-      FileSystem.write("my app.html", "<p>spaced</p>", opts(ctx))
-      token = sign("test-session")
+    test "serves file whose name needs URI encoding", %{fs: fs} do
+      FS.write(fs, "my app.html", "<p>spaced</p>")
+      token = sign(@session_id)
 
-      # path_info preserves percent-encoding; the Plug must decode it
-      conn = build_conn(token, "my%20app.html") |> call_plug([], ctx)
+      conn = build_conn(token, "my%20app.html") |> call_plug()
 
       assert conn.status == 200
       assert conn.resp_body == "<p>spaced</p>"
@@ -104,30 +107,30 @@ defmodule OmniUI.Artifacts.PlugTest do
   end
 
   describe "missing file" do
-    test "returns 404", ctx do
-      FileSystem.write("exists.txt", "hi", opts(ctx))
-      token = sign("test-session")
+    test "returns 404", %{fs: fs} do
+      FS.write(fs, "exists.txt", "hi")
+      token = sign(@session_id)
 
-      conn = build_conn(token, "nope.txt") |> call_plug([], ctx)
+      conn = build_conn(token, "nope.txt") |> call_plug()
 
       assert conn.status == 404
     end
   end
 
   describe "authentication" do
-    test "returns 401 for invalid token", ctx do
-      FileSystem.write("page.html", "<h1>Hello</h1>", opts(ctx))
+    test "returns 401 for invalid token", %{fs: fs} do
+      FS.write(fs, "page.html", "<h1>Hello</h1>")
 
-      conn = build_conn("garbage-token", "page.html") |> call_plug([], ctx)
+      conn = build_conn("garbage-token", "page.html") |> call_plug()
 
       assert conn.status == 401
     end
 
-    test "returns 401 for expired token", ctx do
-      FileSystem.write("page.html", "<h1>Hello</h1>", opts(ctx))
-      token = Phoenix.Token.sign(Endpoint, "omni_ui:artifact", "test-session", signed_at: 0)
+    test "returns 401 for expired token", %{fs: fs} do
+      FS.write(fs, "page.html", "<h1>Hello</h1>")
+      token = Phoenix.Token.sign(Endpoint, "omni_ui:artifact", @session_id, signed_at: 0)
 
-      conn = build_conn(token, "page.html") |> call_plug([max_age: 1], ctx)
+      conn = build_conn(token, "page.html") |> call_plug(max_age: 1)
 
       assert conn.status == 401
     end
@@ -163,17 +166,15 @@ defmodule OmniUI.Artifacts.PlugTest do
   end
 
   describe "path traversal" do
-    test "returns 404 for traversal attempt", ctx do
-      FileSystem.write("safe.txt", "content", opts(ctx))
-      token = sign("test-session")
+    test "returns 404 for traversal attempt", %{fs: fs} do
+      FS.write(fs, "safe.txt", "content")
+      token = sign(@session_id)
 
-      # Simulate a decoded traversal filename as a real server would deliver
-      # (Plug.Test.conn splits on "/" so we set path_info directly)
       conn =
         Plug.Test.conn(:get, "/")
         |> put_private(:phoenix_endpoint, Endpoint)
         |> Map.put(:path_info, [token, "../../etc/passwd"])
-        |> call_plug([], ctx)
+        |> call_plug()
 
       assert conn.status == 404
     end

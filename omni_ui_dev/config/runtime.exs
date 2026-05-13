@@ -82,4 +82,12 @@ if config_env() == :prod do
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
+
+  # Configure Omni
+  sessions_dir = System.get_env("SESSIONS_DIR", "/var/data/sessions")
+
+  config :omni_ui, :sessions_base_dir, sessions_dir
+
+  config :omni_ui, OmniUI.Sessions,
+    store: {Omni.Session.Store.FileSystem, base_dir: sessions_dir}
 end

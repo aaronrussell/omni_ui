@@ -18,13 +18,14 @@ interfaces on top of [`omni_agent`](https://github.com/aaronrussell/omni_agent).
 It does not own conversation state — `Omni.Session` does. OmniUI's job
 is to render a session, route UI events into session operations, and
 provide a small library of shipped tools that live well inside the
-chat UI (artifacts and an Elixir REPL).
+chat UI (files, an Elixir REPL, and web fetching — powered by
+`omni_tools`).
 
 The package is layered. Each layer is independently consumable:
 
 ```
 OmniUI.AgentLive       — mountable LiveView. Wires header, sessions
-                         drawer, artifacts panel, REPL+Artifacts
+                         drawer, files panel, Files+REPL+WebFetch
                          tools, and the chat interface.
        │
 use OmniUI             — macro. Adds session-streaming plumbing,
@@ -54,6 +55,11 @@ set_agent}`.
 
 `omni_ui` depends on:
 
+- **`omni_tools`** — ready-to-use agent tools. `Omni.Tools.Files`
+  (file CRUD), `Omni.Tools.Repl` (sandboxed Elixir execution),
+  `Omni.Tools.WebFetch` (URL fetching). `AgentLive.Agent` configures
+  and wires these at agent init time. OmniUI does not implement its
+  own tools.
 - **`omni`** — stateless LLM client. Provides `Omni.Model`,
   `Omni.Message`, `Omni.Content.{Text, Thinking, ToolUse, ToolResult,
   Attachment}`, `Omni.Tool`, `Omni.Usage`, and the `generate_text`
@@ -71,7 +77,8 @@ set_agent}`.
   - `Omni.Session.Snapshot` and `Omni.Agent.Snapshot` — applied to
     socket assigns on attach (`apply_snapshot/4` in `OmniUI`).
   - `Omni.Session.Store.FileSystem` — referenced by config (consumers
-    pass it to `OmniUI.Sessions`); not used directly by OmniUI.
+    pass it to `OmniUI.Sessions`); uses `:base_dir` for the absolute
+    storage path.
 
 **What lives where.** Persistence, idle shutdown, branching mechanics,
 and tool execution are all `omni_agent` concerns. OmniUI does not
@@ -753,11 +760,13 @@ end
 Consumers add it to their supervision tree with a configured store:
 
 ```elixir
-# config/config.exs
+# config/dev.exs
+sessions_dir = Path.expand("priv/omni/sessions")
+
+config :omni_ui, :sessions_base_dir, sessions_dir
+
 config :omni_ui, OmniUI.Sessions,
-  store:
-    {Omni.Session.Store.FileSystem,
-     base_path: "priv/omni/sessions", otp_app: :my_app}
+  store: {Omni.Session.Store.FileSystem, base_dir: sessions_dir}
 
 # application.ex
 children = [OmniUI.Sessions, ...]
@@ -938,79 +947,64 @@ Each level has a distinct border color and Lucide icon: info
 
 ---
 
-## 13. Artifacts
+## 13. Files (formerly Artifacts)
 
 Files created by the agent, persisted in the session, viewable and
 downloadable from a panel. Session-scoped. Not branch-aware —
-navigating conversation branches does not rewind artifact state.
+navigating conversation branches does not rewind file state.
 This is deliberate; replaying tool calls along the active path to
-reconstruct artifact state is too complex for the value.
+reconstruct file state is too complex for the value.
 
-### 13.1 Data model
+### 13.1 Tools — `omni_tools`
 
-```elixir
-%OmniUI.Artifacts.Artifact{
-  filename: String.t(),
-  mime_type: String.t(),               # derived from extension
-  size: non_neg_integer(),
-  updated_at: DateTime.t()
-}
-```
+The file, REPL, and web-fetch tools come from the `omni_tools`
+package. OmniUI does not implement its own tools — it configures and
+wires the `omni_tools` implementations at agent init time.
 
-Content lives on disk. Metadata is cached in assigns and recovered
-by scanning the artifacts directory — no separate metadata
-persistence.
+`OmniUI.AgentLive.Agent.init/1` reads
+`state.private.omni.session_id`, derives the files directory via
+`OmniUI.Sessions.session_files_dir/1`, and appends three tools:
+
+- `Omni.Tools.Files.new(base_dir: files_dir, nested: false)` — flat
+  file CRUD scoped to the session's files directory.
+- `Omni.Tools.Repl.new(extensions: [{Omni.Tools.Repl.Extensions.Files, fs: fs}])`
+  — sandboxed Elixir execution with the Files extension injected so
+  sandbox code can read/write files directly.
+- `Omni.Tools.WebFetch.new()` — URL fetching with HTML-to-markdown.
 
 ### 13.2 Filesystem layout
 
-`{base_path}/{session_id}/artifacts/{filename}`
+`{sessions_base_dir}/{session_id}/files/{filename}`
 
-The base path defaults to `priv/omni/sessions` (matching the
-default `Omni.Session.Store.FileSystem` path), overridable via
-`config :omni_ui, OmniUI.Artifacts, base_path: "..."`. Co-locating
-artifacts with session data means session deletion (via the
+The base dir is configured via `config :omni_ui, :sessions_base_dir`.
+`OmniUI.Sessions` exposes `session_dir/1` and `session_files_dir/1`
+helpers that derive paths from this config.
+
+Co-locating files with session data means session deletion (via the
 Manager's `delete/1` → `Store.FileSystem` `File.rm_rf`) naturally
-cleans up artifacts.
+cleans up files.
 
-`OmniUI.Artifacts.FileSystem` exposes `write/3`, `read/2`,
-`patch/4`, `list/1`, `delete/2`, plus `artifacts_dir/1` and
-`base_path/1` helpers. `validate_filename/1` rejects path
-separators, `..`, leading dots, and null bytes.
+The `Omni.Tools.Files.FS` module (from `omni_tools`) handles all
+filesystem operations. The `PanelComponent` and `Plug` construct
+`FS` structs via `session_files_dir/1` — no OmniUI-specific
+filesystem module exists.
 
-### 13.3 `OmniUI.Artifacts.Tool`
+### 13.3 HTTP serving — `Artifacts.Plug`
 
-A single Omni tool with a `command` discriminator: `write`, `patch`,
-`get`, `list`, `delete`. Stateful: `init/1` requires `:session_id`;
-`call/2` delegates to `OmniUI.Artifacts.FileSystem` with the
-session id baked in.
-
-`patch` is a targeted single-occurrence find-replace — more
-token-efficient than full `write` for small edits. The tool
-description tells the model to prefer `patch` when most of the file
-isn't changing.
-
-The session id reaches the tool via `OmniUI.AgentLive.Agent.init/1`
-(in `lib/omni_ui/agent_live/agent.ex`), which reads
-`state.private.omni.session_id` (set by `Omni.Session` before agent
-init) and appends `Tool.new(session_id: session_id)` to the tools
-list.
-
-### 13.4 HTTP serving — `Artifacts.Plug`
-
-Sandboxed iframes (the default for HTML artifact preview) need a real
-URL to hit, not `srcdoc`, so cross-artifact relative paths work
-(an HTML artifact can `fetch('./data.json')`) and binaries can be
+Sandboxed iframes (the default for HTML file preview) need a real
+URL to hit, not `srcdoc`, so cross-file relative paths work
+(an HTML file can `fetch('./data.json')`) and binaries can be
 downloaded.
 
 ```elixir
-forward "/omni_artifacts", OmniUI.Artifacts.Plug
+forward "/omni_files", OmniUI.Artifacts.Plug
 ```
 
 URL format: `/{prefix}/{token}/{filename}`. The token is a
 `Phoenix.Token.sign(endpoint, salt, session_id)` — encodes the
-session id, expires after 24h by default. The plug verifies, checks
-path containment (`Path.expand` starts with the artifacts dir +
-trailing slash), and `send_file`s.
+session id, expires after 24h by default. The plug verifies the
+token, resolves the path via `FS.resolve/2` (which validates against
+traversal, null bytes, etc.), and `send_file`s.
 
 Mount must be **outside** the `:browser` pipeline. CSRF protection
 and `x-frame-options` break sandboxed iframes. CORS headers are set
@@ -1020,20 +1014,21 @@ sub-resource fetches (e.g. JSON loaded by HTML) need them.
 `attachment` for everything else.
 
 `OmniUI.Artifacts.URL` is the signing/URL-construction helper —
-`sign_token/2`, `verify_token/3`, `artifact_url/3`. URL prefix is
-configurable: `config :omni_ui, OmniUI.Artifacts, url_prefix:
-"/your_prefix"`.
+`sign_token/2`, `verify_token/3`, `artifact_url/3`. URL prefix
+defaults to `"/omni_files"`, configurable via
+`config :omni_ui, OmniUI.Artifacts, url_prefix: "/your_prefix"`.
 
-### 13.5 `Artifacts.PanelComponent`
+### 13.4 `Artifacts.PanelComponent`
 
 A self-contained LiveComponent receiving only `session_id` from the
-parent. Owns all artifact state (`:artifacts`, `:active_artifact`,
-`:content`, `:token`, `:view`, `:view_source`, `:error`).
+parent. Owns all file state (`:artifacts`, `:active_artifact`,
+`:content`, `:token`, `:view`, `:view_source`, `:error`). Uses
+`Omni.Tools.Files.FS` for scanning and reading files.
 
 Two view modes:
 
-- **Index** — list of artifacts, click to open.
-- **Detail** — a single artifact rendered per its MIME type.
+- **Index** — list of files, click to open.
+- **Detail** — a single file rendered per its media type.
 
 Detail render modes:
 
@@ -1046,17 +1041,17 @@ Detail render modes:
   `Lumis.highlight!` syntax highlighting.
 - `:download` — everything else, "Download" link.
 
-HTML, Markdown, and SVG artifacts support a Preview/Code toggle
+HTML, Markdown, and SVG files support a Preview/Code toggle
 (`view_source` boolean overrides the default).
 
 Communication from parent: `send_update(PanelComponent, action: ...)`
 — `:rescan` (called from `AgentLive.agent_event(:tool_result, ...)`)
 or `{:view, filename}` (called when the user clicks an inline
-artifact button in the chat). AgentLive holds zero artifact assigns.
+file button in the chat). AgentLive holds zero file assigns.
 
-### 13.6 Inline chat component — `Artifacts.ChatUI`
+### 13.5 Inline chat component — `Artifacts.ChatUI`
 
-`tool_use/1` registered as the artifacts tool's custom renderer. It
+`tool_use/1` registered as the files tool's custom renderer. It
 *wraps* `Components.tool_use/1` (the default expandable) and slots
 command-specific content into the `:aside` slot — the default icon,
 toggle, and raw input/output remain. The aside renders only after the
@@ -1065,100 +1060,34 @@ tool produces a result:
 - `write` / `patch` — clickable filename button → `open_artifact`
   event → `AgentLive.handle_event` → `send_update(PanelComponent,
   action: {:view, filename})`.
-- `get` / `delete` / `list` — short status label.
+- `read` / `delete` / `list` — short status label.
 
 ---
 
-## 14. REPL / code sandbox
+## 14. REPL and WebFetch
 
-A per-execution Elixir sandbox using `:peer` nodes. The agent sends
-code; the sandbox evaluates it, captures stdout and the return
-value, and returns both.
+The REPL and WebFetch tools come from `omni_tools`. OmniUI
+configures them in `AgentLive.Agent.init/1` and provides a custom
+chat renderer for the REPL.
 
-### 14.1 Execution model
+### 14.1 REPL configuration
 
-`OmniUI.REPL.Sandbox.run(code, opts)`:
+`Omni.Tools.Repl` evaluates Elixir code in isolated peer nodes.
+Each invocation is a clean slate. The agent wires it with the
+`Omni.Tools.Repl.Extensions.Files` extension, which injects a
+`Files` module into the sandbox peer so code can read/write session
+files directly without a separate tool-use round-trip.
 
-1. Ensures distribution is up (`ensure_distributed!/0`, see § 14.4).
-2. Starts a fresh peer node via `:peer.start/1`.
-3. Injects host code paths (`:code.add_pathsa, [:code.get_path()]`)
-   and starts Elixir on the peer. Sets log level to `:warning` to
-   suppress OTP shutdown notices.
-4. Opens a host-side `StringIO` and routes the peer's eval-process
-   group leader to it.
-5. Calls `:erpc.call(peer, fn -> ... end, timeout)` to evaluate the
-   code (after running any `setup` AST/strings for extension code).
-6. On return / timeout / `:noconnection`, reads the StringIO buffer,
-   stops the peer.
+The extension receives the same `%Omni.Tools.Files.FS{}` struct
+used by the Files tool, ensuring both operate on the same directory.
 
-Each invocation is a clean slate — no state carries across calls,
-and `Mix.install/1` (which can only run once per VM) works because
-each peer is a fresh VM.
+For execution model details (peer nodes, IO capture, timeouts,
+distribution boot), see the `omni_tools` documentation.
 
-Defaults: `:timeout = 60_000ms`, `:max_output = 50_000B` (truncated
-with a "...truncated" note on overflow).
-
-### 14.2 IO capture
-
-StringIO lives on the host node, set as group leader for the peer's
-eval process. Erlang distribution routes IO messages cross-node
-transparently. Host-local StringIO means partial output is always
-readable on timeout or peer crash — the host doesn't have to
-`erpc` into a possibly-stuck peer to retrieve output.
-
-### 14.3 `OmniUI.REPL.Tool`
-
-Schema requires `title` (active-form description, e.g. "Calculating
-average score") and `code` (Elixir string). `description/1` is
-dynamic — the dev branch mentions `Mix.install/1`, the release
-branch only documents host deps. Extension descriptions are
-appended automatically.
-
-`init/1` accepts `:timeout`, `:max_output`, `:extensions`,
-`:extra_description`. Extensions are normalised at construction
-time.
-
-### 14.4 Distribution boot quirk
-
-`ensure_distributed!/0` must be called eagerly at app boot, *before*
-`Phoenix.Endpoint` starts, otherwise the first REPL invocation flips
-the VM into distributed mode mid-request. Any PIDs already encoded
-into `Phoenix.Token`s (notably LongPoll session_refs) become
-"remote" and crash `is_process_alive/1`.
-
-The dev app calls it from `application.ex` as a workaround. A
-`Sandbox.Boot` child spec or supervision-tree entry would be more
-discoverable / less-bypassable for downstream consumers — see
-roadmap.
-
-`ensure_distributed!/0` itself ensures EPMD is running (cold-starting
-a Phoenix dev VM without `--sname`/`--name` doesn't have it up) by
-shelling out to `epmd -daemon` if `:erl_epmd.names/0` returns an
-error.
-
-### 14.5 `SandboxExtension` behaviour
-
-```elixir
-@callback code(opts) :: setup_code()       # AST or string
-@callback description(opts) :: String.t()
-```
-
-The `code/1` return is evaluated in the peer before user code (and
-before IO capture). The `description/1` return is appended to the
-tool description so the agent knows what extension APIs exist.
-
-`OmniUI.Artifacts.REPLExtension` is the shipped reference: injects
-an `Artifacts` module into the peer with `write/2`, `read/1`,
-`patch/3`, `list/0`, `delete/1`, all delegating to
-`OmniUI.Artifacts.FileSystem` with `[session_id: ..., base_path:
-...]` opts baked into a `@opts` attribute on the injected module.
-The base path is resolved at tool construction time and passed in,
-so the peer doesn't need access to host app config.
-
-### 14.6 Inline chat component — `REPL.ChatUI`
+### 14.2 Inline chat component — `REPL.ChatUI`
 
 `tool_use/1` *replaces* the default renderer entirely (unlike
-Artifacts which wraps it):
+the files ChatUI which wraps it):
 
 - Terminal icon instead of cog.
 - Toggle shows the agent-provided `title` field instead of the
@@ -1167,11 +1096,11 @@ Artifacts which wraps it):
   input field) instead of raw JSON params.
 - Tool result formatted as JSON via `format_tool_result/1`.
 
-### 14.7 Security
+### 14.3 WebFetch
 
-Personal-use only. Peer crash isolation and a configurable timeout,
-but no filesystem jailing, resource limits, or network restrictions.
-The tool runs arbitrary code with full system access.
+`Omni.Tools.WebFetch` fetches URLs and converts HTML to markdown.
+No custom ChatUI — uses the default tool-use renderer. No
+OmniUI-specific configuration.
 
 ---
 
@@ -1211,13 +1140,13 @@ lib/
   omni_ui/
     agent_live.ex                  # mountable LiveView (Layer 3)
     agent_live/
-      agent.ex                     # custom Omni.Agent module: bakes in Artifacts + REPL
+      agent.ex                     # custom Omni.Agent: wires Files, Repl, WebFetch
     components.ex                  # Layer 1 function components
     editor_component.ex            # textarea + uploads (LiveComponent)
     handlers.ex                    # private — event/info/session-event dispatch
     helpers.ex                     # cls, format_*, time_ago, md_styles, to_md, etc.
     notification.ex                # %Notification{}
-    sessions.ex                    # OmniUI.Sessions — default Manager
+    sessions.ex                    # OmniUI.Sessions — default Manager + dir helpers
     sessions_component.ex          # drawer (LiveComponent)
     title.ex                       # title generation (heuristic + model)
     title_service.ex               # singleton GenServer: auto-title untitled sessions
@@ -1225,20 +1154,13 @@ lib/
     turn.ex                        # %OmniUI.Turn{} + Turn.all/1, Turn.get/2, Turn.new/3
     turn_component.ex              # rendering one turn (LiveComponent)
     artifacts/
-      artifact.ex                  # %Artifact{} struct
-      chat_ui.ex                   # inline tool-use renderer
-      file_system.ex               # filesystem ops
+      chat_ui.ex                   # inline tool-use renderer (files tool)
       panel_component.ex           # right-sidebar panel (LiveComponent)
       panel_ui.ex                  # function components for the panel
       plug.ex                      # signed-token HTTP serving
-      repl_extension.ex            # injects Artifacts module into the REPL peer
-      tool.ex                      # %Omni.Tool{} for write/patch/get/list/delete
       url.ex                       # token signing + URL construction
     repl/
-      chat_ui.ex                   # inline tool-use renderer
-      sandbox.ex                   # peer node execution
-      sandbox_extension.ex         # behaviour
-      tool.ex                      # %Omni.Tool{} for code execution
+      chat_ui.ex                   # inline tool-use renderer (repl tool)
 priv/static/omni_ui.css            # OKLCH theme + markdown typography
 omni_ui_dev/                       # companion Phoenix app for browser testing
 test/                              # ExUnit suite
@@ -1250,5 +1172,5 @@ is `@moduledoc false` (private dispatch).
 The companion app at `omni_ui_dev/` is the consumer reference. It
 wires `OmniUI.Sessions` and `OmniUI.TitleService` into the
 supervision tree, configures the FileSystem store, mounts
-`OmniUI.Artifacts.Plug` at `/omni_artifacts`, and routes `/` to
+`OmniUI.Artifacts.Plug` at `/omni_files`, and routes `/` to
 `OmniUI.AgentLive`.

@@ -82,3 +82,11 @@ config :phoenix_live_view,
   debug_attributes: true,
   # Enable helpful, but potentially expensive runtime checks
   enable_expensive_runtime_checks: true
+
+# Configure Omni
+sessions_dir = Path.expand("priv/omni/sessions")
+
+config :omni_ui, :sessions_base_dir, sessions_dir
+
+config :omni_ui, OmniUI.Sessions,
+  store: {Omni.Session.Store.FileSystem, base_dir: sessions_dir}

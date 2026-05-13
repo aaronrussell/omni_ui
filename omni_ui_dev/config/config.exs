@@ -51,20 +51,18 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Configure Omni
 config :omni, providers: [:alibaba, :anthropic, :openai, :google, :opencode, :openrouter, :ollama]
-
-config :omni_ui, OmniUI.Sessions,
-  store: {Omni.Session.Store.FileSystem, base_path: "priv/omni/sessions", otp_app: :omni_ui_dev}
-
-config :omni_ui, OmniUI.TitleService,
-  manager: OmniUI.Sessions,
-  model: {:openai, "gpt-5.4-nano"}
 
 config :omni, Omni.Providers.Ollama,
   models: [
     [id: "gemma4:latest", reasoning: true],
     [id: "gemma4:26b", reasoning: true]
   ]
+
+config :omni_ui, OmniUI.TitleService,
+  manager: OmniUI.Sessions,
+  model: {:openai, "gpt-5.4-nano"}
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

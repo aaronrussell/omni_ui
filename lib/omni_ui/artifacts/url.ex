@@ -7,9 +7,9 @@ defmodule OmniUI.Artifacts.URL do
 
   ## Configuration
 
-      config :omni_ui, OmniUI.Artifacts, url_prefix: "/omni_artifacts"
+      config :omni_ui, OmniUI.Artifacts, url_prefix: "/omni_files"
 
-  The `:url_prefix` defaults to `"/omni_artifacts"` and should match the path
+  The `:url_prefix` defaults to `"/omni_files"` and should match the path
   where `OmniUI.Artifacts.Plug` is mounted in the router.
   """
 
@@ -61,7 +61,7 @@ defmodule OmniUI.Artifacts.URL do
   ## Examples
 
       url = URL.artifact_url(socket.endpoint, session_id, "dashboard.html")
-      # => "/omni_artifacts/SFMyNT.../dashboard.html"
+      # => "/omni_files/SFMyNT.../dashboard.html"
   """
   @spec artifact_url(
           atom() | Plug.Conn.t() | Phoenix.LiveView.Socket.t(),
@@ -76,6 +76,6 @@ defmodule OmniUI.Artifacts.URL do
 
   defp url_prefix do
     Application.get_env(:omni_ui, OmniUI.Artifacts, [])
-    |> Keyword.get(:url_prefix, "/omni_artifacts")
+    |> Keyword.get(:url_prefix, "/omni_files")
   end
 end

@@ -29,4 +29,13 @@ defmodule OmniUI.Sessions do
   """
 
   use Omni.Session.Manager, otp_app: :omni_ui
+
+  def session_dir(session_id) do
+    base_dir = Application.fetch_env!(:omni_ui, :sessions_base_dir)
+    Path.join([base_dir, session_id])
+  end
+
+  def session_files_dir(session_id) do
+    Path.join([session_dir(session_id), "files"])
+  end
 end

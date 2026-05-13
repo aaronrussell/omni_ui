@@ -6,10 +6,11 @@ defmodule OmniUI.REPL.ChatUI do
   The entry point is `tool_use/1`, designed to be registered as a custom
   tool-use component for the REPL tool:
 
-      {OmniUI.REPL.Tool.new(extensions: [...]),
-       component: &OmniUI.REPL.ChatUI.tool_use/1}
+      tool_components: %{
+        "repl" => &OmniUI.REPL.ChatUI.tool_use/1
+      }
 
-  Unlike `Artifacts.ChatUI` (which wraps the default `Components.tool_use/1`
+  Unlike the files ChatUI (which wraps the default `Components.tool_use/1`
   and adds an `:aside` slot), this component replaces the default renderer
   entirely:
 

@@ -24,7 +24,7 @@ defmodule OmniUI.SessionCase do
         model
       end
 
-      defp tmp_store(%{tmp_dir: dir}), do: {FileSystem, base_path: dir}
+      defp tmp_store(%{tmp_dir: dir}), do: {FileSystem, base_dir: dir}
       defp tmp_store(_), do: raise("OmniUI.SessionCase tests require @moduletag :tmp_dir")
 
       defp unique_name(prefix \\ "TM") do
