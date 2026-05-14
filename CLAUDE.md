@@ -76,6 +76,10 @@ mix format                      # Auto-format
 - **`omni:` prefix on `phx-click` events** for events the macro
   routes through `OmniUI.Handlers.handle_event/3`. Bare event names
   belong to the consumer.
+- **Path variable naming:** `*_dir` for directory paths, `*_file`
+  for file paths, `*_path` only for generic filesystem paths or
+  non-filesystem concepts (e.g. URL paths). This convention applies
+  across all omni packages.
 - **Match commit message style** of `git log --oneline`: imperative
   mood, ~50-char subject, terse body when needed. Sign with
   `AI-assisted commit (Claude)`.

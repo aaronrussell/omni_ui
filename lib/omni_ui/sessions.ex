@@ -9,18 +9,13 @@ defmodule OmniUI.Sessions do
       config :omni_ui, OmniUI.Sessions,
         store:
           {Omni.Session.Store.FileSystem,
-           base_path: "priv/omni/sessions", otp_app: :my_app}
+           base_dir: "/absolute/path/to/sessions"}
 
       # application.ex
       children = [OmniUI.Sessions]
 
   Start-time opts override app-env values, so a host app can compute
-  config at boot when needed:
-
-      children = [
-        {OmniUI.Sessions,
-           store: {Omni.Session.Store.FileSystem, base_path: dynamic_path(), otp_app: :my_app}}
-      ]
+  config at boot when needed.
 
   Consumers wanting multiple Managers (e.g. multi-tenant isolation)
   define their own modules — `defmodule MyApp.Sessions, do: use

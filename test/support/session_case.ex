@@ -37,11 +37,11 @@ defmodule OmniUI.SessionCase do
         :"omni_ui_test_#{System.unique_integer([:positive])}"
       end
 
-      defp stub_fixture(stub_name, fixture_path) do
+      defp stub_fixture(stub_name, fixture_file) do
         Req.Test.stub(stub_name, fn conn ->
           conn
           |> Plug.Conn.put_resp_content_type("text/event-stream")
-          |> Plug.Conn.send_resp(200, File.read!(fixture_path))
+          |> Plug.Conn.send_resp(200, File.read!(fixture_file))
         end)
       end
 

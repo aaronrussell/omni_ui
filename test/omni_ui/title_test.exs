@@ -8,11 +8,11 @@ defmodule OmniUI.TitleTest do
   defp user(text), do: Omni.message(role: :user, content: text)
   defp assistant(text), do: Omni.message(role: :assistant, content: text)
 
-  defp stub_fixture(stub_name, fixture_path) do
+  defp stub_fixture(stub_name, fixture_file) do
     Req.Test.stub(stub_name, fn conn ->
       conn
       |> Plug.Conn.put_resp_content_type("text/event-stream")
-      |> Plug.Conn.send_resp(200, File.read!(fixture_path))
+      |> Plug.Conn.send_resp(200, File.read!(fixture_file))
     end)
   end
 
