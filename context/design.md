@@ -562,17 +562,19 @@ session then accumulate into this turn naturally.
 
 ### 7.1 Layer 1 — Function components (`*UI` modules)
 
-All function components, no state. Organised by concern:
+All function components, no state. Organised by concern into `*UI`
+modules:
 
-- **Layout.** `chat_interface/1`, `message_list/1`, `turn/1`.
-- **Messages.** `user_message/1`, `assistant_message/1`,
-  `user_message_actions/1`, `assistant_message_actions/1`.
-- **Content blocks.** `content_block/1` (pattern-matched on
-  `Text/Thinking/ToolUse/Attachment`), `tool_use/1` (default
-  renderer), `markdown/1`, `attachment/1`.
-- **UI primitives.** `expandable/1`, `version_nav/1`, `timestamp/1`,
-  `usage_block/1`, `toolbar/1`, `select/1`, `notifications/1`,
-  `session_list/1`.
+- **`ChatUI`** — the chat pipeline. Layout (`chat_interface/1`,
+  `message_list/1`, `turn/1`), messages (`user_message/1`,
+  `assistant_message/1`, `*_actions/1`), content blocks
+  (`content_block/1`, `tool_use/1`, `markdown/1`, `attachment/1`),
+  and `toolbar/1`.
+- **`CoreUI`** — shared primitives. `expandable/1`, `select/1`,
+  `version_nav/1`, `timestamp/1`, `usage_block/1`, `notifications/1`.
+- **`SessionsUI`** — `session_list/1`.
+- **`FilesUI`** — `file_bar/1`, `file_list/1`, `file_view/1`.
+- **`ToolsUI`** — `files_tool_use/1`, `repl_tool_use/1`.
 
 `chat_interface/1` is the root wrapper. Provides the scroll
 container, a mounted `OmniUI.EditorComponent`, optional `:toolbar`
@@ -963,7 +965,7 @@ The file, REPL, and web-fetch tools come from the `omni_tools`
 package. OmniUI does not implement its own tools — it configures and
 wires the `omni_tools` implementations at agent init time.
 
-`OmniUI.OmniUI.Agent.init/1` reads
+`OmniUI.Agent.init/1` reads
 `state.private.omni.session_id`, derives the files directory via
 `OmniUI.Sessions.session_files_dir/1`, and appends three tools:
 
@@ -1099,10 +1101,10 @@ used by the Files tool, ensuring both operate on the same directory.
 For execution model details (peer nodes, IO capture, timeouts,
 distribution boot), see the `omni_tools` documentation.
 
-### 14.2 Inline chat component — `REPL.ChatUI`
+### 14.2 Inline chat component — `ToolsUI.repl_tool_use/1`
 
-`tool_use/1` *replaces* the default renderer entirely (unlike
-the files ChatUI which wraps it):
+`repl_tool_use/1` *replaces* the default renderer entirely (unlike
+`files_tool_use/1` which wraps it):
 
 - Terminal icon instead of cog.
 - Toggle shows the agent-provided `title` field instead of the

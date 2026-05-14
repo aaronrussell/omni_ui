@@ -58,7 +58,7 @@ before a public release.
   `config :omni, providers: ...`). Single coherent pattern across
   the Omni ecosystem before release. Dovetails with namespacing.
 
-- **Header bar in `Components`** — the inline-editable title input,
+- **Header bar in `ChatUI`** — the inline-editable title input,
   sessions toggle, and files toggle currently live as a private
   function component inside `AgentLive`. Move into
   `OmniUI.ChatUI` so consumers building their own LiveView can
@@ -70,7 +70,8 @@ before a public release.
   `OmniUI.Sessions`, `OmniUI.TitleService`, `OmniUI.Title`,
   `OmniUI.Notification`, and the Files/Tools/Sessions UI modules
   are public. `OmniUI.Handlers`,
-  `OmniUI.Helpers`, `OmniUI.TreeFaker`, internal structs may not be.
+  `OmniUI.Helpers`, internal structs may not be. `OmniUI.TreeFaker`
+  lives in `test/support/` (not published).
 
 - **Hex docs** — moduledocs are mostly in shape. Need a usage guide
   covering: the three layers; the `init_session` / `attach_session`
@@ -96,7 +97,7 @@ before a public release.
 
 ## Unresolved Issues
 
-- **REPL distribution boot** — `OmniUI.REPL.Sandbox.ensure_distributed!/0`
+- **REPL distribution boot** — `Omni.Tools.Repl.Sandbox.ensure_distributed!/0`
   must run eagerly at app boot, before `Phoenix.Endpoint` starts,
   otherwise the first REPL invocation flips the VM into distributed
   mode mid-request and any PIDs already encoded into Phoenix tokens
