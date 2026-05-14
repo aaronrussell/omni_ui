@@ -1,19 +1,19 @@
-defmodule OmniUI.ToolComponents do
+defmodule OmniUI.ToolsUI do
   @moduledoc """
   Custom tool-use components rendered inline in the chat stream.
 
   Each function is designed to be registered in the `tool_components` map
-  so that `OmniUI.Components.content_block/1` dispatches to it for the
+  so that `OmniUI.ChatUI.content_block/1` dispatches to it for the
   matching tool name:
 
       tool_components: %{
-        "files" => &OmniUI.ToolComponents.files_tool_use/1,
-        "repl"  => &OmniUI.ToolComponents.repl_tool_use/1
+        "files" => &OmniUI.ToolsUI.files_tool_use/1,
+        "repl"  => &OmniUI.ToolsUI.repl_tool_use/1
       }
 
   ## Files tool
 
-  `files_tool_use/1` wraps `OmniUI.Components.tool_use/1` and slots
+  `files_tool_use/1` wraps `OmniUI.ChatUI.tool_use/1` and slots
   command-specific content into its `:aside` slot. The aside is only
   rendered once the tool has produced a result; during streaming and
   execution the default component is shown unmodified. The aside content
@@ -36,19 +36,19 @@ defmodule OmniUI.ToolComponents do
   """
 
   use Phoenix.Component
-  import OmniUI.Components, only: [expandable: 1]
+  import OmniUI.CoreUI, only: [expandable: 1]
 
   import OmniUI.Helpers,
     only: [highlight_code: 1, highlight_code: 2, format_json: 1, format_tool_result: 1, cls: 1]
 
-  alias OmniUI.Components
+  alias OmniUI.ChatUI
 
   # ── Files tool ────────────────────────────────────────────────────
 
   @doc """
   Renders a ToolUse content block for the files tool.
 
-  Delegates to `OmniUI.Components.tool_use/1` and fills its `:aside` slot
+  Delegates to `OmniUI.ChatUI.tool_use/1` and fills its `:aside` slot
   with command-specific content. Receives the normalised tool-use assigns
   map from `content_block/1`: `@tool_use`, `@tool_result`, `@streaming`.
   """
@@ -58,13 +58,13 @@ defmodule OmniUI.ToolComponents do
 
   def files_tool_use(assigns) do
     ~H"""
-    <Components.tool_use tool_use={@tool_use} tool_result={@tool_result} streaming={@streaming}>
+    <ChatUI.tool_use tool_use={@tool_use} tool_result={@tool_result} streaming={@streaming}>
       <:aside :if={@tool_result}>
         <.files_aside
           command={@tool_use.input["command"]}
           filename={@tool_use.input["id"]} />
       </:aside>
-    </Components.tool_use>
+    </ChatUI.tool_use>
     """
   end
 

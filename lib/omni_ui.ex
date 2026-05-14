@@ -60,7 +60,7 @@ defmodule OmniUI do
 
   ## Macro behaviour
 
-  - Imports every public function from `OmniUI` and all of `OmniUI.Components`
+  - Imports every public function from `OmniUI`, `OmniUI.ChatUI`, and `OmniUI.CoreUI`
   - Injects `handle_event/3` clauses for OmniUI-namespaced events
   - Injects `handle_info/2` clauses for session streaming and component messages
   - Wraps developer-defined handlers via `defoverridable` so OmniUI events
@@ -93,7 +93,8 @@ defmodule OmniUI do
     quote do
       @behaviour OmniUI
       @before_compile OmniUI
-      import OmniUI.Components
+      import OmniUI.ChatUI
+      import OmniUI.CoreUI
 
       import OmniUI,
         only: [

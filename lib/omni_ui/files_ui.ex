@@ -1,4 +1,13 @@
-defmodule OmniUI.Files.PanelUI do
+defmodule OmniUI.FilesUI do
+  @moduledoc """
+  Function components for the files panel.
+
+    * `file_bar/1` — header with filename, view toggle, download, and close
+    * `file_list/1` — directory listing with name, size, and updated columns
+    * `file_view/1` — pattern-matched file viewer (iframe, markdown, source,
+      media, download)
+  """
+
   use Phoenix.Component
   alias Omni.Tools.Files.Entry
 

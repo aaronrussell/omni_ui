@@ -1,6 +1,6 @@
-defmodule OmniUI.Components do
+defmodule OmniUI.ChatUI do
   @moduledoc """
-  Function components for building agent chat interfaces.
+  Function components for the chat rendering pipeline.
 
   All components use the semantic color tokens defined in `priv/static/omni_ui.css`
   and are designed to be composed within a `chat_interface/1` root.
@@ -24,20 +24,16 @@ defmodule OmniUI.Components do
     * `content_block/1` — pattern-matched renderer for `Text`, `Thinking`,
       `ToolUse`, and `Attachment` content types
     * `markdown/1` — converts markdown text to styled HTML via MDEx
+    * `tool_use/1` — default tool-use renderer with expandable input/output
     * `attachment/1` — thumbnail tile for images and file icons
 
-  ## UI primitives
+  ## Toolbar
 
-    * `expandable/1` — collapsible section with icon and toggle
-    * `version_nav/1` — prev/next navigation with position display
-    * `timestamp/1` — formatted time display
-    * `usage_block/1` — compact token count and cost display
     * `toolbar/1` — model selector, thinking toggle, and usage summary
-    * `select/1` — dropdown select with grouped options
-    * `notifications/1` — stacked toaster for in-app notifications
   """
 
   use Phoenix.Component
+  import OmniUI.CoreUI
   import OmniUI.Helpers
   alias Phoenix.LiveView.JS
 
@@ -326,8 +322,6 @@ defmodule OmniUI.Components do
     """
   end
 
-  # TODO: Pass actual filename once Omni.Content.Attachment includes one.
-  # Currently falls back to media_type as the display name.
   def content_block(%{content: %Omni.Content.Attachment{}} = assigns) do
     ~H"""
     <.attachment name={@content.media_type} media_type={@content.media_type}>
@@ -339,10 +333,6 @@ defmodule OmniUI.Components do
   end
 
   def content_block(%{content: %Omni.Content.ToolUse{} = tool_use} = assigns) do
-    # `__changed__: nil` forces a full re-render of the inner component on
-    # every parent update. Setting it to `%{}` would tell change tracking
-    # "nothing changed" and the component would never reflect new tool
-    # results that arrive after its first render.
     tool_use_assigns = %{
       __changed__: nil,
       tool_use: tool_use,
@@ -362,8 +352,7 @@ defmodule OmniUI.Components do
   Used by `content_block/1` when no custom component is registered for a tool
   in `:tool_components`. Custom tool-use components can also delegate to this
   function — for example, to add a per-tool control via the `:aside` slot —
-  by importing `OmniUI.Components` and calling `tool_use/1` with the
-  normalised assigns map.
+  by calling `ChatUI.tool_use/1` with the normalised assigns map.
   """
   attr :tool_use, :map, required: true, doc: "the `%Omni.Content.ToolUse{}` struct"
 
@@ -466,154 +455,6 @@ defmodule OmniUI.Components do
     """
   end
 
-  # ── UI primitives ───────────────────────────────────────────────
-
-  @doc "Compact display of token counts and cost."
-  attr :usage, Omni.Usage, required: true
-
-  def usage_block(assigns) do
-    ~H"""
-    <div class={[
-      "group inline-flex items-center gap-1.5 font-mono text-xs",
-      "text-omni-text-3"
-    ]}>
-      <div>
-        <Lucideicons.chart_no_axes_column class="size-4 text-blue-500" />
-      </div>
-      <div class="flex items-center gap-1.5">
-        <div class="flex items-center gap-0.5">
-          <Lucideicons.arrow_up class="size-3 text-omni-text-4" />
-          <span>{format_token_count(@usage.input_tokens)}</span>
-        </div>
-        <div class="flex items-center gap-0.5">
-          <Lucideicons.arrow_down class="size-3 text-omni-text-4" />
-          <span>{format_token_count(@usage.output_tokens)}</span>
-        </div>
-        <div class="flex items-center gap-0.5">
-          <Lucideicons.dollar_sign class="size-3 text-omni-text-4" />
-          <span>{format_token_cost(@usage.total_cost)}</span>
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  @doc "Prev/next navigation with position indicator (e.g. \"2/3\")."
-  attr :version_id, :integer, required: true
-  attr :versions, :list, required: true
-
-  def version_nav(assigns) do
-    idx = Enum.find_index(assigns.versions, &(&1 == assigns.version_id))
-
-    assigns =
-      assigns
-      |> assign(:prev_id, if(idx > 0, do: Enum.at(assigns.versions, idx - 1)))
-      |> assign(:next_id, Enum.at(assigns.versions, idx + 1))
-
-    ~H"""
-    <div class="flex items-center gap-0.5">
-      <button
-        class={[
-          "transition-colors disabled:opacity-50 [:not(:disabled)]:cursor-pointer",
-          "text-omni-text-4 [:not(:disabled)]:hover:text-omni-accent-1",
-        ]}
-        disabled={hd(@versions) == @version_id}
-        phx-click={
-          JS.dispatch("omni:before-update")
-          |> JS.push("omni:navigate", value: %{node_id: @prev_id})
-        }>
-        <Lucideicons.chevron_down class="size-4 rotate-90" />
-      </button>
-      <span class="font-mono text-xs text-omni-text-3">{sibling_pos(@version_id, @versions)}</span>
-      <button
-        class={[
-          "transition-colors disabled:opacity-50 [:not(:disabled)]:cursor-pointer",
-          "text-omni-text-4 [:not(:disabled)]:hover:text-omni-accent-1",
-        ]}
-        disabled={List.last(@versions) == @version_id}
-        phx-click={
-          JS.dispatch("omni:before-update")
-          |> JS.push("omni:navigate", value: %{node_id: @next_id})
-        }>
-        <Lucideicons.chevron_down class="size-4 -rotate-90" />
-      </button>
-    </div>
-    """
-  end
-
-  @doc "Formatted time display with tooltip showing full date."
-  attr :time, DateTime, required: true
-  attr :format, :string, default: "%Y-%m-%d %H:%M"
-  attr :rest, :global, default: %{class: ""}
-
-  def timestamp(assigns) do
-    ~H"""
-    <time
-      class={@rest.class}
-      datetime={Calendar.strftime(@time, "%c")}
-      title={Calendar.strftime(@time, "%c")}>
-      {time_ago(@time, @format)}
-    </time>
-    """
-  end
-
-  @doc """
-  Collapsible section with an icon and optional toggle label.
-  """
-  attr :label, :string,
-    default: nil,
-    doc: "text shown as the toggle label when no `:toggle` slot is given"
-
-  slot :icon,
-    required: true,
-    doc: "shown when collapsed; replaced by a chevron on hover or when expanded"
-
-  slot :toggle, doc: "content shown as the clickable toggle; overrides `:label`"
-
-  slot :aside,
-    doc: "optional content rendered alongside the header, outside the click target"
-
-  slot :inner_block, required: true, doc: "the expanded body"
-
-  def expandable(assigns) do
-    ~H"""
-    <div class="group/expandable">
-      <div class="flex items-center justify-between gap-4">
-        <div
-          class="group/toggle inline-flex items-center gap-1.5 cursor-pointer"
-          phx-click={JS.toggle_class("active", to: {:closest, ".group\\/expandable"})}>
-          <div class="group-hover/toggle:hidden group-[.active]/expandable:hidden">
-            {render_slot(@icon)}
-          </div>
-          <div class="hidden group-hover/toggle:block group-[.active]/expandable:block">
-            <Lucideicons.chevron_down class={cls([
-              "size-4 transition-all group-[.active]/expandable:rotate-180",
-              "text-omni-text-4 group-hover/toggle:text-omni-text-3"
-            ])} />
-          </div>
-          <div class={[
-            "text-sm transition-colors",
-            "text-omni-text-3 group-hover/toggle:text-omni-text-2"
-          ]}>
-            {render_slot(@toggle) || @label || "Expand"}
-          </div>
-        </div>
-
-        <div :if={@aside != []}>{render_slot @aside}</div>
-      </div>
-
-      <div class={[
-        "opacity-0 h-0 invisible overflow-hidden transition-all",
-        "group-[.active]/expandable:opacity-100 group-[.active]/expandable:h-auto group-[.active]/expandable:visible"
-      ]}>
-        <div class="my-2 px-5.5 py-4 bg-omni-bg-2 border border-omni-border-3 rounded">
-          {render_slot(@inner_block)}
-        </div>
-      </div>
-    </div>
-    """
-  end
-
   @doc """
   Converts markdown text to styled HTML.
 
@@ -704,269 +545,5 @@ defmodule OmniUI.Components do
       label = if val == false, do: "Off", else: String.capitalize(value)
       %{value: value, label: label}
     end)
-  end
-
-  @doc "Dropdown select with support for grouped options."
-  attr :id, :string, required: true
-  attr :options, :list, required: true
-  attr :value, :string, default: nil
-  attr :prompt, :string, default: "Select..."
-  attr :event, :string, required: true
-  attr :target, :any, default: nil
-  attr :position, :string, default: "below", values: ~w(above below)
-
-  def select(assigns) do
-    assigns = assign(assigns, :selected_label, find_option_label(assigns.options, assigns.value))
-
-    ~H"""
-    <div
-      id={@id}
-      class="group/select relative inline-flex"
-      phx-click-away={JS.remove_class("active", to: "##{@id}")}>
-      <button
-        type="button"
-        class={[
-          "inline-flex items-center gap-1.5 text-sm transition-colors cursor-pointer",
-          "text-omni-text-3 hover:text-omni-accent-1"
-        ]}
-        phx-click={JS.toggle_class("active", to: "##{@id}")}>
-        <span>{@selected_label || @prompt}</span>
-        <Lucideicons.chevron_down class={cls([
-          "size-3.5 transition-transform",
-          if(@position == "above",
-            do: "rotate-180 group-[.active]/select:rotate-0",
-            else: "group-[.active]/select:rotate-180"
-          )
-        ])} />
-      </button>
-
-      <div class={[
-        "absolute z-20 -translate-x-4",
-        if(@position == "above",
-          do: "bottom-full mb-4 origin-bottom-left",
-          else: "top-full mt-4 origin-top-left"
-        ),
-        "min-w-48 max-h-64 overflow-y-auto",
-        "bg-omni-bg border border-omni-border-2 rounded-lg shadow-lg",
-        "opacity-0 invisible scale-95 transition-all",
-        "group-[.active]/select:opacity-100 group-[.active]/select:visible group-[.active]/select:scale-100"
-      ]}>
-        <.select_items
-          :for={item <- @options}
-          item={item}
-          value={@value}
-          event={@event}
-          target={@target}
-          select_id={@id} />
-      </div>
-    </div>
-    """
-  end
-
-  defp select_items(%{item: %{options: options}} = assigns) do
-    assigns = assign(assigns, :options, options)
-
-    ~H"""
-    <div class="px-3 py-1.5 text-xs text-omni-text-4 bg-omni-bg-2 font-medium uppercase tracking-wide">
-      {@item.label}
-    </div>
-    <.select_option
-      :for={option <- @options}
-      option={option}
-      value={@value}
-      event={@event}
-      target={@target}
-      select_id={@select_id} />
-    """
-  end
-
-  defp select_items(assigns) do
-    ~H"""
-    <.select_option
-      option={@item}
-      value={@value}
-      event={@event}
-      target={@target}
-      select_id={@select_id} />
-    """
-  end
-
-  defp select_option(assigns) do
-    ~H"""
-    <button
-      type="button"
-      class={[
-        "block w-full text-left px-3 py-1.5 text-sm whitespace-nowrap transition-colors cursor-pointer",
-        if(@option.value == @value,
-          do: "text-omni-accent-1",
-          else: "text-omni-text-2 hover:bg-omni-bg-1 hover:text-omni-accent-1"
-        )
-      ]}
-      phx-click={
-        JS.push(@event, value: %{value: @option.value})
-        |> JS.remove_class("active", to: "##{@select_id}")
-      }
-      {if @target, do: [{"phx-target", @target}], else: []}>
-      {@option.label}
-    </button>
-    """
-  end
-
-  @doc """
-  Renders a list of session summaries as clickable rows.
-
-  Each row fires `phx-click="switch_session"` with the session id in
-  `phx-value-session-id` so the parent LiveView can route to it.
-
-  Sessions whose `:status` is non-nil are flagged with a small indicator
-  beside the title (`:busy` pulses, `:paused` is solid amber, `:idle` is
-  a muted dot). Sessions without a status (i.e. not currently running)
-  show no indicator.
-
-  The `:actions` slot renders per-row controls (e.g. delete) revealed
-  on hover, and receives the session as its argument.
-  """
-  attr :sessions, :list, required: true
-  attr :current_id, :string, default: nil
-  attr :empty_label, :string, default: "No sessions yet"
-
-  slot :actions,
-    doc: "per-row action controls; receives the session map as the argument"
-
-  def session_list(assigns) do
-    ~H"""
-    <div>
-      <p :if={@sessions == []} class="px-4 py-6 text-sm text-omni-text-3 text-center">
-        {@empty_label}
-      </p>
-
-      <ul :if={@sessions != []} class="divide-y divide-omni-border-3">
-        <li
-          :for={session <- @sessions}
-          class={[
-            "group flex items-center gap-2 px-3",
-            session.id == @current_id && "bg-omni-accent-2/10"
-          ]}>
-          <button
-            type="button"
-            phx-click="switch_session"
-            phx-value-session-id={session.id}
-            class="flex-1 min-w-0 py-3 text-left cursor-pointer">
-            <div class="flex items-center gap-2 min-w-0">
-              <.session_status_dot status={Map.get(session, :status)} />
-              <div class="text-sm text-omni-text-1 truncate">
-                {session.title || "Untitled"}
-              </div>
-            </div>
-            <.timestamp
-              class="text-xs text-omni-text-4"
-              time={session.updated_at}
-              format="%-d %B" />
-          </button>
-
-          <div :if={@actions != []} class="shrink-0">
-            {render_slot(@actions, session)}
-          </div>
-        </li>
-      </ul>
-    </div>
-    """
-  end
-
-  attr :status, :atom, required: true
-
-  defp session_status_dot(%{status: :busy} = assigns) do
-    ~H"""
-    <span
-      title="Streaming"
-      class="shrink-0 inline-block size-2 rounded-full bg-omni-accent-1 animate-pulse" />
-    """
-  end
-
-  defp session_status_dot(%{status: :paused} = assigns) do
-    ~H"""
-    <span
-      title="Awaiting input"
-      class="shrink-0 inline-block size-2 rounded-full bg-amber-500" />
-    """
-  end
-
-  defp session_status_dot(%{status: :idle} = assigns) do
-    ~H"""
-    <span title="Open" class="shrink-0 inline-block size-2 rounded-full bg-omni-text-4/50" />
-    """
-  end
-
-  defp session_status_dot(assigns), do: ~H""
-
-  @doc """
-  Stacked toaster for in-app notifications.
-
-  Renders the LiveView's `@streams.notifications` stream as a fixed-position
-  stack in the bottom-right corner. Notifications are pushed via `OmniUI.notify/2,3`
-  and dismissed either manually (X button) or automatically after their timeout.
-  """
-  attr :stream, :any, required: true, doc: "the @streams.notifications assign"
-
-  def notifications(assigns) do
-    ~H"""
-    <div
-      id="omni-notifications"
-      class="fixed top-16 right-4 z-50 flex flex-col gap-2 pointer-events-none"
-      phx-update="stream">
-      <div
-        :for={{dom_id, n} <- @stream}
-        id={dom_id}
-        class={[
-          "flex items-center gap-2.5 min-w-64 max-w-96 px-3 py-2.5 shadow-lg pointer-events-auto",
-          "bg-omni-bg border border-l-4",
-          notification_border_class(n.level)
-        ]}>
-        <.notification_icon level={n.level} />
-        <div class="flex-1 pr-1.5 text-sm text-omni-text-1">{n.message}</div>
-        <button
-          type="button"
-          class={[
-            "flex items-center justify-center size-6 rounded cursor-pointer",
-            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
-          ]}
-          phx-click="omni:dismiss_notification"
-          phx-value-id={n.id}>
-          <Lucideicons.x class="size-4" />
-        </button>
-      </div>
-    </div>
-    """
-  end
-
-  defp notification_border_class(:info), do: "border-omni-border-2"
-  defp notification_border_class(:success), do: "border-green-500/50"
-  defp notification_border_class(:warning), do: "border-amber-500/50"
-  defp notification_border_class(:error), do: "border-red-500/50"
-
-  attr :level, :atom, required: true
-
-  defp notification_icon(%{level: :info} = assigns) do
-    ~H"""
-    <Lucideicons.info class="size-4 shrink-0 text-blue-500" />
-    """
-  end
-
-  defp notification_icon(%{level: :success} = assigns) do
-    ~H"""
-    <Lucideicons.circle_check class="size-4 shrink-0 text-green-500" />
-    """
-  end
-
-  defp notification_icon(%{level: :warning} = assigns) do
-    ~H"""
-    <Lucideicons.triangle_alert class="size-4 shrink-0 text-amber-500" />
-    """
-  end
-
-  defp notification_icon(%{level: :error} = assigns) do
-    ~H"""
-    <Lucideicons.circle_x class="size-4 shrink-0 text-red-500" />
-    """
   end
 end

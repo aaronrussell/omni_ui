@@ -36,7 +36,7 @@ defmodule OmniUI.SessionsComponent do
 
   use Phoenix.LiveComponent
 
-  alias OmniUI.Components
+  alias OmniUI.SessionsUI
 
   @impl true
   def render(assigns) do
@@ -54,11 +54,11 @@ defmodule OmniUI.SessionsComponent do
       </header>
 
       <div class="flex-1 overflow-y-auto">
-        <Components.session_list sessions={@sessions} current_id={@current_id}>
+        <SessionsUI.session_list sessions={@sessions} current_id={@current_id}>
           <:actions :let={session}>
             <.row_actions session={session} confirming={@confirming_delete == session.id} target={@myself} />
           </:actions>
-        </Components.session_list>
+        </SessionsUI.session_list>
       </div>
     </aside>
     """

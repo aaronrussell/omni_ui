@@ -1,4 +1,4 @@
-defmodule OmniUI.ComponentsTest do
+defmodule OmniUI.ChatUITest do
   use OmniUI.ComponentCase, async: true
 
   alias Omni.{Content, Usage}

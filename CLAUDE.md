@@ -18,8 +18,9 @@ OmniUI.AgentLive       — mountable LiveView. Header, sessions drawer,
 use OmniUI             — macro. Adds session streaming, state, and
                          event handling to any LiveView.
        │
-OmniUI.Components      — pure function components. Layer 1 building
-                         blocks.
+OmniUI.ChatUI          — chat pipeline function components.
+OmniUI.CoreUI          — shared UI primitives (select, expandable,
+                         notifications, etc.).
 ```
 
 OmniUI does **not** own conversation state — `Omni.Session` (in

@@ -24,7 +24,8 @@ defmodule OmniUI.ComponentCase do
     quote do
       import Phoenix.Component
       import Phoenix.LiveViewTest
-      import OmniUI.Components
+      import OmniUI.ChatUI
+      import OmniUI.CoreUI
 
       @endpoint OmniUI.TestEndpoint
     end

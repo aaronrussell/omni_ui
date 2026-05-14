@@ -61,14 +61,15 @@ before a public release.
 - **Header bar in `Components`** — the inline-editable title input,
   sessions toggle, and files toggle currently live as a private
   function component inside `AgentLive`. Move into
-  `OmniUI.Components` so consumers building their own LiveView can
+  `OmniUI.ChatUI` so consumers building their own LiveView can
   reuse it. Stabilise the API first (slot shapes, what state it
   takes vs reads from assigns).
 
 - **Package API surface** — decide what's public vs internal.
-  `OmniUI`, `OmniUI.Components`, `OmniUI.Turn`, `OmniUI.Sessions`,
-  `OmniUI.TitleService`, `OmniUI.Title`, `OmniUI.Notification`, and
-  the Files/ToolComponents modules are public. `OmniUI.Handlers`,
+  `OmniUI`, `OmniUI.ChatUI`, `OmniUI.CoreUI`, `OmniUI.Turn`,
+  `OmniUI.Sessions`, `OmniUI.TitleService`, `OmniUI.Title`,
+  `OmniUI.Notification`, and the Files/Tools/Sessions UI modules
+  are public. `OmniUI.Handlers`,
   `OmniUI.Helpers`, `OmniUI.TreeFaker`, internal structs may not be.
 
 - **Hex docs** — moduledocs are mostly in shape. Need a usage guide

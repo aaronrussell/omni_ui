@@ -20,7 +20,7 @@ defmodule OmniUI.EditorComponent do
   """
 
   use Phoenix.LiveComponent
-  import OmniUI.Components
+  import OmniUI.ChatUI, only: [attachment: 1]
 
   slot :toolbar
 

@@ -1,4 +1,4 @@
-defmodule OmniUI.Files.PanelComponent do
+defmodule OmniUI.FilesComponent do
   @moduledoc """
   A LiveComponent that renders the files panel.
 
@@ -36,7 +36,7 @@ defmodule OmniUI.Files.PanelComponent do
 
   use Phoenix.LiveComponent
 
-  import OmniUI.Files.PanelUI
+  import OmniUI.FilesUI
   import OmniUI.Helpers, only: [highlight_code: 2, md_styles: 0, to_md: 1]
 
   alias Omni.Tools.Files.FS

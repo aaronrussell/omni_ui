@@ -34,11 +34,13 @@ use OmniUI             — macro. Adds session-streaming plumbing,
                          attach_session/2, ensure_session/1,
                          update_session/2, notify/2,3.
        │
-OmniUI.Components      — pure function components. Layer 1 building
-                         blocks: chat_interface, message_list, turn,
+OmniUI.ChatUI          — chat pipeline function components:
+                         chat_interface, message_list, turn,
                          user_message, assistant_message, content_block,
-                         tool_use, attachment, toolbar, notifications,
-                         session_list, expandable, version_nav, etc.
+                         tool_use, attachment, toolbar, markdown.
+OmniUI.CoreUI          — shared UI primitives: expandable, select,
+                         version_nav, timestamp, usage_block,
+                         notifications.
 ```
 
 **Source of truth.** `Omni.Session` (in `omni_agent`) owns the
@@ -133,7 +135,7 @@ end
 ### 3.2 What the macro injects
 
 `__using__/1` registers `@before_compile` and imports
-`OmniUI.Components` plus the public OmniUI API (`init_session/2`,
+`OmniUI.ChatUI` and `OmniUI.CoreUI` plus the public OmniUI API (`init_session/2`,
 `attach_session/2`, `ensure_session/1`, `update_session/2`,
 `notify/2,3`).
 
@@ -558,9 +560,9 @@ session then accumulate into this turn naturally.
 
 ## 7. Component architecture
 
-### 7.1 Layer 1 — `OmniUI.Components`
+### 7.1 Layer 1 — Function components (`*UI` modules)
 
-All function components, no state. Public exports:
+All function components, no state. Organised by concern:
 
 - **Layout.** `chat_interface/1`, `message_list/1`, `turn/1`.
 - **Messages.** `user_message/1`, `assistant_message/1`,
@@ -624,13 +626,13 @@ AgentLive (LiveView)
 │   ├── :toolbar slot → toolbar/1
 │   └── :footer slot
 │
-├── Files.PanelComponent (LiveComponent — right sidebar)
+├── FilesComponent (LiveComponent — right sidebar)
 │
 └── notifications/1 (stream :notifications)
 ```
 
 The header is currently private to `AgentLive`. It will likely move
-into `OmniUI.Components` so consumers building their own LV can use
+into `OmniUI.ChatUI` so consumers building their own LV can use
 it without recreating the title-edit + sessions-toggle plumbing.
 
 ### 7.5 Session-scoped TurnComponent ids
@@ -853,7 +855,7 @@ In `AgentLive`, `header/1` is a private function component:
 - Files panel toggle (placeholder — panel is currently always
   visible).
 
-The header is a strong candidate to move into `OmniUI.Components`
+The header is a strong candidate to move into `OmniUI.ChatUI`
 as a public `header/1` once its API stabilises. Right now it's
 specific to AgentLive's exact layout.
 
@@ -943,7 +945,7 @@ dismiss.
 
 Each level has a distinct border color and Lucide icon: info
 (neutral), success (green check), warning (amber triangle), error
-(red x-circle). Defined in `OmniUI.Components.notifications/1`.
+(red x-circle). Defined in `OmniUI.CoreUI.notifications/1`.
 
 ---
 
@@ -985,7 +987,7 @@ Manager's `delete/1` → `Store.FileSystem` `File.rm_rf`) naturally
 cleans up files.
 
 The `Omni.Tools.Files.FS` module (from `omni_tools`) handles all
-filesystem operations. The `PanelComponent` and `Plug` construct
+filesystem operations. The `FilesComponent` and `Plug` construct
 `FS` structs via `session_files_dir/1` — no OmniUI-specific
 filesystem module exists.
 
@@ -1018,7 +1020,7 @@ sub-resource fetches (e.g. JSON loaded by HTML) need them.
 defaults to `"/omni_files"`, configurable via
 `config :omni_ui, OmniUI.Files, url_prefix: "/your_prefix"`.
 
-### 13.4 `Files.PanelComponent`
+### 13.4 `FilesComponent`
 
 A self-contained LiveComponent receiving only `session_id` from the
 parent. Owns all file state (`:files`, `:active_file`,
@@ -1044,30 +1046,30 @@ Detail render modes:
 HTML, Markdown, and SVG files support a Preview/Code toggle
 (`view_source` boolean overrides the default).
 
-Communication from parent: `send_update(PanelComponent, action: ...)`
+Communication from parent: `send_update(FilesComponent, action: ...)`
 — `:rescan` (called from `AgentLive.agent_event(:tool_result, ...)`)
 or `{:view, filename}` (called when the user clicks an inline
 file button in the chat). AgentLive holds zero file assigns.
 
-### 13.5 Inline chat components — `ToolComponents`
+### 13.5 Inline chat components — `ToolsUI`
 
-`OmniUI.ToolComponents` provides custom tool-use renderers for the
+`OmniUI.ToolsUI` provides custom tool-use renderers for the
 chat stream, registered via the `tool_components` map:
 
 ```elixir
 tool_components: %{
-  "files" => &OmniUI.ToolComponents.files_tool_use/1,
-  "repl"  => &OmniUI.ToolComponents.repl_tool_use/1
+  "files" => &OmniUI.ToolsUI.files_tool_use/1,
+  "repl"  => &OmniUI.ToolsUI.repl_tool_use/1
 }
 ```
 
-`files_tool_use/1` *wraps* `Components.tool_use/1` (the default
+`files_tool_use/1` *wraps* `ChatUI.tool_use/1` (the default
 expandable) and slots command-specific content into the `:aside`
 slot — the default icon, toggle, and raw input/output remain. The
 aside renders only after the tool produces a result:
 
 - `write` / `patch` — clickable filename button → `open_file`
-  event → `AgentLive.handle_event` → `send_update(PanelComponent,
+  event → `AgentLive.handle_event` → `send_update(FilesComponent,
   action: {:view, filename})`.
 - `read` / `delete` / `list` — short status label.
 
@@ -1138,7 +1140,7 @@ Consumers override the theme by redefining the CSS custom properties
 
 **Markdown typography** is defined as Tailwind descendant-selector
 classes (`[&_.mdex_*]`) returned by `OmniUI.Helpers.md_styles/0`.
-Applied at `chat_interface` (and `Files.PanelComponent`) root,
+Applied at `chat_interface` (and `FilesComponent`) root,
 they target the `.mdex` class MDEx applies to rendered HTML. This
 keeps the `markdown/1` component's markup minimal while defining
 typography once.
@@ -1154,22 +1156,23 @@ lib/
     agent_live.ex                  # mountable LiveView (Layer 3)
     agent_live/
       agent.ex                     # custom Omni.Agent: wires Files, Repl, WebFetch
-    components.ex                  # Layer 1 function components
+    chat_ui.ex                     # chat pipeline function components
+    core_ui.ex                     # shared UI primitives (expandable, select, etc.)
+    sessions_ui.ex                 # session list function components
+    files_ui.ex                    # files panel function components
+    tools_ui.ex                    # inline tool-use renderers (files + repl)
     editor_component.ex            # textarea + uploads (LiveComponent)
+    files_component.ex             # right-sidebar files panel (LiveComponent)
+    sessions_component.ex          # drawer (LiveComponent)
+    turn_component.ex              # rendering one turn (LiveComponent)
     handlers.ex                    # private — event/info/session-event dispatch
     helpers.ex                     # cls, format_*, time_ago, md_styles, to_md, etc.
     notification.ex                # %Notification{}
     sessions.ex                    # OmniUI.Sessions — default Manager + dir helpers
-    sessions_component.ex          # drawer (LiveComponent)
     title.ex                       # title generation (heuristic + model)
     title_service.ex               # singleton GenServer: auto-title untitled sessions
-    tree_faker.ex                  # test fixture (uses Omni.Session.Tree)
     turn.ex                        # %OmniUI.Turn{} + Turn.all/1, Turn.get/2, Turn.new/3
-    turn_component.ex              # rendering one turn (LiveComponent)
-    tool_components.ex             # inline tool-use renderers (files + repl)
     files/
-      panel_component.ex           # right-sidebar panel (LiveComponent)
-      panel_ui.ex                  # function components for the panel
       plug.ex                      # signed-token HTTP serving
       url.ex                       # token signing + URL construction
 priv/static/omni_ui.css            # OKLCH theme + markdown typography

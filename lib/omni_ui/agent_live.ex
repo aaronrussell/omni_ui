@@ -2,7 +2,7 @@ defmodule OmniUI.AgentLive do
   use Phoenix.LiveView
   use OmniUI
 
-  alias OmniUI.Files
+  alias OmniUI.FilesComponent
 
   @default_model {:ollama, "gemma4:latest"}
 
@@ -68,7 +68,7 @@ defmodule OmniUI.AgentLive do
       <div
         class="h-full w-[calc(50%-8rem)] border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
         <.live_component
-          module={Files.PanelComponent}
+          module={FilesComponent}
           id="files-panel"
           session_id={@session_id} />
       </div>
@@ -148,8 +148,8 @@ defmodule OmniUI.AgentLive do
      |> init_session(
        agent_module: OmniUI.AgentLive.Agent,
        tool_components: %{
-         "files" => &OmniUI.ToolComponents.files_tool_use/1,
-         "repl" => &OmniUI.ToolComponents.repl_tool_use/1
+         "files" => &OmniUI.ToolsUI.files_tool_use/1,
+         "repl" => &OmniUI.ToolsUI.repl_tool_use/1
        },
        model: @default_model,
        tool_timeout: 120_000
@@ -192,7 +192,7 @@ defmodule OmniUI.AgentLive do
   end
 
   def handle_event("open_file", %{"filename" => filename}, socket) do
-    send_update(Files.PanelComponent,
+    send_update(FilesComponent,
       id: "files-panel",
       action: {:view, filename}
     )
@@ -212,7 +212,7 @@ defmodule OmniUI.AgentLive do
 
   @impl OmniUI
   def agent_event(:tool_result, %{name: name}, socket) when name in ["files", "repl"] do
-    send_update(Files.PanelComponent, id: "files-panel", action: :rescan)
+    send_update(FilesComponent, id: "files-panel", action: :rescan)
     socket
   end
 

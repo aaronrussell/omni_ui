@@ -10,7 +10,7 @@ defmodule OmniUI.TurnComponent do
       to create a new conversation branch.
     * **Branch navigation** — when a turn has multiple edits or regenerations,
       version navigation arrows are shown (delegated to `version_nav` in
-      `OmniUI.Components`).
+      `OmniUI.CoreUI`).
     * **Copy to clipboard** — pushes an `"omni:clipboard"` event to the client
       with the text content for a given role.
 
@@ -34,7 +34,7 @@ defmodule OmniUI.TurnComponent do
   """
 
   use Phoenix.LiveComponent
-  import OmniUI.Components
+  import OmniUI.ChatUI
   alias Phoenix.LiveView.JS
 
   @impl true
@@ -77,7 +77,7 @@ defmodule OmniUI.TurnComponent do
   end
 
   # Inline edit form — extracted as a function component for readability,
-  # not for reuse. Lives here rather than in OmniUI.Components because it's
+  # not for reuse. Lives here rather than in a *UI module because it's
   # tightly coupled to this component's event handling.
   attr :input, :string, required: true
   attr :target, :any, required: true
