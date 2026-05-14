@@ -59,7 +59,7 @@ set_agent}`.
 
 - **`omni_tools`** — ready-to-use agent tools. `Omni.Tools.Files`
   (file CRUD), `Omni.Tools.Repl` (sandboxed Elixir execution),
-  `Omni.Tools.WebFetch` (URL fetching). `AgentLive.Agent` configures
+  `Omni.Tools.WebFetch` (URL fetching). `OmniUI.Agent` configures
   and wires these at agent init time. OmniUI does not implement its
   own tools.
 - **`omni`** — stateless LLM client. Provides `Omni.Model`,
@@ -963,7 +963,7 @@ The file, REPL, and web-fetch tools come from the `omni_tools`
 package. OmniUI does not implement its own tools — it configures and
 wires the `omni_tools` implementations at agent init time.
 
-`OmniUI.AgentLive.Agent.init/1` reads
+`OmniUI.OmniUI.Agent.init/1` reads
 `state.private.omni.session_id`, derives the files directory via
 `OmniUI.Sessions.session_files_dir/1`, and appends three tools:
 
@@ -1082,7 +1082,7 @@ execution results with check/error indicators.
 ## 14. REPL and WebFetch
 
 The REPL and WebFetch tools come from `omni_tools`. OmniUI
-configures them in `AgentLive.Agent.init/1` and provides a custom
+configures them in `OmniUI.Agent.init/1` and provides a custom
 chat renderer for the REPL.
 
 ### 14.1 REPL configuration
@@ -1153,9 +1153,8 @@ typography once.
 lib/
   omni_ui.ex                       # macro + init/attach/ensure/update + notify
   omni_ui/
+    agent.ex                       # default Omni.Agent: wires Files, Repl, WebFetch
     agent_live.ex                  # mountable LiveView (Layer 3)
-    agent_live/
-      agent.ex                     # custom Omni.Agent: wires Files, Repl, WebFetch
     chat_ui.ex                     # chat pipeline function components
     core_ui.ex                     # shared UI primitives (expandable, select, etc.)
     sessions_ui.ex                 # session list function components

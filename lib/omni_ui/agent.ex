@@ -1,6 +1,6 @@
-defmodule OmniUI.AgentLive.Agent do
+defmodule OmniUI.Agent do
   @moduledoc """
-  Custom `Omni.Agent` module used by `OmniUI.AgentLive`.
+  Default `Omni.Agent` module for OmniUI.
 
   Bakes in the files, REPL, and web-fetch tools at agent-init time,
   reading the session id from `state.private.omni.session_id` (set by

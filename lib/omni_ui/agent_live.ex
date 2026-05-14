@@ -146,7 +146,7 @@ defmodule OmniUI.AgentLive do
      socket
      |> assign(:model_options, models1 ++ models2 ++ models3)
      |> init_session(
-       agent_module: OmniUI.AgentLive.Agent,
+       agent_module: OmniUI.Agent,
        tool_components: %{
          "files" => &OmniUI.ToolsUI.files_tool_use/1,
          "repl" => &OmniUI.ToolsUI.repl_tool_use/1
