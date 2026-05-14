@@ -1,22 +1,22 @@
-defmodule OmniUI.Artifacts.URL do
+defmodule OmniUI.Files.URL do
   @moduledoc """
-  Token signing, verification, and URL construction for artifact serving.
+  Token signing, verification, and URL construction for file serving.
 
   Uses `Phoenix.Token` to create signed tokens that encode a session ID,
-  allowing the `OmniUI.Artifacts.Plug` to authorize access without shared state.
+  allowing the `OmniUI.Files.Plug` to authorize access without shared state.
 
   ## Configuration
 
-      config :omni_ui, OmniUI.Artifacts, url_prefix: "/omni_files"
+      config :omni_ui, OmniUI.Files, url_prefix: "/omni_files"
 
   The `:url_prefix` defaults to `"/omni_files"` and should match the path
-  where `OmniUI.Artifacts.Plug` is mounted in the router.
+  where `OmniUI.Files.Plug` is mounted in the router.
   """
 
-  @salt "omni_ui:artifact"
+  @salt "omni_ui:file"
 
   @doc """
-  Signs a session ID into a token for use in artifact URLs.
+  Signs a session ID into a token for use in file URLs.
 
   The `endpoint` argument accepts an endpoint module, a `Plug.Conn`, or a
   `Phoenix.LiveView.Socket` — any context valid for `Phoenix.Token.sign/4`.
@@ -33,7 +33,7 @@ defmodule OmniUI.Artifacts.URL do
   end
 
   @doc """
-  Verifies a signed artifact token, returning the session ID.
+  Verifies a signed file token, returning the session ID.
 
   ## Options
 
@@ -56,26 +56,26 @@ defmodule OmniUI.Artifacts.URL do
   end
 
   @doc """
-  Builds a full artifact URL path with a signed token.
+  Builds a full file URL path with a signed token.
 
   ## Examples
 
-      url = URL.artifact_url(socket.endpoint, session_id, "dashboard.html")
+      url = URL.file_url(socket.endpoint, session_id, "dashboard.html")
       # => "/omni_files/SFMyNT.../dashboard.html"
   """
-  @spec artifact_url(
+  @spec file_url(
           atom() | Plug.Conn.t() | Phoenix.LiveView.Socket.t(),
           String.t(),
           String.t()
         ) ::
           String.t()
-  def artifact_url(endpoint, session_id, filename) do
+  def file_url(endpoint, session_id, filename) do
     token = sign_token(endpoint, session_id)
     "#{url_prefix()}/#{token}/#{URI.encode(filename)}"
   end
 
   defp url_prefix do
-    Application.get_env(:omni_ui, OmniUI.Artifacts, [])
+    Application.get_env(:omni_ui, OmniUI.Files, [])
     |> Keyword.get(:url_prefix, "/omni_files")
   end
 end

@@ -28,7 +28,7 @@ its state into assigns. There is no local tree-mutation path; all
 writes go through `Omni.Session`.
 
 For the full architecture (state ownership, event handling, branching
-flow, artifacts, REPL, theming), read `context/design.md`.
+flow, files, REPL, theming), read `context/design.md`.
 
 ## Project structure
 

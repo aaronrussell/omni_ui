@@ -29,7 +29,7 @@ before a public release.
 
 - **REPL packaging boundary** — the REPL sandbox/tool/extension
   modules have no UI dependency; they could live in `omni_agent` or
-  a separate package. Artifacts is different (it needs the panel
+  a separate package. Files is different (it needs the panel
   UI). Conversation needed about where the boundary should sit.
 
 - **`agent_event/3` → `session_event/3` rename** — the callback name
@@ -53,13 +53,13 @@ before a public release.
 - **Config-key rationalisation** — configuration spans `:omni` and
   `:omni_ui` atoms with a mix of bare-app and module-scoped keys
   (`config :omni_ui, OmniUI.Sessions, store: ...`,
-  `config :omni_ui, OmniUI.Artifacts, base_path: ...`,
+  `config :omni_ui, OmniUI.Files, url_prefix: ...`,
   `config :omni_ui, OmniUI.TitleService, model: ...`,
   `config :omni, providers: ...`). Single coherent pattern across
   the Omni ecosystem before release. Dovetails with namespacing.
 
 - **Header bar in `Components`** — the inline-editable title input,
-  sessions toggle, and artifacts toggle currently live as a private
+  sessions toggle, and files toggle currently live as a private
   function component inside `AgentLive`. Move into
   `OmniUI.Components` so consumers building their own LiveView can
   reuse it. Stabilise the API first (slot shapes, what state it
@@ -68,21 +68,21 @@ before a public release.
 - **Package API surface** — decide what's public vs internal.
   `OmniUI`, `OmniUI.Components`, `OmniUI.Turn`, `OmniUI.Sessions`,
   `OmniUI.TitleService`, `OmniUI.Title`, `OmniUI.Notification`, and
-  the Artifacts/REPL modules are public. `OmniUI.Handlers`,
+  the Files/ToolComponents modules are public. `OmniUI.Handlers`,
   `OmniUI.Helpers`, `OmniUI.TreeFaker`, internal structs may not be.
 
 - **Hex docs** — moduledocs are mostly in shape. Need a usage guide
   covering: the three layers; the `init_session` / `attach_session`
   / `ensure_session` lifecycle; wiring `OmniUI.Sessions` and
   `OmniUI.TitleService` into a supervision tree; mounting
-  `Artifacts.Plug`; registering custom tool-use components.
+  `Files.Plug`; registering custom tool-use components.
 
-- **Mobile artifacts panel** — the panel won't work well on mobile
+- **Mobile files panel** — the panel won't work well on mobile
   (the layout assumes a 50%-width right sidebar). Decide responsive
   approach: full-screen takeover, separate route, hidden on mobile.
 
 - **Cross-browser QA** — thorough testing across browsers. The
-  artifacts panel iframe + sandbox token URLs are the most
+  files panel iframe + sandbox token URLs are the most
   sensitive area.
 
 - **Test backfill** — current coverage is good for data

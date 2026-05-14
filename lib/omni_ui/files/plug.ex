@@ -1,14 +1,14 @@
-defmodule OmniUI.Artifacts.Plug do
+defmodule OmniUI.Files.Plug do
   @moduledoc """
-  Plug that serves artifact files over HTTP with signed token authorization.
+  Plug that serves session files over HTTP with signed token authorization.
 
   Mount in your router with `forward`:
 
-      forward "/omni_files", OmniUI.Artifacts.Plug
+      forward "/omni_files", OmniUI.Files.Plug
 
-  Artifact URLs use signed tokens that encode the session ID, so only the
-  LiveView that created the token can authorize access to a session's artifacts.
-  Tokens are generated via `OmniUI.Artifacts.URL.artifact_url/3`.
+  File URLs use signed tokens that encode the session ID, so only the
+  LiveView that created the token can authorize access to a session's files.
+  Tokens are generated via `OmniUI.Files.URL.file_url/3`.
 
   ## URL format
 
@@ -24,7 +24,7 @@ defmodule OmniUI.Artifacts.Plug do
   import Plug.Conn
 
   alias Omni.Tools.Files.FS
-  alias OmniUI.Artifacts.URL
+  alias OmniUI.Files.URL
 
   @default_max_age 86_400
 
@@ -64,7 +64,6 @@ defmodule OmniUI.Artifacts.Plug do
     end
   end
 
-  # CORS preflight for sandboxed iframes (origin: null)
   def call(%Plug.Conn{method: "OPTIONS", path_info: [_token, _filename]} = conn, _opts) do
     conn
     |> put_cors_headers()
@@ -75,8 +74,6 @@ defmodule OmniUI.Artifacts.Plug do
     send_resp(conn, 400, "Bad Request")
   end
 
-  # Sandboxed iframes have origin "null", so artifact sub-resources (fetch, img,
-  # etc.) need CORS headers. Access is already gated by the signed URL token.
   defp put_cors_headers(conn) do
     conn
     |> put_resp_header("access-control-allow-origin", "*")

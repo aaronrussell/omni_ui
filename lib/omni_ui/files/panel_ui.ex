@@ -1,22 +1,22 @@
-defmodule OmniUI.Artifacts.PanelUI do
+defmodule OmniUI.Files.PanelUI do
   use Phoenix.Component
   alias Omni.Tools.Files.Entry
 
-  attr :artifact, Entry, default: nil
+  attr :file, Entry, default: nil
   attr :view_source, :boolean, default: false
   attr :token, :string, required: true
   attr :target, :any, default: nil
 
-  def artifact_bar(assigns) do
+  def file_bar(assigns) do
     ~H"""
     <header class="flex items-center gap-4 h-12 p-4 border-b border-omni-border-3">
-      <%= if @artifact do %>
+      <%= if @file do %>
         <button
           class={[
             "flex items-center justify-center size-8 rounded cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
-          phx-click="close_artifact"
+          phx-click="close_file"
           phx-target={@target}>
           <Lucideicons.arrow_left class="size-4" />
         </button>
@@ -27,12 +27,12 @@ defmodule OmniUI.Artifacts.PanelUI do
       <% end %>
 
       <h2 class="text-sm font-medium text-omni-text-1">
-        {if(@artifact, do: @artifact.filename, else: "All artifacts")}
+        {if(@file, do: @file.filename, else: "All files")}
       </h2>
 
       <div class="flex-auto flex items-center gap-1 justify-end">
         <div
-          :if={toggleable?(@artifact)}
+          :if={toggleable?(@file)}
           class="flex items-center rounded-lg bg-omni-bg-1 p-0.5 text-xs font-medium">
           <button
             phx-click="toggle_view" phx-target={@target}
@@ -57,13 +57,13 @@ defmodule OmniUI.Artifacts.PanelUI do
         </div>
 
         <a
-          :if={@artifact}
+          :if={@file}
           class={[
             "flex items-center justify-center size-8 rounded transition-colors cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
-          href={artifact_url(@token, @artifact.filename)}
-          download={@artifact.filename}>
+          href={file_url(@token, @file.filename)}
+          download={@file.filename}>
           <Lucideicons.download class="size-4" />
         </a>
 
@@ -72,8 +72,8 @@ defmodule OmniUI.Artifacts.PanelUI do
             "flex items-center justify-center size-8 rounded cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
-          title="Close artifacts"
-          phx-click="toggle_artifacts">
+          title="Close files"
+          phx-click="toggle_files">
           <Lucideicons.x class="size-4" />
         </button>
       </div>
@@ -81,11 +81,11 @@ defmodule OmniUI.Artifacts.PanelUI do
     """
   end
 
-  attr :artifacts, :map, required: true
+  attr :files, :map, required: true
   attr :error, :string, default: nil
   attr :target, :any, default: nil
 
-  def artifact_list(assigns) do
+  def file_list(assigns) do
     ~H"""
     <div class="size-full p-16 pt-12 flex flex-col overflow-y-auto">
       <div :if={@error} class="flex items-center gap-3 mb-4 px-4 py-3 text-red-600 bg-omni-bg-2 border border-red-500 rounded">
@@ -93,9 +93,9 @@ defmodule OmniUI.Artifacts.PanelUI do
         <p class="text-sm">{@error}</p>
       </div>
 
-      <%= if @artifacts == %{} do %>
+      <%= if @files == %{} do %>
         <div class="flex-1 flex items-center justify-center">
-          <p class="text-sm text-omni-text-3 italic">No artifacts yet.</p>
+          <p class="text-sm text-omni-text-3 italic">No files yet.</p>
         </div>
       <% else %>
 
@@ -108,14 +108,14 @@ defmodule OmniUI.Artifacts.PanelUI do
         </div>
 
         <div
-          :for={{filename, artifact} <- Enum.sort(@artifacts)}
+          :for={{filename, file} <- Enum.sort(@files)}
           class="border-b border-omni-border-3">
           <div
             class={[
               "px-2 py-3 grid grid-cols-[50%_1fr_1fr] gap-x-4 text-sm text-omni-text-3 group cursor-pointer transition-colors",
               "hover:bg-omni-bg-2"
             ]}
-            phx-click="select_artifact"
+            phx-click="select_file"
             phx-value-filename={filename}
             phx-target={@target}>
             <div class={[
@@ -125,8 +125,8 @@ defmodule OmniUI.Artifacts.PanelUI do
               <Lucideicons.file_code class="size-4" />
               <span class="font-medium">{filename}</span>
             </div>
-            <div>{format_bytes(artifact.size)}</div>
-            <div>{Calendar.strftime(artifact.mtime, "%d %b %Y, %I:%M%P")}</div>
+            <div>{format_bytes(file.size)}</div>
+            <div>{Calendar.strftime(file.mtime, "%d %b %Y, %I:%M%P")}</div>
           </div>
         </div>
       <% end %>
@@ -134,16 +134,16 @@ defmodule OmniUI.Artifacts.PanelUI do
     """
   end
 
-  def artifact_view(%{view: :iframe} = assigns) do
+  def file_view(%{view: :iframe} = assigns) do
     ~H"""
     <iframe
-      src={artifact_url(@token, @artifact.filename)}
-      sandbox={if(@artifact.media_type == "text/html", do: "allow-scripts")}
+      src={file_url(@token, @file.filename)}
+      sandbox={if(@file.media_type == "text/html", do: "allow-scripts")}
       class="size-full border-0" />
     """
   end
 
-  def artifact_view(%{view: :markdown} = assigns) do
+  def file_view(%{view: :markdown} = assigns) do
     ~H"""
     <div class="min-h-full p-16 pt-12 bg-omni-bg-1">
       <div class="max-w-xl mx-auto mdex leading-[1.5]">
@@ -153,7 +153,7 @@ defmodule OmniUI.Artifacts.PanelUI do
     """
   end
 
-  def artifact_view(%{view: :source} = assigns) do
+  def file_view(%{view: :source} = assigns) do
     ~H"""
     <div
       class={[
@@ -166,24 +166,24 @@ defmodule OmniUI.Artifacts.PanelUI do
     """
   end
 
-  def artifact_view(%{view: :media} = assigns) do
+  def file_view(%{view: :media} = assigns) do
     ~H"""
     <div class="min-h-full flex items-center justify-center p-16 pt-12 bg-omni-bg-1">
       <img
-        src={artifact_url(@token, @artifact.filename)}
-        alt={@artifact.filename}
+        src={file_url(@token, @file.filename)}
+        alt={@file.filename}
         class="max-w-full h-auto border border-omni-border-2"
       />
     </div>
     """
   end
 
-  def artifact_view(%{view: :download} = assigns) do
+  def file_view(%{view: :download} = assigns) do
     ~H"""
     <div class="h-full flex items-center justify-center p-16 pt-12">
       <a
-        href={artifact_url(@token, @artifact.filename)}
-        download={@artifact.filename}
+        href={file_url(@token, @file.filename)}
+        download={@file.filename}
         class={[
           "inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border transition-colors cursor-pointer",
           "text-omni-text-1 border-omni-border-3 hover:text-omni-accent-1 hover:bg-omni-accent-2/5 hover:border-omni-accent-2"
@@ -206,12 +206,12 @@ defmodule OmniUI.Artifacts.PanelUI do
 
   defp toggleable?(_), do: false
 
-  defp artifact_url(token, filename) do
+  defp file_url(token, filename) do
     "#{url_prefix()}/#{token}/#{URI.encode(filename)}"
   end
 
   defp url_prefix do
-    Application.get_env(:omni_ui, OmniUI.Artifacts, [])
+    Application.get_env(:omni_ui, OmniUI.Files, [])
     |> Keyword.get(:url_prefix, "/omni_files")
   end
 end

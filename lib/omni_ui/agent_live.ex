@@ -2,7 +2,7 @@ defmodule OmniUI.AgentLive do
   use Phoenix.LiveView
   use OmniUI
 
-  alias OmniUI.Artifacts
+  alias OmniUI.Files
 
   @default_model {:ollama, "gemma4:latest"}
 
@@ -68,8 +68,8 @@ defmodule OmniUI.AgentLive do
       <div
         class="h-full w-[calc(50%-8rem)] border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
         <.live_component
-          module={Artifacts.PanelComponent}
-          id="artifacts-panel"
+          module={Files.PanelComponent}
+          id="files-panel"
           session_id={@session_id} />
       </div>
 
@@ -126,7 +126,7 @@ defmodule OmniUI.AgentLive do
             "flex items-center justify-center size-8 rounded cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
-          title="Open artifacts panel">
+          title="Open files panel">
           <Lucideicons.panel_right_open class="size-4" />
         </button>
       </div>
@@ -148,8 +148,8 @@ defmodule OmniUI.AgentLive do
      |> init_session(
        agent_module: OmniUI.AgentLive.Agent,
        tool_components: %{
-         "files" => &OmniUI.Artifacts.ChatUI.tool_use/1,
-         "repl" => &OmniUI.REPL.ChatUI.tool_use/1
+         "files" => &OmniUI.ToolComponents.files_tool_use/1,
+         "repl" => &OmniUI.ToolComponents.repl_tool_use/1
        },
        model: @default_model,
        tool_timeout: 120_000
@@ -191,9 +191,9 @@ defmodule OmniUI.AgentLive do
     {:noreply, socket}
   end
 
-  def handle_event("open_artifact", %{"filename" => filename}, socket) do
-    send_update(Artifacts.PanelComponent,
-      id: "artifacts-panel",
+  def handle_event("open_file", %{"filename" => filename}, socket) do
+    send_update(Files.PanelComponent,
+      id: "files-panel",
       action: {:view, filename}
     )
 
@@ -212,7 +212,7 @@ defmodule OmniUI.AgentLive do
 
   @impl OmniUI
   def agent_event(:tool_result, %{name: name}, socket) when name in ["files", "repl"] do
-    send_update(Artifacts.PanelComponent, id: "artifacts-panel", action: :rescan)
+    send_update(Files.PanelComponent, id: "files-panel", action: :rescan)
     socket
   end
 

@@ -609,7 +609,7 @@ AgentLive (LiveView)
 ├── SessionsComponent (LiveComponent — left sidebar, permanently mounted)
 │   └── session_list/1 (with :actions slot)
 │
-├── header/1 (private — top bar with sessions toggle, title, artifacts toggle)
+├── header/1 (private — top bar with sessions toggle, title, files toggle)
 │
 ├── chat_interface/1
 │   ├── message_list/1
@@ -624,7 +624,7 @@ AgentLive (LiveView)
 │   ├── :toolbar slot → toolbar/1
 │   └── :footer slot
 │
-├── Artifacts.PanelComponent (LiveComponent — right sidebar)
+├── Files.PanelComponent (LiveComponent — right sidebar)
 │
 └── notifications/1 (stream :notifications)
 ```
@@ -639,7 +639,7 @@ Tree node ids are per-session integer counters: every session has a
 `turns-1`, `turns-2`, etc. If a `TurnComponent`'s id matched the
 stream dom_id, switching sessions would reuse component instances
 keyed by `(module, id)` and leak state across sessions (e.g. an
-artifact button's filename, an edit-mode toggle).
+file button's filename, an edit-mode toggle).
 
 The fix: wrap each TurnComponent in a div carrying the stream's
 dom_id (satisfying `phx-update="stream"`), but key the component id
@@ -706,8 +706,8 @@ not leaked into custom components.
 Custom components can include interactive elements. Without
 `phx-target`, events bubble up through the TurnComponent to the
 parent LiveView, where the consumer handles them in their own
-`handle_event/3`. AgentLive uses this for the artifact "view"
-button (`open_artifact` event).
+`handle_event/3`. AgentLive uses this for the file "view"
+button (`open_file` event).
 
 ### 8.5 Sharp edge
 
@@ -850,7 +850,7 @@ In `AgentLive`, `header/1` is a private function component:
   borderless chrome. Both events route to the same `save_title`
   handler. Empty string saves as `nil` (explicit clear, re-enables
   auto-titling).
-- Artifacts panel toggle (placeholder — panel is currently always
+- Files panel toggle (placeholder — panel is currently always
   visible).
 
 The header is a strong candidate to move into `OmniUI.Components`
@@ -947,7 +947,7 @@ Each level has a distinct border color and Lucide icon: info
 
 ---
 
-## 13. Files (formerly Artifacts)
+## 13. Files
 
 Files created by the agent, persisted in the session, viewable and
 downloadable from a panel. Session-scoped. Not branch-aware —
@@ -989,7 +989,7 @@ filesystem operations. The `PanelComponent` and `Plug` construct
 `FS` structs via `session_files_dir/1` — no OmniUI-specific
 filesystem module exists.
 
-### 13.3 HTTP serving — `Artifacts.Plug`
+### 13.3 HTTP serving — `Files.Plug`
 
 Sandboxed iframes (the default for HTML file preview) need a real
 URL to hit, not `srcdoc`, so cross-file relative paths work
@@ -997,7 +997,7 @@ URL to hit, not `srcdoc`, so cross-file relative paths work
 downloaded.
 
 ```elixir
-forward "/omni_files", OmniUI.Artifacts.Plug
+forward "/omni_files", OmniUI.Files.Plug
 ```
 
 URL format: `/{prefix}/{token}/{filename}`. The token is a
@@ -1013,15 +1013,15 @@ sub-resource fetches (e.g. JSON loaded by HTML) need them.
 `content-disposition` is `inline` for browser-displayable types and
 `attachment` for everything else.
 
-`OmniUI.Artifacts.URL` is the signing/URL-construction helper —
-`sign_token/2`, `verify_token/3`, `artifact_url/3`. URL prefix
+`OmniUI.Files.URL` is the signing/URL-construction helper —
+`sign_token/2`, `verify_token/3`, `file_url/3`. URL prefix
 defaults to `"/omni_files"`, configurable via
-`config :omni_ui, OmniUI.Artifacts, url_prefix: "/your_prefix"`.
+`config :omni_ui, OmniUI.Files, url_prefix: "/your_prefix"`.
 
-### 13.4 `Artifacts.PanelComponent`
+### 13.4 `Files.PanelComponent`
 
 A self-contained LiveComponent receiving only `session_id` from the
-parent. Owns all file state (`:artifacts`, `:active_artifact`,
+parent. Owns all file state (`:files`, `:active_file`,
 `:content`, `:token`, `:view`, `:view_source`, `:error`). Uses
 `Omni.Tools.Files.FS` for scanning and reading files.
 
@@ -1049,18 +1049,31 @@ Communication from parent: `send_update(PanelComponent, action: ...)`
 or `{:view, filename}` (called when the user clicks an inline
 file button in the chat). AgentLive holds zero file assigns.
 
-### 13.5 Inline chat component — `Artifacts.ChatUI`
+### 13.5 Inline chat components — `ToolComponents`
 
-`tool_use/1` registered as the files tool's custom renderer. It
-*wraps* `Components.tool_use/1` (the default expandable) and slots
-command-specific content into the `:aside` slot — the default icon,
-toggle, and raw input/output remain. The aside renders only after the
-tool produces a result:
+`OmniUI.ToolComponents` provides custom tool-use renderers for the
+chat stream, registered via the `tool_components` map:
 
-- `write` / `patch` — clickable filename button → `open_artifact`
+```elixir
+tool_components: %{
+  "files" => &OmniUI.ToolComponents.files_tool_use/1,
+  "repl"  => &OmniUI.ToolComponents.repl_tool_use/1
+}
+```
+
+`files_tool_use/1` *wraps* `Components.tool_use/1` (the default
+expandable) and slots command-specific content into the `:aside`
+slot — the default icon, toggle, and raw input/output remain. The
+aside renders only after the tool produces a result:
+
+- `write` / `patch` — clickable filename button → `open_file`
   event → `AgentLive.handle_event` → `send_update(PanelComponent,
   action: {:view, filename})`.
 - `read` / `delete` / `list` — short status label.
+
+`repl_tool_use/1` replaces the default renderer entirely: terminal
+icon, agent-provided title, syntax-highlighted Elixir code, and
+execution results with check/error indicators.
 
 ---
 
@@ -1125,7 +1138,7 @@ Consumers override the theme by redefining the CSS custom properties
 
 **Markdown typography** is defined as Tailwind descendant-selector
 classes (`[&_.mdex_*]`) returned by `OmniUI.Helpers.md_styles/0`.
-Applied at `chat_interface` (and `Artifacts.PanelComponent`) root,
+Applied at `chat_interface` (and `Files.PanelComponent`) root,
 they target the `.mdex` class MDEx applies to rendered HTML. This
 keeps the `markdown/1` component's markup minimal while defining
 typography once.
@@ -1153,14 +1166,12 @@ lib/
     tree_faker.ex                  # test fixture (uses Omni.Session.Tree)
     turn.ex                        # %OmniUI.Turn{} + Turn.all/1, Turn.get/2, Turn.new/3
     turn_component.ex              # rendering one turn (LiveComponent)
-    artifacts/
-      chat_ui.ex                   # inline tool-use renderer (files tool)
+    tool_components.ex             # inline tool-use renderers (files + repl)
+    files/
       panel_component.ex           # right-sidebar panel (LiveComponent)
       panel_ui.ex                  # function components for the panel
       plug.ex                      # signed-token HTTP serving
       url.ex                       # token signing + URL construction
-    repl/
-      chat_ui.ex                   # inline tool-use renderer (repl tool)
 priv/static/omni_ui.css            # OKLCH theme + markdown typography
 omni_ui_dev/                       # companion Phoenix app for browser testing
 test/                              # ExUnit suite
@@ -1172,5 +1183,5 @@ is `@moduledoc false` (private dispatch).
 The companion app at `omni_ui_dev/` is the consumer reference. It
 wires `OmniUI.Sessions` and `OmniUI.TitleService` into the
 supervision tree, configures the FileSystem store, mounts
-`OmniUI.Artifacts.Plug` at `/omni_files`, and routes `/` to
+`OmniUI.Files.Plug` at `/omni_files`, and routes `/` to
 `OmniUI.AgentLive`.
