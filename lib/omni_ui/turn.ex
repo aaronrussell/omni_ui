@@ -161,13 +161,21 @@ defmodule OmniUI.Turn do
   end
 
   @doc """
-  Replaces the last content block in the turn.
+  Replaces a content block in the turn by matching its `id`.
 
   Called during streaming when a content block is finalised — e.g. a tool-use
   block that started as a stub on `:tool_use_start` and is replaced with the
-  fully-formed struct on `:tool_use_end`.
+  fully-formed struct on `:tool_use_end`. For blocks with an `id` field (like
+  `ToolUse`), the match is by id so parallel blocks don't clobber each other.
+  Falls back to replacing the last block for id-less content types.
   """
   @spec replace_content(t(), Omni.Message.content()) :: t()
+  def replace_content(%__MODULE__{} = turn, %{id: id} = content_block) when id != nil do
+    idx = Enum.find_index(turn.content, &(Map.get(&1, :id) == id)) || -1
+    content = List.replace_at(turn.content, idx, content_block)
+    %{turn | content: content}
+  end
+
   def replace_content(%__MODULE__{} = turn, content_block) do
     content = List.replace_at(turn.content, -1, content_block)
     %{turn | content: content}

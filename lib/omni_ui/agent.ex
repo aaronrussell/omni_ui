@@ -62,7 +62,7 @@ defmodule OmniUI.Agent do
       Omni.Tools.Files.new(base_dir: files_dir, nested: false),
       Omni.Tools.Repl.new(extensions: [{Omni.Tools.Repl.Extensions.Files, fs: fs}]),
       Omni.Tools.WebFetch.new(),
-      Omni.Tools.WebSearch.new(provider: Omni.Tools.WebSearch.Providers.Tavily),
+      Omni.Tools.WebSearch.new(provider: Omni.Tools.WebSearch.Providers.Tavily)
     ]
 
     system =
