@@ -14,7 +14,7 @@ defmodule OmniUI.SessionCase do
     quote do
       alias Omni.Session
       alias Omni.Session.Manager
-      alias Omni.Session.Store.FileSystem
+      alias Omni.Session.Stores.FileSystem
 
       @text_fixture "test/support/fixtures/anthropic_text.sse"
       @title_fixture "test/support/fixtures/anthropic_title.sse"

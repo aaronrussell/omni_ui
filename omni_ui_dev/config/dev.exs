@@ -89,4 +89,4 @@ sessions_dir = Path.expand("priv/omni/sessions")
 config :omni_ui, :sessions_base_dir, sessions_dir
 
 config :omni_ui, OmniUI.Sessions,
-  store: {Omni.Session.Store.FileSystem, base_dir: sessions_dir}
+  store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir}

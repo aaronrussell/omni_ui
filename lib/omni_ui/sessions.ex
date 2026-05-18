@@ -8,7 +8,7 @@ defmodule OmniUI.Sessions do
       # config/config.exs
       config :omni_ui, OmniUI.Sessions,
         store:
-          {Omni.Session.Store.FileSystem,
+          {Omni.Session.Stores.FileSystem,
            base_dir: "/absolute/path/to/sessions"}
 
       # application.ex

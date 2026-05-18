@@ -78,7 +78,7 @@ set_agent}`.
     Consumers add it to their supervision tree with a configured store.
   - `Omni.Session.Snapshot` and `Omni.Agent.Snapshot` — applied to
     socket assigns on attach (`apply_snapshot/4` in `OmniUI`).
-  - `Omni.Session.Store.FileSystem` — referenced by config (consumers
+  - `Omni.Session.Stores.FileSystem` — referenced by config (consumers
     pass it to `OmniUI.Sessions`); uses `:base_dir` for the absolute
     storage path.
 
@@ -770,7 +770,7 @@ sessions_dir = Path.expand("priv/omni/sessions")
 config :omni_ui, :sessions_base_dir, sessions_dir
 
 config :omni_ui, OmniUI.Sessions,
-  store: {Omni.Session.Store.FileSystem, base_dir: sessions_dir}
+  store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir}
 
 # application.ex
 children = [OmniUI.Sessions, ...]
@@ -985,7 +985,7 @@ The base dir is configured via `config :omni_ui, :sessions_base_dir`.
 helpers that derive paths from this config.
 
 Co-locating files with session data means session deletion (via the
-Manager's `delete/1` → `Store.FileSystem` `File.rm_rf`) naturally
+Manager's `delete/1` → `Stores.FileSystem` `File.rm_rf`) naturally
 cleans up files.
 
 The `Omni.Tools.Files.FS` module (from `omni_tools`) handles all
