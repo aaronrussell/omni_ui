@@ -9,8 +9,10 @@ defmodule OmniUI.ChatUI do
 
     * `chat_interface/1` — root wrapper, provides scroll container, editor, and
       markdown typography styles
-    * `message_list/1` — vertical list of turns
-    * `turn/1` — pairs a `:user` slot with an optional `:assistant` slot
+    * `turn_list/1` — stream container for committed turns with optional
+      `:user` and `:assistant` slot overrides
+    * `turn/1` — renders a turn with data-driven defaults and overridable
+      `:user` and `:assistant` slots
 
   ## Messages
 
@@ -94,31 +96,105 @@ defmodule OmniUI.ChatUI do
     """
   end
 
-  @doc "Vertical list container for turns."
-  attr :rest, :global
-  slot :inner_block, required: true
+  @doc """
+  Stream container for committed turns.
 
-  def message_list(assigns) do
+  Iterates over a LiveView stream of `OmniUI.Turn` structs, rendering each
+  as a `TurnComponent`. When `:user` or `:assistant` slots are provided,
+  they are threaded through to each `TurnComponent` (and from there to
+  `turn/1`), allowing per-turn customisation while retaining the default
+  rendering pipeline.
+
+  Both slots expose the turn via `:let`.
+  """
+  attr :stream, :any, required: true
+  attr :tool_components, :map, default: %{}
+  attr :id, :string, default: "turns"
+  slot :user
+  slot :assistant
+
+  def turn_list(assigns) do
     ~H"""
-    <div class="flex flex-col gap-24 empty:hidden" {@rest}>
-      {render_slot(@inner_block)}
+    <div id={@id} class="flex flex-col gap-24 empty:hidden" phx-update="stream">
+      <div :for={{dom_id, turn} <- @stream} id={dom_id}>
+        <.live_component
+          module={OmniUI.TurnComponent}
+          id={"turn-#{turn.id}"}
+          turn={turn}
+          tool_components={@tool_components}>
+          <:user :for={item <- @user} :let={turn}>
+            {render_slot(item, turn)}
+          </:user>
+          <:assistant :for={item <- @assistant} :let={turn}>
+            {render_slot(item, turn)}
+          </:assistant>
+        </.live_component>
+      </div>
     </div>
     """
   end
 
-  @doc "Pairs a `:user` slot with an optional `:assistant` slot."
+  @doc """
+  Renders a conversation turn with data-driven defaults.
+
+  When `:user` or `:assistant` slots are provided, they override the default
+  rendering for that zone. Both slots expose the turn via `:let`.
+
+  When slots are omitted, defaults are rendered based on `@turn.status`:
+
+    * **User** — `user_message/1` always, plus `user_message_actions/1` for
+      completed turns or `timestamp/1` for streaming turns.
+    * **Assistant** — `assistant_message/1` when content exists,
+      `busy_block/1` when streaming, `assistant_message_actions/1` when complete.
+  """
+  attr :turn, OmniUI.Turn, required: true
+  attr :tool_components, :map, default: %{}
+  attr :target, :any, default: nil
   attr :rest, :global
-  slot :user, required: true
+  slot :user
   slot :assistant
 
   def turn(assigns) do
     ~H"""
     <div class="flex flex-col gap-24" {@rest}>
       <div class="flex flex-col items-end gap-6">
-        {render_slot(@user)}
+        <%= if @user != [] do %>
+          {render_slot(@user, @turn)}
+        <% else %>
+          <.user_message text={@turn.user_text} attachments={@turn.user_attachments} />
+          <%= if @turn.status == :streaming do %>
+            <.timestamp class="text-xs text-omni-text-4" time={@turn.user_timestamp} />
+          <% else %>
+            <.user_message_actions
+              turn_id={@turn.id}
+              versions={@turn.edits}
+              timestamp={@turn.user_timestamp}
+              target={@target} />
+          <% end %>
+        <% end %>
       </div>
-      <div :if={@assistant != []} class="flex flex-col gap-6">
-        {render_slot(@assistant)}
+      <div
+        :if={@assistant != [] or show_assistant?(@turn)}
+        class="flex flex-col gap-6">
+        <%= if @assistant != [] do %>
+          {render_slot(@assistant, @turn)}
+        <% else %>
+          <.assistant_message
+            :if={@turn.content != []}
+            content={@turn.content}
+            tool_results={@turn.tool_results}
+            tool_components={@tool_components}
+            streaming={@turn.status == :streaming} />
+          <.assistant_message_actions
+            :if={@turn.status == :complete}
+            turn_id={@turn.id}
+            node_id={@turn.res_id}
+            versions={@turn.regens}
+            usage={@turn.usage}
+            target={@target} />
+          <.busy_block
+            :if={@turn.status == :streaming and show_busy?(@turn.content)} />
+        <% end %>
       </div>
     </div>
     """
@@ -357,14 +433,14 @@ defmodule OmniUI.ChatUI do
   end
 
   def content_block(%{content: %Omni.Content.ToolUse{} = tool_use} = assigns) do
-    tool_use_assigns = %{
-      __changed__: nil,
-      tool_use: tool_use,
-      tool_result: assigns[:tool_results][tool_use.id],
-      streaming: assigns[:streaming] || false
-    }
+    tool_use_assigns =
+      assign(%{__changed__: %{}},
+        tool_use: tool_use,
+        tool_result: assigns.tool_results[tool_use.id],
+        streaming: assigns.streaming
+      )
 
-    case assigns[:tool_components][tool_use.name] do
+    case assigns.tool_components[tool_use.name] do
       nil -> tool_use(tool_use_assigns)
       fun when is_function(fun, 1) -> fun.(tool_use_assigns)
     end
@@ -570,4 +646,11 @@ defmodule OmniUI.ChatUI do
       %{value: value, label: label}
     end)
   end
+
+  defp show_assistant?(%{status: :streaming}), do: true
+  defp show_assistant?(%{content: [_ | _]}), do: true
+  defp show_assistant?(_), do: false
+
+  defp show_busy?([]), do: true
+  defp show_busy?(content), do: match?(%Omni.Content.Text{}, List.last(content))
 end

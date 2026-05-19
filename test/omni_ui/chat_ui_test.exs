@@ -39,7 +39,7 @@ defmodule OmniUI.ChatUITest do
         """)
 
       assert html =~ "Thinking"
-      assert html =~ "animate-spin"
+      assert html =~ "animate-(--busy-animation)"
     end
 
     test "renders tool use with tool name" do
@@ -402,6 +402,120 @@ defmodule OmniUI.ChatUITest do
         """)
 
       assert html =~ "Expand"
+    end
+  end
+
+  # ── turn/1 ──────────────────────────────────────────────────────
+
+  describe "turn/1" do
+    defp sample_turn(overrides \\ %{}) do
+      Map.merge(
+        %OmniUI.Turn{
+          id: 1,
+          res_id: 2,
+          status: :complete,
+          edits: [1],
+          regens: [2],
+          user_text: [%Content.Text{text: "Hello there"}],
+          user_attachments: [],
+          user_timestamp: ~U[2026-01-15 10:00:00Z],
+          content: [%Content.Text{text: "Hi! How can I help?"}],
+          tool_results: %{},
+          usage: %Usage{input_tokens: 50, output_tokens: 30}
+        },
+        overrides
+      )
+    end
+
+    test "renders default user and assistant for complete turn" do
+      assigns = %{turn: sample_turn()}
+
+      html =
+        rendered_to_string(~H"""
+        <.turn turn={@turn} id="t" />
+        """)
+
+      assert html =~ "Hello there"
+      assert html =~ "Hi! How can I help?"
+      assert html =~ "Copy"
+      assert html =~ "Redo"
+    end
+
+    test "renders streaming defaults with timestamp and busy block" do
+      assigns = %{turn: sample_turn(%{status: :streaming, content: []})}
+
+      html =
+        rendered_to_string(~H"""
+        <.turn turn={@turn} id="t" />
+        """)
+
+      assert html =~ "Hello there"
+      assert html =~ "Working"
+      refute html =~ "Copy"
+      refute html =~ "Redo"
+    end
+
+    test "does not show busy block when last content is not text" do
+      assigns = %{
+        turn:
+          sample_turn(%{
+            status: :streaming,
+            content: [%Content.ToolUse{id: "tc1", name: "search", input: %{}}]
+          })
+      }
+
+      html =
+        rendered_to_string(~H"""
+        <.turn turn={@turn} id="t" />
+        """)
+
+      refute html =~ "Working"
+    end
+
+    test "custom :user slot overrides defaults" do
+      assigns = %{turn: sample_turn()}
+
+      html =
+        rendered_to_string(~H"""
+        <.turn turn={@turn} id="t">
+          <:user :let={turn}>
+            <div class="custom-user">{hd(turn.user_text).text}</div>
+          </:user>
+        </.turn>
+        """)
+
+      assert html =~ "custom-user"
+      assert html =~ "Hello there"
+      refute html =~ "Edit"
+    end
+
+    test "custom :assistant slot overrides defaults" do
+      assigns = %{turn: sample_turn()}
+
+      html =
+        rendered_to_string(~H"""
+        <.turn turn={@turn} id="t">
+          <:assistant :let={_turn}>
+            <div class="custom-asst">custom</div>
+          </:assistant>
+        </.turn>
+        """)
+
+      assert html =~ "custom-asst"
+      refute html =~ "Hi! How can I help?"
+      refute html =~ "Redo"
+    end
+
+    test "hides assistant section when complete turn has no content" do
+      assigns = %{turn: sample_turn(%{status: :complete, content: [], res_id: nil, regens: []})}
+
+      html =
+        rendered_to_string(~H"""
+        <.turn turn={@turn} id="t" />
+        """)
+
+      assert html =~ "Hello there"
+      refute html =~ "Redo"
     end
   end
 

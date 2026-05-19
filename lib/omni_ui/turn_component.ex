@@ -37,39 +37,23 @@ defmodule OmniUI.TurnComponent do
   import OmniUI.ChatUI
   alias Phoenix.LiveView.JS
 
+  slot :user, doc: "custom user slot; forwarded to turn/1 unless editing"
+  slot :assistant, doc: "custom assistant slot; forwarded to turn/1"
+
   @impl true
   def render(assigns) do
     ~H"""
     <div id={@id}>
-      <.turn>
-        <:user>
-          <%= if @editing do %>
-            <.user_edit_form input={@input} target={@myself} />
-          <% else %>
-            <.user_message text={@turn.user_text} attachments={@turn.user_attachments} />
-
-            <.user_message_actions
-              turn_id={@turn.id}
-              versions={@turn.edits}
-              timestamp={@turn.user_timestamp}
-              target={@myself} />
-          <% end %>
+      <.turn turn={@turn} tool_components={@tool_components} target={@myself}>
+        <:user :if={@editing} :let={_turn}>
+          <.user_edit_form input={@input} target={@myself} />
+        </:user>
+        <:user :if={not @editing} :for={item <- @user} :let={turn}>
+          {render_slot(item, turn)}
         </:user>
 
-        <:assistant>
-          <.assistant_message
-            content={@turn.content}
-            tool_results={@turn.tool_results}
-            tool_components={@tool_components}
-            streaming={@turn.status == :streaming} />
-
-          <.assistant_message_actions
-            :if={@turn.status == :complete}
-            turn_id={@turn.id}
-            node_id={@turn.res_id}
-            versions={@turn.regens}
-            usage={@turn.usage}
-            target={@myself} />
+        <:assistant :for={item <- @assistant} :let={turn}>
+          {render_slot(item, turn)}
         </:assistant>
       </.turn>
     </div>

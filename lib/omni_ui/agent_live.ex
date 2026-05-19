@@ -24,33 +24,13 @@ defmodule OmniUI.AgentLive do
         <.header title={@title} />
         <div class="flex-1 min-h-0">
           <.chat_interface>
-            <.message_list id="turns" phx-update="stream">
-              <div :for={{dom_id, turn} <- @streams.turns} id={dom_id}>
-                <.live_component
-                  module={OmniUI.TurnComponent}
-                  id={"turn-#{turn.id}"}
-                  turn={turn}
-                  tool_components={@tool_components} />
-              </div>
-            </.message_list>
+            <.turn_list stream={@streams.turns} tool_components={@tool_components} />
 
-            <.turn :if={@current_turn} id="current-turn">
-              <:user>
-                <.user_message text={@current_turn.user_text} attachments={@current_turn.user_attachments} />
-                <.timestamp
-                  class="text-xs text-omni-text-4"
-                  time={@current_turn.user_timestamp} />
-              </:user>
-              <:assistant>
-                <.assistant_message
-                  :if={@current_turn.content != []}
-                  content={@current_turn.content}
-                  tool_results={@current_turn.tool_results}
-                  tool_components={@tool_components}
-                  streaming={true} />
-                <.busy_block :if={show_busy?(@current_turn.content)} />
-              </:assistant>
-            </.turn>
+            <.turn
+              :if={@current_turn}
+              id="current-turn"
+              turn={@current_turn}
+              tool_components={@tool_components} />
 
             <:toolbar>
               <.toolbar
@@ -223,7 +203,4 @@ defmodule OmniUI.AgentLive do
   defp save_title(pid, ""), do: save_title(pid, nil)
   defp save_title(pid, title) when is_pid(pid), do: Omni.Session.set_title(pid, title)
   defp save_title(_pid, _raw), do: :ok
-
-  defp show_busy?([]), do: true
-  defp show_busy?(content), do: match?(%Omni.Content.Text{}, List.last(content))
 end
