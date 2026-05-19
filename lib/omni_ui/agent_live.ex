@@ -43,10 +43,12 @@ defmodule OmniUI.AgentLive do
               </:user>
               <:assistant>
                 <.assistant_message
+                  :if={@current_turn.content != []}
                   content={@current_turn.content}
                   tool_results={@current_turn.tool_results}
                   tool_components={@tool_components}
                   streaming={true} />
+                <.busy_block :if={show_busy?(@current_turn.content)} />
               </:assistant>
             </.turn>
 
@@ -221,4 +223,7 @@ defmodule OmniUI.AgentLive do
   defp save_title(pid, ""), do: save_title(pid, nil)
   defp save_title(pid, title) when is_pid(pid), do: Omni.Session.set_title(pid, title)
   defp save_title(_pid, _raw), do: :ok
+
+  defp show_busy?([]), do: true
+  defp show_busy?(content), do: match?(%Omni.Content.Text{}, List.last(content))
 end

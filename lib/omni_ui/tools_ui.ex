@@ -131,7 +131,7 @@ defmodule OmniUI.ToolsUI do
       |> assign(:code, Map.get(assigns.tool_use.input, "code"))
 
     ~H"""
-    <.expandable>
+    <.expandable label={@title}>
       <:icon>
         <Lucideicons.terminal class={cls([
           "size-4 text-omni-text-4",
@@ -139,19 +139,18 @@ defmodule OmniUI.ToolsUI do
         ])} />
       </:icon>
 
-      <:toggle>
-        <div class="flex items-center gap-2">
-          <span>{@title}</span>
-          <%= if @tool_result do %>
-            <Lucideicons.check
-              :if={@tool_result.is_error == false}
-              class="size-3 text-green-500" />
-            <Lucideicons.circle_x
-              :if={@tool_result.is_error == true}
-              class="size-4 text-red-500" />
-          <% end %>
-        </div>
-      </:toggle>
+      <:status :if={@streaming}>
+        <ChatUI.busy_anim />
+      </:status>
+
+      <:status :if={not @streaming and @tool_result}>
+        <Lucideicons.check
+          :if={not @tool_result.is_error}
+          class="size-3 text-green-500" />
+        <Lucideicons.circle_x
+          :if={@tool_result.is_error}
+          class="size-4 text-red-500" />
+      </:status>
 
       <div
         class={[

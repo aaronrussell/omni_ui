@@ -275,6 +275,31 @@ defmodule OmniUI.ChatUI do
     """
   end
 
+  @doc "Standalone busy indicator shown after the last text block in a streaming turn."
+  def busy_block(assigns) do
+    ~H"""
+    <div class="inline-flex items-center gap-1.5">
+      <Lucideicons.bot class="size-4 text-blue-500" />
+      <div class="flex items-baseline gap-2">
+        <div class="text-sm text-omni-text-3">Working</div>
+        <.busy_anim />
+      </div>
+    </div>
+    """
+  end
+
+  @doc "Bouncing dots animation used inline within tool and thinking blocks."
+  def busy_anim(assigns) do
+    ~H"""
+    <div class="flex items-center gap-1 text-omni-text-4">
+      <div class="size-1.5 rounded-full bg-current animate-(--busy-animation)"></div>
+      <div class="size-1.5 rounded-full bg-current animate-(--busy-animation) [animation-delay:0.2s]"></div>
+      <div class="size-1.5 rounded-full bg-current animate-(--busy-animation) [animation-delay:0.4s]"></div>
+      <div class="size-1.5 rounded-full bg-current animate-(--busy-animation) [animation-delay:0.6s]"></div>
+    </div>
+    """
+  end
+
   # ── Content blocks ──────────────────────────────────────────────
 
   @doc """
@@ -310,12 +335,11 @@ defmodule OmniUI.ChatUI do
     ~H"""
     <.expandable label={if(@streaming, do: "Thinking", else: "Thought")}>
       <:icon>
-        <Lucideicons.sparkle
-          class={cls([
-          "size-4 text-amber-500",
-          if(@streaming, do: "animate-spin", else: "")
-        ])} />
+        <Lucideicons.sparkle class="size-4 text-amber-500" />
       </:icon>
+      <:status :if={@streaming}>
+        <.busy_anim />
+      </:status>
 
       <.markdown text={@content.text} class="text-sm text-omni-text-3 italic" />
     </.expandable>
@@ -371,28 +395,28 @@ defmodule OmniUI.ChatUI do
     ~H"""
     <.expandable>
       <:icon>
-        <Lucideicons.cog class={cls([
-          "size-4 text-omni-text-4",
-          if(@streaming, do: "animate-spin", else: "")
-        ])} />
+        <Lucideicons.cog class="size-4 text-omni-text-4" />
       </:icon>
 
       <:toggle>
-        <div class="flex items-center gap-1">
-          <code class={[
-            "px-2 py-1 rounded font-mono text-xs",
-            "bg-omni-bg-1 text-omni-text-1"
-          ]}><%= @tool_use.name %></code>
-          <%= if @tool_result do %>
-            <Lucideicons.check
-              :if={@tool_result.is_error == false}
-              class="size-3 text-green-500" />
-            <Lucideicons.circle_x
-              :if={@tool_result.is_error == true}
-              class="size-4 text-red-500" />
-          <% end %>
-        </div>
+        <code class={[
+          "px-2 py-1 rounded font-mono text-xs",
+          "bg-omni-bg-1 text-omni-text-1"
+        ]}><%= @tool_use.name %></code>
       </:toggle>
+
+      <:status :if={@streaming}>
+        <.busy_anim />
+      </:status>
+
+      <:status :if={not @streaming and @tool_result}>
+        <Lucideicons.check
+          :if={not @tool_result.is_error}
+          class="size-3 text-green-500" />
+        <Lucideicons.circle_x
+          :if={@tool_result.is_error}
+          class="size-4 text-red-500" />
+      </:status>
 
       <:aside :if={@aside != []}>{render_slot @aside}</:aside>
 

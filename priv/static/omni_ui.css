@@ -18,6 +18,8 @@
 
   --color-omni-accent-1: oklch(62.3% 0.214 259.815);    /* --color-blue-500 */
   --color-omni-accent-2: oklch(70.7% 0.165 254.624);    /* --color-blue-400 */
+
+  --busy-animation: busy-bounce 1.5s ease-in-out infinite;
 }
 
 :root {
@@ -40,4 +42,14 @@
     --color-omni-accent-1: oklch(70.7% 0.165 254.624);  /* --color-blue-400 */
     --color-omni-accent-2: oklch(80.9% 0.105 251.813);  /* --color-blue-300 */
   }
+}
+
+@keyframes busy-bounce {
+  0%      { transform: translateY(0); }
+  16.67%  { transform: translateY(2px) scaleX(1.15) scaleY(0.85); background-color: var(--color-omni-accent-1); }
+  33.33%  { transform: translateY(-3px); background-color: var(--color-omni-accent-2); }
+  50%     { transform: translateY(1px) scaleX(1.05) scaleY(0.95); background-color: var(--color-omni-accent-1); }
+  66.67%  { transform: translateY(0); }
+  83.33%  { transform: translateY(0); }
+  100%    { transform: translateY(0); }
 }

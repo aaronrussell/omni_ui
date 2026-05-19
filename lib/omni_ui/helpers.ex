@@ -311,6 +311,12 @@ defmodule OmniUI.Helpers do
     |> MDEx.to_html!(
       syntax_highlight: [
         formatter: {:html_inline, theme: "catppuccin_macchiato"}
+      ],
+      sanitize: [
+        add_tag_attributes: %{"a" => ~w(target rel)},
+        set_tag_attribute_values: %{
+          "a" => %{"target" => "_blank", "rel" => "noopener noreferrer"}
+        }
       ]
     )
     |> Phoenix.HTML.raw()

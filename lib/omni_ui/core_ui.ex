@@ -29,6 +29,8 @@ defmodule OmniUI.CoreUI do
 
   slot :toggle, doc: "content shown as the clickable toggle; overrides `:label`"
 
+  slot :status
+
   slot :aside,
     doc: "optional content rendered alongside the header, outside the click target"
 
@@ -56,6 +58,7 @@ defmodule OmniUI.CoreUI do
           ]}>
             {render_slot(@toggle) || @label || "Expand"}
           </div>
+          <div :if={@status != []}>{render_slot @status}</div>
         </div>
 
         <div :if={@aside != []}>{render_slot @aside}</div>
