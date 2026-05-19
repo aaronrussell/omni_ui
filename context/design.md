@@ -35,9 +35,9 @@ use OmniUI             — macro. Adds session-streaming plumbing,
                          update_session/2, notify/2,3.
        │
 OmniUI.ChatUI          — chat pipeline function components:
-                         chat_interface, message_list, turn,
+                         chat_interface, editor, turn_list, turn,
                          user_message, assistant_message, content_block,
-                         tool_use, attachment, toolbar, markdown.
+                         tool_use, attachment, markdown.
 OmniUI.CoreUI          — shared UI primitives: expandable, select,
                          version_nav, timestamp, usage_block,
                          notifications.
@@ -566,10 +566,9 @@ All function components, no state. Organised by concern into `*UI`
 modules:
 
 - **`ChatUI`** — the chat pipeline. Layout (`chat_interface/1`,
-  `message_list/1`, `turn/1`), messages (`user_message/1`,
+  `editor/1`, `turn_list/1`, `turn/1`), messages (`user_message/1`,
   `assistant_message/1`, `*_actions/1`), content blocks
-  (`content_block/1`, `tool_use/1`, `markdown/1`, `attachment/1`),
-  and `toolbar/1`.
+  (`content_block/1`, `tool_use/1`, `markdown/1`, `attachment/1`).
 - **`CoreUI`** — shared primitives. `expandable/1`, `select/1`,
   `version_nav/1`, `timestamp/1`, `usage_block/1`, `notifications/1`.
 - **`SessionsUI`** — `session_list/1`.
@@ -577,10 +576,11 @@ modules:
 - **`ToolsUI`** — `files_tool_use/1`, `repl_tool_use/1`.
 
 `chat_interface/1` is the root wrapper. Provides the scroll
-container, a mounted `OmniUI.EditorComponent`, optional `:toolbar`
-and `:footer` slots, and the markdown typography styles via a class
-list returned by `OmniUI.Helpers.md_styles/0`. Consumers compose
-their own template inside this.
+container, optional `:editor` and `:footer` slots, and the markdown
+typography styles via a class list returned by
+`OmniUI.Helpers.md_styles/0`. When `:editor` is not provided, renders
+a plain `EditorComponent`. `editor/1` wraps `EditorComponent` with
+default controls (model select, thinking toggle, usage display).
 
 ### 7.2 The two LiveComponents
 
@@ -593,7 +593,7 @@ their own template inside this.
   zone (`phx-drop-target`), and `allow_upload(:attachments, ...)`.
   On submit, base64-encodes attachments and sends
   `{OmniUI, :new_message, %Omni.Message{}}` to the parent. Accepts a
-  `:toolbar` slot.
+  `:controls` slot.
 
 LiveComponents isolate high-frequency state (textarea keystrokes,
 upload progress) from the parent.
@@ -616,16 +616,14 @@ AgentLive (LiveView)
 ├── header/1 (private — top bar with sessions toggle, title, files toggle)
 │
 ├── chat_interface/1
-│   ├── message_list/1
+│   ├── turn_list/1
 │   │   └── stream :turns
 │   │       └── TurnComponent (per turn)
-│   │           ├── turn/1 (user_message + assistant_message)
-│   │           ├── user_message_actions/1
-│   │           └── assistant_message_actions/1
+│   │           └── turn/1 (user_message + assistant_message + actions)
 │   │
 │   ├── turn/1 for @current_turn (streaming)
-│   ├── EditorComponent (rendered inside chat_interface)
-│   ├── :toolbar slot → toolbar/1
+│   ├── :editor slot → editor/1
+│   │   └── EditorComponent (rendered inside editor/1)
 │   └── :footer slot
 │
 ├── FilesComponent (LiveComponent — right sidebar)
@@ -687,10 +685,10 @@ key conflicts.
 ### 8.2 Propagation
 
 `@tool_components` is threaded through:
-`AgentLive` → `TurnComponent` → `assistant_message/1` →
-`content_block/1`. The `ToolUse` clause of `content_block/1` looks up
-the tool by name; on hit it calls the registered function, on miss
-falls back to `tool_use/1`.
+`AgentLive` → `turn_list/1` → `TurnComponent` → `turn/1` →
+`assistant_message/1` → `content_block/1`. The `ToolUse` clause of
+`content_block/1` looks up the tool by name; on hit it calls the
+registered function, on miss falls back to `tool_use/1`.
 
 ### 8.3 Assigns contract
 
