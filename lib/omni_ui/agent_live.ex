@@ -28,7 +28,6 @@ defmodule OmniUI.AgentLive do
 
             <.turn
               :if={@current_turn}
-              id="current-turn"
               turn={@current_turn}
               tool_components={@tool_components} />
 

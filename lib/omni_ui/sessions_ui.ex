@@ -55,7 +55,6 @@ defmodule OmniUI.SessionsUI do
               </div>
             </div>
             <.timestamp
-              class="text-xs text-omni-text-4"
               time={session.updated_at}
               format="%-d %B" />
           </button>

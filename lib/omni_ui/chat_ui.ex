@@ -252,20 +252,19 @@ defmodule OmniUI.ChatUI do
   attr :turn, OmniUI.Turn, required: true
   attr :tool_components, :map, default: %{}
   attr :target, :any, default: nil
-  attr :rest, :global
   slot :user
   slot :assistant
 
   def turn(assigns) do
     ~H"""
-    <div class="flex flex-col gap-24" {@rest}>
+    <div class="flex flex-col gap-24">
       <div class="flex flex-col items-end gap-6">
         <%= if @user != [] do %>
           {render_slot(@user, @turn)}
         <% else %>
           <.user_message text={@turn.user_text} attachments={@turn.user_attachments} />
           <%= if @turn.status == :streaming do %>
-            <.timestamp class="text-xs text-omni-text-4" time={@turn.user_timestamp} />
+            <.timestamp time={@turn.user_timestamp} />
           <% else %>
             <.user_message_actions
               turn_id={@turn.id}
@@ -343,7 +342,6 @@ defmodule OmniUI.ChatUI do
     ~H"""
     <div class="flex items-center gap-4">
       <.timestamp
-        class="text-xs text-omni-text-4"
         time={@timestamp}
         format="%-d %B" />
 
@@ -629,13 +627,12 @@ defmodule OmniUI.ChatUI do
   """
   attr :name, :string, required: true
   attr :media_type, :string, required: true
-  attr :rest, :global
   slot :image
   slot :action
 
   def attachment(assigns) do
     ~H"""
-    <div class="relative group" {@rest}>
+    <div class="relative group">
       <div class={[
         "size-16 border rounded-lg overflow-hidden",
         "bg-omni-bg text-omni-text-3 border-omni-border-2",
@@ -670,7 +667,7 @@ defmodule OmniUI.ChatUI do
 
   def markdown(assigns) do
     ~H"""
-    <div class={["mdex leading-[1.5]", @rest.class]}>
+    <div class={["mdex leading-[1.5]"]} {@rest}>
       <%= to_md(@text, streaming: @streaming) %>
     </div>
     """

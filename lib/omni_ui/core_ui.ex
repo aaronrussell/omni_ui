@@ -234,12 +234,11 @@ defmodule OmniUI.CoreUI do
   @doc "Formatted time display with tooltip showing full date."
   attr :time, DateTime, required: true
   attr :format, :string, default: "%Y-%m-%d %H:%M"
-  attr :rest, :global, default: %{class: ""}
 
   def timestamp(assigns) do
     ~H"""
     <time
-      class={@rest.class}
+      class="text-xs text-omni-text-4"
       datetime={Calendar.strftime(@time, "%c")}
       title={Calendar.strftime(@time, "%c")}>
       {time_ago(@time, @format)}
