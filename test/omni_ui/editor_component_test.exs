@@ -45,4 +45,34 @@ defmodule OmniUI.EditorComponentTest do
       refute html =~ "cancel-upload"
     end
   end
+
+  describe "controls slot" do
+    test "renders controls slot content" do
+      html =
+        render_component(EditorComponent,
+          id: "editor",
+          controls: [
+            %{
+              __slot__: :controls,
+              inner_block: fn _, _ ->
+                assigns = %{}
+
+                ~H"""
+                <div id="custom-controls">My controls</div>
+                """
+              end
+            }
+          ]
+        )
+
+      assert html =~ ~s(id="custom-controls")
+      assert html =~ "My controls"
+    end
+
+    test "renders without controls slot" do
+      html = render_component(EditorComponent, id: "editor")
+
+      refute html =~ "model-select"
+    end
+  end
 end

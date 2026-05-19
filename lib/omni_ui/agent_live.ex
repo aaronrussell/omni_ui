@@ -32,13 +32,13 @@ defmodule OmniUI.AgentLive do
               turn={@current_turn}
               tool_components={@tool_components} />
 
-            <:toolbar>
-              <.toolbar
+            <:editor>
+              <.editor
                 model={@model}
                 model_options={@model_options}
                 thinking={@thinking}
                 usage={@usage} />
-            </:toolbar>
+            </:editor>
 
             <:footer>
               <p>Boring footer here. <a href="#todo">Privacy Policy</a></p>

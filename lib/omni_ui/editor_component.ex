@@ -15,14 +15,14 @@ defmodule OmniUI.EditorComponent do
 
   ## Slots
 
-    * `:toolbar` — optional slot rendered in the bottom bar alongside the
-      attach button. Used by `AgentLive` for model/thinking selectors.
+    * `:controls` — optional slot rendered in the bottom bar alongside the
+      attach button. Used by `editor/1` for model/thinking selectors.
   """
 
   use Phoenix.LiveComponent
   import OmniUI.ChatUI, only: [attachment: 1]
 
-  slot :toolbar
+  slot :controls
 
   @impl true
   def render(assigns) do
@@ -109,7 +109,7 @@ defmodule OmniUI.EditorComponent do
               <.live_file_input upload={@uploads.attachments} class="hidden" />
             </label>
 
-            {render_slot(@toolbar)}
+            {render_slot(@controls)}
           </div>
         </div>
       </form>

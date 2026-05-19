@@ -29,9 +29,10 @@ defmodule OmniUI.ChatUI do
     * `tool_use/1` — default tool-use renderer with expandable input/output
     * `attachment/1` — thumbnail tile for images and file icons
 
-  ## Toolbar
+  ## Editor
 
-    * `toolbar/1` — model selector, thinking toggle, and usage summary
+    * `editor/1` — wraps `EditorComponent` with optional model selector,
+      thinking toggle, and usage summary controls
   """
 
   use Phoenix.Component
@@ -44,11 +45,15 @@ defmodule OmniUI.ChatUI do
   @doc """
   Root layout for the chat interface.
 
-  Provides the scroll container, message editor, and markdown typography
-  styles. All other components are designed to be rendered within this root.
+  Provides the scroll container, markdown typography styles, and an optional
+  editor. All other components are designed to be rendered within this root.
+
+  When the `:editor` slot is not provided, renders a plain `EditorComponent`
+  (textarea and attach button, no controls). When `:editor` is provided,
+  renders the slot content instead — typically via `editor/1`.
   """
   slot :inner_block, required: true
-  slot :toolbar
+  slot :editor
   slot :footer
 
   def chat_interface(assigns) do
@@ -71,23 +76,21 @@ defmodule OmniUI.ChatUI do
         </div>
       </div>
 
-      <div
-        class={[
-          "shrink-0 px-12",
-          if(@footer == [], do: "pb-8", else: "pb-6")]
-        }>
+      <div class={["shrink-0 px-12", if(@footer == [], do: "pb-8", else: "pb-6")]}>
         <div class="max-w-3xl mx-auto flex flex-col items-center gap-6">
-          <.live_component id="editor" module={OmniUI.EditorComponent}>
-            <:toolbar :for={item <- @toolbar} align={item[:align]}>
-              {render_slot(item)}
-            </:toolbar>
-          </.live_component>
+          <%= if @editor != [] do %>
+            {render_slot(@editor)}
+          <% else %>
+            <.live_component id="editor" module={OmniUI.EditorComponent} />
+          <% end %>
 
-          <div :if={@footer != []} class={[
-            "text-xs text-omni-text-4",
-            "[&_a]:text-omni-text-3 [&_a]:underline [&_a]:transition-colors",
-            "[&_a]:hover:text-omni-accent-2",
-          ]}>
+          <div
+            :if={@footer != []}
+            class={[
+              "text-xs text-omni-text-4",
+              "[&_a]:text-omni-text-3 [&_a]:underline [&_a]:transition-colors",
+              "[&_a]:hover:text-omni-accent-2"
+            ]}>
             {render_slot(@footer)}
           </div>
         </div>
@@ -95,6 +98,105 @@ defmodule OmniUI.ChatUI do
     </div>
     """
   end
+
+  # ── Editor ──────────────────────────────────────────────────────
+
+  @doc """
+  Editor component with optional controls.
+
+  Wraps `EditorComponent` and provides default controls (model selector,
+  thinking toggle, usage summary) when the relevant attrs are provided.
+  All attrs are optional — when omitted, the editor renders with just the
+  textarea and attach button.
+
+  Three usage tiers:
+
+      <%!-- Default editor + default controls: --%>
+      <.editor model={@model} model_options={@model_options}
+               thinking={@thinking} usage={@usage} />
+
+      <%!-- Default editor + custom controls: --%>
+      <.editor>
+        <:controls><.my_controls /></:controls>
+      </.editor>
+
+      <%!-- No controls (just textarea): --%>
+      <.editor />
+
+  For a fully custom editor, skip `editor/1` entirely and render your own
+  component inside `chat_interface`'s `:editor` slot.
+  """
+  attr :model_options, :list, default: nil
+  attr :model, Omni.Model, default: nil
+  attr :thinking, :atom, default: nil
+  attr :usage, Omni.Usage, default: nil
+  slot :controls
+
+  @thinking_levels [:max, :high, :medium, :low, false]
+
+  def editor(assigns) do
+    assigns =
+      assigns
+      |> assign_new(:formatted_model_options, fn ->
+        format_model_options(assigns.model_options)
+      end)
+      |> assign_new(:formatted_thinking_options, fn -> format_thinking_options() end)
+
+    ~H"""
+    <.live_component id="editor" module={OmniUI.EditorComponent}>
+      <:controls>
+        <%= if @controls != [] do %>
+          {render_slot(@controls)}
+        <% else %>
+          <div class="flex flex-auto items-center gap-4">
+            <div
+              :if={@formatted_model_options && @model}
+              class={[
+                "flex items-center gap-4",
+                "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
+              ]}>
+              <.select
+                id="model-select"
+                options={@formatted_model_options}
+                value={model_key(@model)}
+                event="omni:select_model"
+                position="above" />
+            </div>
+
+            <div
+              :if={@thinking != nil && @model && @model.reasoning}
+              class={[
+                "flex items-center gap-4",
+                "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
+              ]}>
+              <.select
+                id="thinking-select"
+                options={@formatted_thinking_options}
+                value={to_string(@thinking)}
+                event="omni:select_thinking"
+                prompt="Thinking"
+                position="above" />
+            </div>
+
+            <div :if={@usage} class="flex-auto flex items-center justify-end">
+              <.usage_block usage={@usage} />
+            </div>
+          </div>
+        <% end %>
+      </:controls>
+    </.live_component>
+    """
+  end
+
+  defp format_thinking_options do
+    Enum.map(@thinking_levels, fn val ->
+      value = to_string(val)
+      label = if val == false, do: "Off", else: String.capitalize(value)
+      %{value: value, label: label}
+    end)
+  end
+
+  # ── Turns ──────────────────────────────────────────────────────
 
   @doc """
   Stream container for committed turns.
@@ -572,79 +674,6 @@ defmodule OmniUI.ChatUI do
       <%= to_md(@text, streaming: @streaming) %>
     </div>
     """
-  end
-
-  # ── Toolbar ─────────────────────────────────────────────────────
-
-  @doc """
-  Toolbar with model selector, thinking toggle, and usage summary.
-
-  All attrs are optional — sections are only rendered when their data is
-  provided, allowing consumers to show a subset of controls.
-
-  `model_options` accepts a list of `%Omni.Model{}` structs; the toolbar
-  groups them by provider for the select dropdown. The thinking selector
-  renders when `thinking` is not nil and the current model supports reasoning.
-  """
-  attr :model_options, :list, default: nil
-  attr :model, Omni.Model, default: nil
-  attr :thinking, :atom, default: nil
-  attr :usage, Omni.Usage, default: nil
-
-  @thinking_levels [:max, :high, :medium, :low, false]
-
-  def toolbar(assigns) do
-    assigns =
-      assigns
-      |> assign_new(:formatted_model_options, fn ->
-        format_model_options(assigns.model_options)
-      end)
-      |> assign_new(:formatted_thinking_options, fn -> format_thinking_options() end)
-
-    ~H"""
-    <div class="flex flex-auto items-center gap-4">
-      <div
-        :if={@formatted_model_options && @model}
-        class={[
-          "flex items-center gap-4",
-          "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
-        ]}>
-        <.select
-          id="model-select"
-          options={@formatted_model_options}
-          value={model_key(@model)}
-          event="omni:select_model"
-          position="above" />
-      </div>
-
-      <div
-        :if={@thinking != nil && @model && @model.reasoning}
-        class={[
-          "flex items-center gap-4",
-          "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
-        ]}>
-        <.select
-          id="thinking-select"
-          options={@formatted_thinking_options}
-          value={to_string(@thinking)}
-          event="omni:select_thinking"
-          prompt="Thinking"
-          position="above" />
-      </div>
-
-      <div :if={@usage} class="flex-auto flex items-center justify-end">
-        <.usage_block usage={@usage} />
-      </div>
-    </div>
-    """
-  end
-
-  defp format_thinking_options do
-    Enum.map(@thinking_levels, fn val ->
-      value = to_string(val)
-      label = if val == false, do: "Off", else: String.capitalize(value)
-      %{value: value, label: label}
-    end)
   end
 
   defp show_assistant?(%{status: :streaming}), do: true
