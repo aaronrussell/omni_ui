@@ -11,17 +11,24 @@ defmodule OmniUI.AgentLive do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <div class="relative h-screen flex bg-omni-bg text-omni-text">
-      <div class="w-64 h-full z-10 bg-omni-bg border-r border-omni-border-2 shadow-[4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
+    <div class="relative h-screen w-full flex bg-omni-bg text-omni-text overflow-x-hidden">
+      <.side_panel
+        align="left"
+        open={@open_sessions}
+        close_event="toggle_sessions">
         <.live_component
           module={OmniUI.SessionsComponent}
           id="sessions"
           manager={OmniUI.Sessions}
           current_id={@session_id} />
-      </div>
+      </.side_panel>
 
       <div class="flex-auto flex flex-col h-full">
-        <.header title={@title} />
+        <.header
+          title={@title}
+          open_sessions={@open_sessions}
+          open_files={@open_files} />
+
         <div class="flex-1 min-h-0">
           <.chat_interface>
             <.turn_list stream={@streams.turns} tool_components={@tool_components} />
@@ -46,13 +53,17 @@ defmodule OmniUI.AgentLive do
         </div>
       </div>
 
-      <div
-        class="h-full w-[calc(50%-8rem)] border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]">
+      <.side_panel
+        align="right"
+        open={@open_files}
+        close_event="toggle_files"
+        outer_class="lg:w-96 xl:w-128 2xl:w-160"
+        inner_class="w-screen md:w-96 xl:w-128 2xl:w-160">
         <.live_component
           module={FilesComponent}
           id="files-panel"
           session_id={@session_id} />
-      </div>
+      </.side_panel>
 
       <.notifications stream={@streams.notifications} />
     </div>
@@ -60,6 +71,8 @@ defmodule OmniUI.AgentLive do
   end
 
   attr :title, :string, default: nil
+  attr :open_sessions, :boolean
+  attr :open_files, :boolean
 
   defp header(assigns) do
     ~H"""
@@ -70,18 +83,13 @@ defmodule OmniUI.AgentLive do
             "flex items-center justify-center size-8 rounded cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
-          title="Sessions">
-          <Lucideicons.history class="size-4" />
-        </button>
-
-        <button
-          class={[
-            "flex items-center justify-center size-8 rounded cursor-pointer",
-            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
-          ]}
-          title="New session"
-          phx-click="new_session">
-          <Lucideicons.plus class="size-4" />
+          title="Sessions"
+          phx-click="toggle_sessions">
+          <%= if @open_sessions do %>
+            <Lucideicons.panel_left_close class="size-4" />
+          <% else %>
+            <Lucideicons.panel_left_open class="size-4" />
+          <% end %>
         </button>
       </div>
 
@@ -107,9 +115,57 @@ defmodule OmniUI.AgentLive do
             "flex items-center justify-center size-8 rounded cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
-          title="Open files panel">
-          <Lucideicons.panel_right_open class="size-4" />
+          title="Open files panel"
+          phx-click="toggle_files">
+          <%= if @open_files do %>
+            <Lucideicons.panel_right_close class="size-4" />
+          <% else %>
+            <Lucideicons.panel_right_open class="size-4" />
+          <% end %>
         </button>
+      </div>
+    </div>
+    """
+  end
+
+  attr :align, :string, values: ["left", "right"], required: true
+  attr :open, :boolean, required: true
+  attr :close_event, :string, required: true
+  attr :outer_class, :string, default: "lg:w-64"
+  attr :inner_class, :string, default: "w-64"
+  slot :inner_block, required: true
+
+  defp side_panel(assigns) do
+    ~H"""
+    <div
+      class={[
+        "absolute top-12 bottom-0 w-0 lg:relative lg:inset-auto",
+        "flex flex-col",
+        "transition-[width] duration-300 ease-out",
+        if(@align == "left", do: "left-0 z-20 items-start", else: "right-0 z-10 items-end"),
+        if(@open, do: @outer_class),
+      ]}>
+      <div
+        class={[
+          "lg:hidden absolute -z-5 w-screen h-full bg-black/25 transition-opacity",
+          if(@align == "right", do: "right-0"),
+          if(@open, do: "visible opacity-100", else: "invisible opacity-0"),
+        ]}
+        phx-click={@close_event} />
+      <div
+        class={[
+          "h-full transition-transform duration-300 ease-out",
+          @inner_class,
+          if(@open,
+            do: "translate-x-0",
+            else: if(@align == "left", do: "-translate-x-full", else: "translate-x-full")
+          ),
+          if(@align == "left",
+            do: "border-r border-omni-border-2 shadow-[4px_0px_6px_-1px_rgba(0,0,0,0.1)]",
+            else: "border-l border-omni-border-2 shadow-[-4px_0px_6px_-1px_rgba(0,0,0,0.1)]"
+          )
+        ]}>
+        {render_slot(@inner_block)}
       </div>
     </div>
     """
@@ -120,12 +176,17 @@ defmodule OmniUI.AgentLive do
     {:ok, models1} = Omni.list_models(:ollama)
     {:ok, models2} = Omni.list_models(:alibaba)
     {:ok, models3} = Omni.list_models(:opencode)
+    model_options = models1 ++ models2 ++ models3
 
     if connected?(socket), do: OmniUI.Sessions.subscribe()
 
     {:ok,
      socket
-     |> assign(:model_options, models1 ++ models2 ++ models3)
+     |> assign(
+       model_options: model_options,
+       open_sessions: false,
+       open_files: false
+     )
      |> init_session(
        agent_module: OmniUI.Agent,
        tool_components: %{
@@ -161,6 +222,25 @@ defmodule OmniUI.AgentLive do
     {:noreply, push_patch(socket, to: "/")}
   end
 
+  def handle_event("open_file", %{"filename" => filename}, socket) do
+    send_update(FilesComponent,
+      id: "files-panel",
+      action: {:view, filename}
+    )
+
+    {:noreply, assign(socket, :open_files, true)}
+  end
+
+  def handle_event("toggle_sessions", _params, socket) do
+    bool = not socket.assigns.open_sessions
+    {:noreply, assign(socket, :open_sessions, bool)}
+  end
+
+  def handle_event("toggle_files", _params, socket) do
+    bool = not socket.assigns.open_files
+    {:noreply, assign(socket, :open_files, bool)}
+  end
+
   # phx-submit sends form fields keyed by `name`; phx-blur sends the input's value as `"value"`.
   def handle_event("save_title", %{"title" => raw}, socket) do
     save_title(socket.assigns.session, raw)
@@ -169,15 +249,6 @@ defmodule OmniUI.AgentLive do
 
   def handle_event("save_title", %{"value" => raw}, socket) do
     save_title(socket.assigns.session, raw)
-    {:noreply, socket}
-  end
-
-  def handle_event("open_file", %{"filename" => filename}, socket) do
-    send_update(FilesComponent,
-      id: "files-panel",
-      action: {:view, filename}
-    )
-
     {:noreply, socket}
   end
 

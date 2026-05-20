@@ -60,15 +60,21 @@ defmodule OmniUI.ChatUI do
     ~H"""
     <div
       class={[
-        "omni-ui flex flex-col h-full [interpolate-size:allow-keywords]",
+        "omni-ui flex flex-col h-full @container/chat",
+        "[interpolate-size:allow-keywords]",
         "bg-omni-bg text-omni-text"
         | md_styles()
       ]}>
-      <div id="omni-view" class="flex-auto px-12 overflow-y-scroll">
+      <div
+        id="omni-view"
+        class={[
+          "flex-auto overflow-y-scroll",
+          "px-4 py-8 @md/chat:px-8 @md/chat:py-16 @lg/chat:px-12"
+        ]}>
         <div
           id="omni-content"
           class={[
-            "max-w-3xl mx-auto flex flex-col px-12 py-16 gap-24",
+            "max-w-2xl mx-auto flex flex-col gap-12 @md/chat:gap-12 @lg/chat:gap-24",
             "min-h-[var(--scroll-lock,auto)]"
           ]}>
           {render_slot(@inner_block)}
@@ -217,7 +223,7 @@ defmodule OmniUI.ChatUI do
 
   def turn_list(assigns) do
     ~H"""
-    <div id={@id} class="flex flex-col gap-24 empty:hidden" phx-update="stream">
+    <div id={@id} class="flex flex-col gap-12 @md/chat:gap-12 @lg/chat:gap-24 empty:hidden" phx-update="stream">
       <div :for={{dom_id, turn} <- @stream} id={dom_id}>
         <.live_component
           module={OmniUI.TurnComponent}
@@ -257,7 +263,7 @@ defmodule OmniUI.ChatUI do
 
   def turn(assigns) do
     ~H"""
-    <div class="flex flex-col gap-24">
+    <div class="flex flex-col gap-12 @md/chat:gap-12 @lg/chat:gap-24">
       <div class="flex flex-col items-end gap-6">
         <%= if @user != [] do %>
           {render_slot(@user, @turn)}
