@@ -611,7 +611,9 @@ completed turns is untouched. The DOM diff is just appended text.
 ```
 AgentLive (LiveView)
 ├── SessionsComponent (LiveComponent — left sidebar, permanently mounted)
-│   └── session_list/1 (with :actions slot)
+│   └── session_list/1
+│       ├── rename_form/1 (inline-editable title, CSS-toggled)
+│       └── delete_actions/1 (two-step delete with JS-timed confirm)
 │
 ├── header/1 (private — top bar with sessions toggle, title, files toggle)
 │
@@ -787,8 +789,6 @@ A LiveComponent rendering a left-sidebar list of sessions. Receives
 - `:sessions` — merged list of persisted sessions (`manager.list/0`)
   and currently-running ones (`manager.list_open/0`). Sorted: open
   first, then by `updated_at` descending.
-- `:confirming_delete` — id of a session showing the inline two-step
-  delete confirm.
 
 Manager events (`{:manager, _, :opened | :status | :title | :closed,
 _}`) don't reach LiveComponents directly — the parent LV catches
@@ -802,6 +802,20 @@ The component pattern-matches `update(%{manager_event: event}, ...)`
 and folds the event into `:sessions`. Self-contained reduce
 functions per event type (`:opened` upserts, `:status` updates,
 `:closed` either marks dormant or removes the row, etc.).
+
+**Rename.** The `rename` event handler receives the session id and
+title from the inline rename form, trims the title (empty string →
+`nil`), and calls `manager.rename/2`. The manager broadcasts a
+`:title` event which the component's `apply_event` handler folds
+back into the session list. Edit mode is entirely client-side: a
+CSS class (`editing`) toggles visibility of the rename form vs the
+title text; no server-side editing state is tracked.
+
+**Delete.** The two-step delete confirmation is also client-side:
+`JS.transition("active", time: 5000)` on the trash button toggles
+a CSS sibling selector that reveals the "Sure?" confirm button for
+5 seconds. The `delete` event handler calls `manager.delete/1` and
+removes the session from the local list.
 
 Deleting the current session sends `{OmniUI, :active_session_deleted}`
 to the parent — `AgentLive` listens for this and `push_patch`es to
@@ -843,32 +857,28 @@ in the background gets auto-titled regardless of who's watching.
 
 In `AgentLive`, `header/1` is a private function component:
 
-- Sessions drawer toggle (currently a static button — the drawer is
-  permanently mounted, no hide/show wiring yet).
-- New-session button → `phx-click="new_session"` → `push_patch` to
-  `/`.
-- Inline-editable title input with `phx-blur` and `phx-submit`,
-  styled to look like plain text via `field-sizing: content` and
-  borderless chrome. Both events route to the same `save_title`
-  handler. Empty string saves as `nil` (explicit clear, re-enables
-  auto-titling).
-- Files panel toggle (placeholder — panel is currently always
-  visible).
+- Sessions panel toggle.
+- Read-only title display (`@title` or "Untitled").
+- Files panel toggle.
 
-The header is a strong candidate to move into `OmniUI.ChatUI`
-as a public `header/1` once its API stabilises. Right now it's
-specific to AgentLive's exact layout.
+Title editing lives in the session list (`SessionsUI.rename_form/1`),
+not the header. The header just mirrors `@title`, which is kept
+in sync by `Handlers.handle_agent_event(:title, ...)`.
 
 ### 10.5 Title commit flow
 
-`save_title` calls `Omni.Session.set_title(pid, title)`. The session
-persists (via `save_state` in the store) and emits `:title`,
-`OmniUI.Handlers` mirrors the title back into `@title`. No special
-optimistic-update path — the session's own event drives the assign.
+Session titles are edited via the session list's inline rename form.
+`SessionsComponent` handles the `rename` event and calls
+`manager.rename(id, title)`. For running sessions, the manager calls
+`Omni.Session.set_title/2`, which persists and emits a session
+`:title` event — `OmniUI.Handlers` mirrors it into `@title`. For
+non-running sessions, the manager updates the store directly and
+broadcasts a manager `:title` event — `SessionsComponent` folds
+it into the local list.
 
-Empty-string → `nil` is the explicit clear; the `Omni.Session.Store`
-contract treats `title: nil` as a real saved value, not an absence.
-On the next `:turn {:stop, _}`, `OmniUI.TitleService` sees the
+Empty-string → `nil` is an explicit clear. The
+`Omni.Session.Store` contract treats `title: nil` as a real saved
+value, not an absence. `TitleService` (when enabled) sees the
 nil-titled session and re-enters the generation loop.
 
 ---

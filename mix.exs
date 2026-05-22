@@ -26,7 +26,8 @@ defmodule OmniUI.MixProject do
   defp deps do
     [
       {:omni, "~> 1.5"},
-      {:omni_agent, "~> 0.4"},
+      #{:omni_agent, "~> 0.4"},
+      {:omni_agent, path: "../omni_agent"},
       {:omni_tools, "~> 0.3"},
       {:jason, "~> 1.4"},
       {:lucide_icons, "~> 2.0"},

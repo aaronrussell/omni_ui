@@ -78,6 +78,15 @@ class OmniUI {
     document.addEventListener("omni:focus", (e) => {
       e.target.focus();
     });
+    document.addEventListener("omni:select", (e) => {
+      requestAnimationFrame(() => {
+        e.target.focus();
+        e.target.select();
+      });
+    });
+    document.addEventListener("omni:reset", (e) => {
+      e.target.value = e.target.getAttribute("value");
+    });
   }
 }
 

@@ -93,21 +93,11 @@ defmodule OmniUI.AgentLive do
         </button>
       </div>
 
-      <form phx-submit="save_title" class="flex items-center justify-center">
-        <input
-          type="text"
-          name="title"
-          value={@title || ""}
-          placeholder="Untitled"
-          phx-blur="save_title"
-          autocomplete="off"
-          class={[
-            "field-sizing-content min-w-18 max-w-80 px-2 py-1.5 text-ellipsis overflow-hidden",
-            "bg-transparent border-0 outline-none text-center text-sm",
-            "text-omni-text-1 placeholder:text-omni-text-1 focus:placeholder:opacity-0",
-            "hover:bg-omni-accent-2/10 focus:text-omni-text focus:bg-omni-accent-2/10 focus:max-w-none"
-          ]} />
-      </form>
+      <div class="flex items-center justify-center">
+        <span class="px-2 py-1.5 text-sm text-omni-text-1 truncate max-w-80">
+          {@title || "Untitled"}
+        </span>
+      </div>
 
       <div class="flex items-center justify-end gap-1">
         <button
@@ -131,8 +121,8 @@ defmodule OmniUI.AgentLive do
   attr :align, :string, values: ["left", "right"], required: true
   attr :open, :boolean, required: true
   attr :close_event, :string, required: true
-  attr :outer_class, :string, default: "lg:w-64"
-  attr :inner_class, :string, default: "w-64"
+  attr :outer_class, :string, default: "lg:w-72"
+  attr :inner_class, :string, default: "w-72"
   slot :inner_block, required: true
 
   defp side_panel(assigns) do
@@ -184,7 +174,7 @@ defmodule OmniUI.AgentLive do
      socket
      |> assign(
        model_options: model_options,
-       open_sessions: false,
+       open_sessions: true,
        open_files: false
      )
      |> init_session(
@@ -241,17 +231,6 @@ defmodule OmniUI.AgentLive do
     {:noreply, assign(socket, :open_files, bool)}
   end
 
-  # phx-submit sends form fields keyed by `name`; phx-blur sends the input's value as `"value"`.
-  def handle_event("save_title", %{"title" => raw}, socket) do
-    save_title(socket.assigns.session, raw)
-    {:noreply, socket}
-  end
-
-  def handle_event("save_title", %{"value" => raw}, socket) do
-    save_title(socket.assigns.session, raw)
-    {:noreply, socket}
-  end
-
   @impl Phoenix.LiveView
   def handle_info({:manager, _, _, _} = msg, socket) do
     send_update(OmniUI.SessionsComponent, id: "sessions", manager_event: msg)
@@ -270,7 +249,4 @@ defmodule OmniUI.AgentLive do
 
   def agent_event(_event, _data, socket), do: socket
 
-  defp save_title(pid, ""), do: save_title(pid, nil)
-  defp save_title(pid, title) when is_pid(pid), do: Omni.Session.set_title(pid, title)
-  defp save_title(_pid, _raw), do: :ok
 end

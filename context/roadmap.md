@@ -27,11 +27,6 @@ before a public release.
   decide whether tools can declare their own timeout that overrides
   the agent default. Likely requires changes in `omni_agent`.
 
-- **REPL packaging boundary** — the REPL sandbox/tool/extension
-  modules have no UI dependency; they could live in `omni_agent` or
-  a separate package. Files is different (it needs the panel
-  UI). Conversation needed about where the boundary should sit.
-
 - **`agent_event/3` → `session_event/3` rename** — the callback name
   predates the `:session` event prefix. Renaming would align the
   callback with the event tag it handles, but it's a breaking change
@@ -79,10 +74,6 @@ before a public release.
   `OmniUI.TitleService` into a supervision tree; mounting
   `Files.Plug`; registering custom tool-use components.
 
-- **Mobile files panel** — the panel won't work well on mobile
-  (the layout assumes a 50%-width right sidebar). Decide responsive
-  approach: full-screen takeover, separate route, hidden on mobile.
-
 - **Cross-browser QA** — thorough testing across browsers. The
   files panel iframe + sandbox token URLs are the most
   sensitive area.
@@ -92,17 +83,3 @@ before a public release.
   benefit from more: `OmniUI.Handlers` session-event paths
   end-to-end (with stubbed `Omni.Session`), `OmniUI.SessionsComponent`
   manager-event reducers, branch-error notification mappings.
-
----
-
-## Unresolved Issues
-
-- **REPL distribution boot** — `Omni.Tools.Repl.Sandbox.ensure_distributed!/0`
-  must run eagerly at app boot, before `Phoenix.Endpoint` starts,
-  otherwise the first REPL invocation flips the VM into distributed
-  mode mid-request and any PIDs already encoded into Phoenix tokens
-  (notably LongPoll session_refs) become "remote" and crash
-  `is_process_alive/1`. The dev app calls it from `application.ex`
-  as a workaround. Revisit whether a `Sandbox.Boot` child spec or
-  supervision-tree entry would be a more discoverable / less-bypassable
-  shape for downstream consumers.

@@ -36,7 +36,7 @@ defmodule OmniUI.SessionsComponent do
 
   use Phoenix.LiveComponent
 
-  alias OmniUI.SessionsUI
+  import OmniUI.SessionsUI
 
   @impl true
   def render(assigns) do
@@ -54,59 +54,18 @@ defmodule OmniUI.SessionsComponent do
       </header>
 
       <div class="flex-1 overflow-y-auto">
-        <SessionsUI.session_list sessions={@sessions} current_id={@current_id}>
-          <:actions :let={session}>
-            <.row_actions session={session} confirming={@confirming_delete == session.id} target={@myself} />
-          </:actions>
-        </SessionsUI.session_list>
+        <.session_list
+          sessions={@sessions}
+          current_id={@current_id}
+          target={@myself} />
       </div>
     </aside>
     """
   end
 
-  attr :session, :map, required: true
-  attr :confirming, :boolean, required: true
-  attr :target, :any, required: true
-
-  defp row_actions(%{confirming: true} = assigns) do
-    ~H"""
-    <div class="flex items-center gap-1 py-2">
-      <button
-        type="button"
-        phx-click="delete"
-        phx-value-id={@session.id}
-        phx-target={@target}
-        class="px-2 py-1 text-xs rounded bg-red-500/10 text-red-500 hover:bg-red-500/20 cursor-pointer">
-        Delete
-      </button>
-      <button
-        type="button"
-        phx-click="cancel_delete"
-        phx-target={@target}
-        class="px-2 py-1 text-xs rounded text-omni-text-2 hover:bg-omni-accent-2/10 cursor-pointer">
-        Cancel
-      </button>
-    </div>
-    """
-  end
-
-  defp row_actions(assigns) do
-    ~H"""
-    <button
-      type="button"
-      phx-click="confirm_delete"
-      phx-value-id={@session.id}
-      phx-target={@target}
-      title="Delete session"
-      class="flex items-center justify-center size-7 rounded cursor-pointer text-omni-text-3 hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity">
-      <Lucideicons.trash_2 class="size-4" />
-    </button>
-    """
-  end
-
   @impl true
   def mount(socket) do
-    {:ok, assign(socket, sessions: nil, confirming_delete: nil)}
+    {:ok, assign(socket, :sessions, nil)}
   end
 
   @impl true
@@ -129,12 +88,11 @@ defmodule OmniUI.SessionsComponent do
   end
 
   @impl true
-  def handle_event("confirm_delete", %{"id" => id}, socket) do
-    {:noreply, assign(socket, :confirming_delete, id)}
-  end
-
-  def handle_event("cancel_delete", _, socket) do
-    {:noreply, assign(socket, :confirming_delete, nil)}
+  def handle_event("rename", %{"session_id" => id, "title" => title}, socket) do
+    title = String.trim(title)
+    title = if title == "", do: nil, else: title
+    socket.assigns.manager.rename(id, title)
+    {:noreply, socket}
   end
 
   def handle_event("delete", %{"id" => id}, socket) do
@@ -145,12 +103,7 @@ defmodule OmniUI.SessionsComponent do
     end
 
     sessions = Enum.reject(socket.assigns.sessions, &(&1.id == id))
-
-    {:noreply,
-     assign(socket,
-       sessions: sessions,
-       confirming_delete: nil
-     )}
+    {:noreply, assign(socket, :sessions, sessions)}
   end
 
   # ── Helpers ────────────────────────────────────────────────────────

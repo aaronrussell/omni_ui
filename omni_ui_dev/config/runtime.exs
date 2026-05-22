@@ -89,5 +89,6 @@ if config_env() == :prod do
   config :omni_ui, :sessions_base_dir, sessions_dir
 
   config :omni_ui, OmniUI.Sessions,
-    store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir}
+    store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir},
+    title_generator: false
 end
