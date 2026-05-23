@@ -90,5 +90,5 @@ if config_env() == :prod do
 
   config :omni_ui, OmniUI.Sessions,
     store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir},
-    title_generator: false
+    title_generator: {:openai, "gpt-5.4-nano"}
 end

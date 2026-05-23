@@ -65,7 +65,7 @@ set_agent}`.
 - **`omni`** — stateless LLM client. Provides `Omni.Model`,
   `Omni.Message`, `Omni.Content.{Text, Thinking, ToolUse, ToolResult,
   Attachment}`, `Omni.Tool`, `Omni.Usage`, and the `generate_text`
-  call used by `OmniUI.Title`.
+  call used by `Omni.generate_text/3`.
 - **`omni_agent`** — stateful agent + session + manager + store. The
   primary integration surface:
   - `Omni.Session` — subscribed-to per LiveView; events arrive as
@@ -460,8 +460,8 @@ path, just no in-flight turn to reject.
 - `{:error, kind, reason}` — logs at `:error`, notifies the user.
 
 **Title changes.** `:title` → `assign(:title, ...)`. Triggered by
-`Omni.Session.set_title/2` from the consumer or by `OmniUI.TitleService`
-asynchronously (see § 7).
+`Omni.Session.set_title/2` — either from the consumer directly or
+from `omni_agent`'s built-in title service.
 
 **Agent state sync.** `:state` mirrors model and `opts[:thinking]`
 into assigns. Defensive — explicit `update_session/2` paths already
@@ -821,39 +821,7 @@ Deleting the current session sends `{OmniUI, :active_session_deleted}`
 to the parent — `AgentLive` listens for this and `push_patch`es to
 `/`.
 
-### 10.3 `OmniUI.TitleService` — auto-titling
-
-A singleton GenServer that subscribes to a Manager and watches for
-sessions opened without a title. When such a session emits
-`:turn {:stop, _}`, the service:
-
-1. Snapshots the session's tree (`Session.get_snapshot/1`).
-2. Spawns a `Task.async` running `OmniUI.Title.generate(model, messages)`.
-3. On success, calls `Omni.Session.set_title/2`.
-4. On failure, logs and keeps the subscription open so the next
-   `:stop` retries.
-
-Subscribes in `:observer` mode — does not pin sessions open. Tracks
-sessions in `state.pending`, indexed by id. Deduplicates: only one
-generation per session per turn cycle. Re-subscribes when a title
-is cleared back to `nil` (re-enables auto-generation).
-
-Configuration:
-
-```elixir
-config :omni_ui, OmniUI.TitleService,
-  manager: OmniUI.Sessions,
-  model: {:openai, "gpt-4.1-nano"}    # nil = heuristic
-```
-
-Add after the Manager in the supervision tree.
-
-The decoupling from `AgentLive` is intentional. Pre-pivot, title
-generation lived inside the LiveView and only ran while the user was
-attached. The service runs server-side, so a session left cooking
-in the background gets auto-titled regardless of who's watching.
-
-### 10.4 The header bar
+### 10.3 The header bar
 
 In `AgentLive`, `header/1` is a private function component:
 
@@ -865,7 +833,7 @@ Title editing lives in the session list (`SessionsUI.rename_form/1`),
 not the header. The header just mirrors `@title`, which is kept
 in sync by `Handlers.handle_agent_event(:title, ...)`.
 
-### 10.5 Title commit flow
+### 10.4 Title commit flow
 
 Session titles are edited via the session list's inline rename form.
 `SessionsComponent` handles the `rename` event and calls
@@ -878,45 +846,20 @@ it into the local list.
 
 Empty-string → `nil` is an explicit clear. The
 `Omni.Session.Store` contract treats `title: nil` as a real saved
-value, not an absence. `TitleService` (when enabled) sees the
-nil-titled session and re-enters the generation loop.
+value, not an absence. `omni_agent`'s built-in title service (when
+enabled) sees the nil-titled session and re-enters the generation
+loop.
 
 ---
 
-## 11. Title generation library
-
-`OmniUI.Title.generate(model, messages, opts)` is a pure function.
-Two strategies via a single entry point:
-
-- **Heuristic** (`model: nil`) — picks the first message containing
-  text content, extracts the text, normalises whitespace, truncates
-  at a 50-char word boundary with an ellipsis. No LLM call.
-- **Model** (`model: Omni.Model.ref()` or `%Omni.Model{}`) — formats
-  the first four messages as a `User: ...\n\nAssistant: ...` block
-  inside a `<conversation>` tag, prompts with a fixed system
-  instruction asking for a 3-6 word title. Calls
-  `Omni.generate_text/3` with `max_tokens: 50` and returns the
-  trimmed response text.
-
-Returns `{:error, :no_text}` when no message contains text content
-(filters out pure-attachment messages, thinking, tool uses, tool
-results). The model branch checks the same first-four window the
-prompt uses — no spurious LLM calls on text-empty turns.
-
-Used by `OmniUI.TitleService` from inside its async task. Available
-to consumers wanting on-demand title generation (e.g. a "rename"
-button).
-
----
-
-## 12. Notifications
+## 11. Notifications
 
 A kit-native toaster for transient in-app messages. Replaces flash
 because flash is tied to mount/navigate; OmniUI needs to push to a
 surface from session events, async callbacks, and library code (e.g.
 `update_session/2`'s lenient model branch).
 
-### 12.1 Shape
+### 11.1 Shape
 
 ```elixir
 %OmniUI.Notification{
@@ -927,7 +870,7 @@ surface from session events, async callbacks, and library code (e.g.
 }
 ```
 
-### 12.2 Plumbing
+### 11.2 Plumbing
 
 - `notify/2,3` (imported via the macro) — `send(self(),
   {OmniUI, :notify, %Notification{}})`.
@@ -941,7 +884,7 @@ surface from session events, async callbacks, and library code (e.g.
   If absent, notifications are still received and auto-dismissed but
   invisible.
 
-### 12.3 FIFO cap and timer races
+### 11.3 FIFO cap and timer races
 
 Hard-coded 5 visible notifications (`@notification_cap`). On insert,
 if `length(:notification_ids) > cap` the oldest is `stream_delete`d.
@@ -951,7 +894,7 @@ Manual dismiss + auto-dismiss timer race: the timer's eventual
 on a missing element is a no-op. No need to cancel timers on manual
 dismiss.
 
-### 12.4 Levels
+### 11.4 Levels
 
 Each level has a distinct border color and Lucide icon: info
 (neutral), success (green check), warning (amber triangle), error
@@ -959,7 +902,7 @@ Each level has a distinct border color and Lucide icon: info
 
 ---
 
-## 13. Files
+## 12. Files
 
 Files created by the agent, persisted in the session, viewable and
 downloadable from a panel. Session-scoped. Not branch-aware —
@@ -967,7 +910,7 @@ navigating conversation branches does not rewind file state.
 This is deliberate; replaying tool calls along the active path to
 reconstruct file state is too complex for the value.
 
-### 13.1 Tools — `omni_tools`
+### 12.1 Tools — `omni_tools`
 
 The file, REPL, and web-fetch tools come from the `omni_tools`
 package. OmniUI does not implement its own tools — it configures and
@@ -984,7 +927,7 @@ wires the `omni_tools` implementations at agent init time.
   sandbox code can read/write files directly.
 - `Omni.Tools.WebFetch.new()` — URL fetching with HTML-to-markdown.
 
-### 13.2 Filesystem layout
+### 12.2 Filesystem layout
 
 `{sessions_base_dir}/{session_id}/files/{filename}`
 
@@ -1001,7 +944,7 @@ filesystem operations. The `FilesComponent` and `Plug` construct
 `FS` structs via `session_files_dir/1` — no OmniUI-specific
 filesystem module exists.
 
-### 13.3 HTTP serving — `Files.Plug`
+### 12.3 HTTP serving — `Files.Plug`
 
 Sandboxed iframes (the default for HTML file preview) need a real
 URL to hit, not `srcdoc`, so cross-file relative paths work
@@ -1030,7 +973,7 @@ sub-resource fetches (e.g. JSON loaded by HTML) need them.
 defaults to `"/omni_files"`, configurable via
 `config :omni_ui, OmniUI.Files, url_prefix: "/your_prefix"`.
 
-### 13.4 `FilesComponent`
+### 12.4 `FilesComponent`
 
 A self-contained LiveComponent receiving only `session_id` from the
 parent. Owns all file state (`:files`, `:active_file`,
@@ -1061,7 +1004,7 @@ Communication from parent: `send_update(FilesComponent, action: ...)`
 or `{:view, filename}` (called when the user clicks an inline
 file button in the chat). AgentLive holds zero file assigns.
 
-### 13.5 Inline chat components — `ToolsUI`
+### 12.5 Inline chat components — `ToolsUI`
 
 `OmniUI.ToolsUI` provides custom tool-use renderers for the
 chat stream, registered via the `tool_components` map:
@@ -1089,13 +1032,13 @@ execution results with check/error indicators.
 
 ---
 
-## 14. REPL and WebFetch
+## 13. REPL and WebFetch
 
 The REPL and WebFetch tools come from `omni_tools`. OmniUI
 configures them in `OmniUI.Agent.init/1` and provides a custom
 chat renderer for the REPL.
 
-### 14.1 REPL configuration
+### 13.1 REPL configuration
 
 `Omni.Tools.Repl` evaluates Elixir code in isolated peer nodes.
 Each invocation is a clean slate. The agent wires it with the
@@ -1109,7 +1052,7 @@ used by the Files tool, ensuring both operate on the same directory.
 For execution model details (peer nodes, IO capture, timeouts,
 distribution boot), see the `omni_tools` documentation.
 
-### 14.2 Inline chat component — `ToolsUI.repl_tool_use/1`
+### 13.2 Inline chat component — `ToolsUI.repl_tool_use/1`
 
 `repl_tool_use/1` *replaces* the default renderer entirely (unlike
 `files_tool_use/1` which wraps it):
@@ -1121,7 +1064,7 @@ distribution boot), see the `omni_tools` documentation.
   input field) instead of raw JSON params.
 - Tool result formatted as JSON via `format_tool_result/1`.
 
-### 14.3 WebFetch
+### 13.3 WebFetch
 
 `Omni.Tools.WebFetch` fetches URLs and converts HTML to markdown.
 No custom ChatUI — uses the default tool-use renderer. No
@@ -1129,7 +1072,7 @@ OmniUI-specific configuration.
 
 ---
 
-## 15. CSS theming
+## 14. CSS theming
 
 `priv/static/omni_ui.css` defines the visual theme using Tailwind 4's
 `@theme` directive. Semantic tokens in OKLCH:
@@ -1157,7 +1100,7 @@ typography once.
 
 ---
 
-## 16. Module layout
+## 15. Module layout
 
 ```
 lib/
@@ -1178,8 +1121,6 @@ lib/
     helpers.ex                     # cls, format_*, time_ago, md_styles, to_md, etc.
     notification.ex                # %Notification{}
     sessions.ex                    # OmniUI.Sessions — default Manager + dir helpers
-    title.ex                       # title generation (heuristic + model)
-    title_service.ex               # singleton GenServer: auto-title untitled sessions
     turn.ex                        # %OmniUI.Turn{} + Turn.all/1, Turn.get/2, Turn.new/3
     files/
       plug.ex                      # signed-token HTTP serving
@@ -1193,7 +1134,7 @@ Public modules carry `@moduledoc` with examples. `OmniUI.Handlers`
 is `@moduledoc false` (private dispatch).
 
 The companion app at `omni_ui_dev/` is the consumer reference. It
-wires `OmniUI.Sessions` and `OmniUI.TitleService` into the
-supervision tree, configures the FileSystem store, mounts
+wires `OmniUI.Sessions` into the supervision tree, configures the
+FileSystem store, mounts
 `OmniUI.Files.Plug` at `/omni_files`, and routes `/` to
 `OmniUI.AgentLive`.

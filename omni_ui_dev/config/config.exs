@@ -60,10 +60,6 @@ config :omni, Omni.Providers.Ollama,
     [id: "gemma4:26b", reasoning: true]
   ]
 
-config :omni_ui, OmniUI.TitleService,
-  manager: OmniUI.Sessions,
-  model: {:openai, "gpt-5.4-nano"}
-
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

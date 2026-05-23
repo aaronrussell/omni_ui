@@ -49,7 +49,6 @@ before a public release.
   `:omni_ui` atoms with a mix of bare-app and module-scoped keys
   (`config :omni_ui, OmniUI.Sessions, store: ...`,
   `config :omni_ui, OmniUI.Files, url_prefix: ...`,
-  `config :omni_ui, OmniUI.TitleService, model: ...`,
   `config :omni, providers: ...`). Single coherent pattern across
   the Omni ecosystem before release. Dovetails with namespacing.
 
@@ -62,16 +61,16 @@ before a public release.
 
 - **Package API surface** — decide what's public vs internal.
   `OmniUI`, `OmniUI.ChatUI`, `OmniUI.CoreUI`, `OmniUI.Turn`,
-  `OmniUI.Sessions`, `OmniUI.TitleService`, `OmniUI.Title`,
-  `OmniUI.Notification`, and the Files/Tools/Sessions UI modules
+  `OmniUI.Sessions`, `OmniUI.Notification`, and the
+  Files/Tools/Sessions UI modules
   are public. `OmniUI.Handlers`,
   `OmniUI.Helpers`, internal structs may not be. `OmniUI.TreeFaker`
   lives in `test/support/` (not published).
 
 - **Hex docs** — moduledocs are mostly in shape. Need a usage guide
   covering: the three layers; the `init_session` / `attach_session`
-  / `ensure_session` lifecycle; wiring `OmniUI.Sessions` and
-  `OmniUI.TitleService` into a supervision tree; mounting
+  / `ensure_session` lifecycle; wiring `OmniUI.Sessions`
+  into a supervision tree; mounting
   `Files.Plug`; registering custom tool-use components.
 
 - **Cross-browser QA** — thorough testing across browsers. The
