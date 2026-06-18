@@ -226,8 +226,6 @@ defmodule OmniUI.FilesComponent do
     Map.new(entries, &{&1.filename, &1})
   end
 
-  defp session_fs(nil), do: nil
-
   defp session_fs(session_id) do
     FS.new(base_dir: OmniUI.Sessions.session_files_dir(session_id), nested: false)
   end

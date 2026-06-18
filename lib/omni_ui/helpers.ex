@@ -9,7 +9,7 @@ defmodule OmniUI.Helpers do
   # Markdown typography styles applied at the chat_interface level via descendant
   # selectors targeting the `.mdex` class. This keeps the markdown component's HTML
   # minimal while defining styles once in the DOM.
-  @markdown_styles ~w"""
+  @markdown_styles ~W"""
   [&_.mdex>*:first-child]:mt-0! [&_.mdex>*:last-child]:mb-0!
   [&_.mdex_p,ul,ol,h1,h2,h3,h4,h5,h6]:mb-4 [&_.mdex_p,ul,ol,h1,h2,h3,h4,h5,h6]:max-w-prose
   [&_.mdex_h1,h2]:mt-12 [&_.mdex_h3]:mt-6
@@ -288,7 +288,7 @@ defmodule OmniUI.Helpers do
   @doc """
   TODO
   """
-  @spec md_styles() :: String.t()
+  @spec md_styles() :: [String.t()]
   def md_styles(), do: @markdown_styles
 
   @doc """

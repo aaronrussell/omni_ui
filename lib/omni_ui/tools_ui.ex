@@ -39,7 +39,7 @@ defmodule OmniUI.ToolsUI do
   import OmniUI.CoreUI, only: [expandable: 1]
 
   import OmniUI.Helpers,
-    only: [highlight_code: 1, highlight_code: 2, format_json: 1, format_tool_result: 1, cls: 1]
+    only: [highlight_code: 1, highlight_code: 2, format_json: 1, format_tool_result: 1]
 
   alias OmniUI.ChatUI
 
@@ -133,10 +133,7 @@ defmodule OmniUI.ToolsUI do
     ~H"""
     <.expandable label={@title}>
       <:icon>
-        <Lucideicons.terminal class={cls([
-          "size-4 text-omni-text-4",
-          if(@streaming, do: "animate-spin", else: "")
-        ])} />
+        <Lucideicons.terminal class="size-4 text-omni-text-4" />
       </:icon>
 
       <:status :if={@streaming}>

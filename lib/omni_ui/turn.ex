@@ -58,7 +58,7 @@ defmodule OmniUI.Turn do
   ]
 
   @type t :: %__MODULE__{
-          id: Tree.node_id(),
+          id: Tree.node_id() | nil,
           res_id: Tree.node_id() | nil,
           status: :complete | :streaming | :error,
           edits: [Tree.node_id()],
@@ -80,7 +80,7 @@ defmodule OmniUI.Turn do
   into the turn: assistant messages append to `content`, and user messages
   containing tool results are collected into `tool_results`.
   """
-  @spec new(Tree.node_id(), [Omni.Message.t()], Omni.Usage.t()) :: t()
+  @spec new(Tree.node_id() | nil, [Omni.Message.t()], Omni.Usage.t()) :: t()
   def new(node_id, [user | rest], %Omni.Usage{} = usage) do
     turn = %__MODULE__{
       id: node_id,

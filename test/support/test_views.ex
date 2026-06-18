@@ -58,15 +58,15 @@ defmodule OmniUI.Test.BadAgentEventView do
   @impl Phoenix.LiveView
   def mount(_params, _session, socket), do: {:ok, socket}
 
-  # The runtime case discriminator prevents the type-checker from
-  # narrowing this function's return to a static atom — so the macro's
-  # `%Socket{} = s` clause typechecks and we still hit the raise at
-  # runtime when the test invokes us with a real socket.
+  # Branching on a runtime value (socket.id) keeps the return type wide
+  # enough that the macro's `%Socket{} = s` clause stays reachable to
+  # the type checker. A bare `:not_a_socket` return would cause Elixir
+  # 1.20+ to warn that the socket match can never succeed.
   @impl OmniUI
   def agent_event(_event, _data, socket) do
-    case socket do
-      %Phoenix.LiveView.Socket{} -> :not_a_socket
-      other -> other
+    case socket.id do
+      "will_not_be_this" -> socket
+      _other -> :not_a_socket
     end
   end
 end
