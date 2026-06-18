@@ -14,6 +14,65 @@ defmodule OmniUI.CoreUI do
   import OmniUI.Helpers
   alias Phoenix.LiveView.JS
 
+  # ── Panels ─────────────────────────────────────────────────────
+
+  attr :title, :string, default: ""
+  attr :body_class, :string, default: nil
+  slot :header, required: false
+
+  def panel(assigns) do
+    ~H"""
+    <div class="flex-auto flex flex-col h-full">
+      <%= if @header != [] do %>
+        {render_slot(@header)}
+      <% else %>
+        <.panel_header title={@title} />
+      <% end %>
+
+      <div class={["flex-1 min-h-0", @body_class]}>
+        {render_slot(@inner_block)}
+      </div>
+    </div>
+    """
+  end
+
+  attr :title, :string, required: true
+  attr :align, :string, values: ~w(left center right), default: "center"
+  slot :left, required: false
+  slot :right, required: false
+
+  def panel_header(assigns) do
+    ~H"""
+    <header class={[
+      "grid items-center gap-4 h-12 px-4 border-b border-omni-border-3",
+      if(@align == "center", do: "grid-cols-[1fr_auto_1fr]", else: "grid-cols-[auto_1fr_auto]")
+    ]}>
+      <%= if @left != [] do %>
+        <div class="flex items-center gap-1">
+          {render_slot(@left)}
+        </div>
+      <% end %>
+
+      <div class={[
+        if(@align == "center", do: "col-start-2"),
+        if(@left == [] and @right != [], do: "col-span-2"),
+        if(@left != [] and @right == [], do: "col-span-2"),
+        "text-#{@align}"
+      ]}>
+        <span class="text-sm font-medium text-omni-text-1 text-nowrap truncate">
+          {@title}
+        </span>
+      </div>
+
+      <%= if @right != [] do %>
+        <div class="flex items-center justify-end gap-1">
+          {render_slot(@right)}
+        </div>
+      <% end %>
+    </header>
+    """
+  end
+
   # ── Expandable ─────────────────────────────────────────────────
 
   @doc """

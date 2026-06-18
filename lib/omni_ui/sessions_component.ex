@@ -36,29 +36,33 @@ defmodule OmniUI.SessionsComponent do
 
   use Phoenix.LiveComponent
 
+  import OmniUI.CoreUI
   import OmniUI.SessionsUI
 
   @impl true
   def render(assigns) do
     ~H"""
-    <aside class="omni-ui h-full flex flex-col bg-omni-bg">
-      <header class="h-12 px-4 flex items-center justify-between border-b border-omni-border-3 shrink-0">
-        <h2 class="text-sm font-medium text-omni-text-1">Sessions</h2>
-        <button
-          type="button"
-          phx-click="new_session"
-          title="New session"
-          class="flex items-center justify-center size-8 rounded cursor-pointer text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10">
-          <Lucideicons.plus class="size-4" />
-        </button>
-      </header>
+    <aside class="omni-ui h-full">
+      <.panel body_class="overflow-y-auto">
+        <:header>
+          <.panel_header title="Sessions" align="left">
+            <:right>
+              <button
+                type="button"
+                phx-click="new_session"
+                title="New session"
+                class="flex items-center justify-center size-8 rounded cursor-pointer text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10">
+                <Lucideicons.plus class="size-4" />
+              </button>
+            </:right>
+          </.panel_header>
+        </:header>
 
-      <div class="flex-1 overflow-y-auto">
         <.session_list
           sessions={@sessions}
           current_id={@current_id}
           target={@myself} />
-      </div>
+      </.panel>
     </aside>
     """
   end
@@ -137,15 +141,9 @@ defmodule OmniUI.SessionsComponent do
     }
   end
 
-  # Open sessions sort to the top, then by updated_at descending. The
-  # nil-status comparison sorts false (open) before true (closed) under
-  # ascending sort_by, and DateTime.compare lets us compare directly.
   defp sort(sessions) do
     Enum.sort(sessions, fn a, b ->
-      cond do
-        is_nil(a.status) != is_nil(b.status) -> not is_nil(a.status)
-        true -> DateTime.compare(a.updated_at, b.updated_at) == :gt
-      end
+      DateTime.compare(a.updated_at, b.updated_at) == :gt
     end)
   end
 

@@ -13,19 +13,14 @@ and a release path.
 Smaller items that don't need major design work but should land
 before a public release.
 
+- **Project namespacing** — `OmniUI` vs `Omni.UI`. The rest of the
+  ecosystem uses the `Omni` namespace (`Omni.Agent`, `Omni.Session`).
+  Decide whether to align before publishing.
+
 - **Error retry** — errored turns preserve the user message via
   `stream_insert(... status: :error)`. Add a retry button that
   re-prompts the agent. Straightforward given the current tree/turn
   architecture.
-
-- **Streaming-perf delta debounce** — debounce text deltas (50–100ms
-  timer) to reduce re-renders during fast streaming. Optional —
-  current performance is acceptable.
-
-- **Per-tool timeouts** — the agent has a single timeout applied to
-  all tool calls; the REPL tool has its own separate setting. Need to
-  decide whether tools can declare their own timeout that overrides
-  the agent default. Likely requires changes in `omni_agent`.
 
 - **`agent_event/3` → `session_event/3` rename** — the callback name
   predates the `:session` event prefix. Renaming would align the
@@ -33,9 +28,10 @@ before a public release.
   for any out-of-tree consumer. Decide whether the symmetry is worth
   the churn before the public API locks in.
 
-- **Project namespacing** — `OmniUI` vs `Omni.UI`. The rest of the
-  ecosystem uses the `Omni` namespace (`Omni.Agent`, `Omni.Session`).
-  Decide whether to align before publishing.
+- **Per-tool timeouts** — the agent has a single timeout applied to
+  all tool calls; the REPL tool has its own separate setting. Need to
+  decide whether tools can declare their own timeout that overrides
+  the agent default. Likely requires changes in `omni_agent`.
 
 - **Event-name rationalisation** — across `phx-click` UI events,
   LiveView `handle_event` events, events scoped to AgentLive vs the
@@ -52,13 +48,6 @@ before a public release.
   `config :omni, providers: ...`). Single coherent pattern across
   the Omni ecosystem before release. Dovetails with namespacing.
 
-- **Header bar in `ChatUI`** — the inline-editable title input,
-  sessions toggle, and files toggle currently live as a private
-  function component inside `AgentLive`. Move into
-  `OmniUI.ChatUI` so consumers building their own LiveView can
-  reuse it. Stabilise the API first (slot shapes, what state it
-  takes vs reads from assigns).
-
 - **Package API surface** — decide what's public vs internal.
   `OmniUI`, `OmniUI.ChatUI`, `OmniUI.CoreUI`, `OmniUI.Turn`,
   `OmniUI.Sessions`, `OmniUI.Notification`, and the
@@ -67,15 +56,19 @@ before a public release.
   `OmniUI.Helpers`, internal structs may not be. `OmniUI.TreeFaker`
   lives in `test/support/` (not published).
 
+- **Streaming-perf delta debounce** — debounce text deltas (50–100ms
+  timer) to reduce re-renders during fast streaming. Optional —
+  current performance is acceptable.
+
+- **Cross-browser QA** — thorough testing across browsers. The
+  files panel iframe + sandbox token URLs are the most
+  sensitive area.
+
 - **Hex docs** — moduledocs are mostly in shape. Need a usage guide
   covering: the three layers; the `init_session` / `attach_session`
   / `ensure_session` lifecycle; wiring `OmniUI.Sessions`
   into a supervision tree; mounting
   `Files.Plug`; registering custom tool-use components.
-
-- **Cross-browser QA** — thorough testing across browsers. The
-  files panel iframe + sandbox token URLs are the most
-  sensitive area.
 
 - **Test backfill** — current coverage is good for data
   structures, components, and the macro lifecycle. Areas that would

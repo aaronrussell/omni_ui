@@ -10,60 +10,39 @@ defmodule OmniUI.FilesUI do
 
   use Phoenix.Component
   alias Omni.Tools.Files.Entry
+  import OmniUI.CoreUI, only: [panel_header: 1]
 
   attr :file, Entry, default: nil
   attr :view_source, :boolean, default: false
   attr :token, :string, required: true
   attr :target, :any, default: nil
 
-  def file_bar(assigns) do
+  def files_panel_header(assigns) do
     ~H"""
-    <header class="flex items-center gap-4 h-12 p-4 border-b border-omni-border-3">
-      <%= if @file do %>
-        <button
-          class={[
-            "flex items-center justify-center size-8 rounded cursor-pointer",
-            "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
-          ]}
-          phx-click="close_file"
-          phx-target={@target}>
-          <Lucideicons.arrow_left class="size-4" />
-        </button>
-      <% else %>
-        <div class="flex items-center justify-center size-8">
-          <Lucideicons.list class="size-4" />
-        </div>
-      <% end %>
+    <.panel_header title="All files" align="left">
+      <:left>
+        <%= if @file do %>
+          <button
+            class={[
+              "flex items-center justify-center size-8 rounded cursor-pointer",
+              "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+            ]}
+            phx-click="close_file"
+            phx-target={@target}>
+            <Lucideicons.arrow_left class="size-4" />
+          </button>
+        <% else %>
+          <div class="flex items-center justify-center size-8">
+            <Lucideicons.list class="size-4" />
+          </div>
+        <% end %>
+      </:left>
 
-      <h2 class="text-sm font-medium text-omni-text-1">
-        {if(@file, do: @file.filename, else: "All files")}
-      </h2>
-
-      <div class="flex-auto flex items-center gap-1 justify-end">
-        <div
+      <:right>
+        <.source_toggle
           :if={toggleable?(@file)}
-          class="flex items-center rounded-lg bg-omni-bg-1 p-0.5 text-xs font-medium">
-          <button
-            phx-click="toggle_view" phx-target={@target}
-            class={[
-              "px-2.5 py-1 rounded-md transition-colors cursor-pointer",
-              if(@view_source == false,
-                do: "bg-omni-bg text-omni-text shadow-sm",
-                else: "text-omni-text-3 hover:text-omni-text-1")
-            ]}>
-            Preview
-          </button>
-          <button
-            phx-click="toggle_view" phx-target={@target}
-            class={[
-              "px-2.5 py-1 rounded-md transition-colors cursor-pointer",
-              if(@view_source == true,
-                do: "bg-omni-bg text-omni-text shadow-sm",
-                else: "text-omni-text-3 hover:text-omni-text-1")
-            ]}>
-            Code
-          </button>
-        </div>
+          target={@target}
+          view_source={@view_source} />
 
         <a
           :if={@file}
@@ -85,8 +64,8 @@ defmodule OmniUI.FilesUI do
           phx-click="toggle_files">
           <Lucideicons.x class="size-4" />
         </button>
-      </div>
-    </header>
+      </:right>
+    </.panel_header>
     """
   end
 
@@ -200,6 +179,37 @@ defmodule OmniUI.FilesUI do
         <Lucideicons.download class="size-4" />
         <span class="font-medium">Download</span>
       </a>
+    </div>
+    """
+  end
+
+  attr :view_source, :boolean, default: false
+  attr :target, :any, default: nil
+
+  def source_toggle(assigns) do
+    ~H"""
+    <div
+      class="flex items-center rounded-lg bg-omni-bg-1 p-0.5 text-xs font-medium">
+      <button
+        phx-click="toggle_view" phx-target={@target}
+        class={[
+          "px-2.5 py-1 rounded-md transition-colors cursor-pointer",
+          if(@view_source == false,
+            do: "bg-omni-bg text-omni-text shadow-sm",
+            else: "text-omni-text-3 hover:text-omni-text-1")
+        ]}>
+        Preview
+      </button>
+      <button
+        phx-click="toggle_view" phx-target={@target}
+        class={[
+          "px-2.5 py-1 rounded-md transition-colors cursor-pointer",
+          if(@view_source == true,
+            do: "bg-omni-bg text-omni-text shadow-sm",
+            else: "text-omni-text-3 hover:text-omni-text-1")
+        ]}>
+        Code
+      </button>
     </div>
     """
   end

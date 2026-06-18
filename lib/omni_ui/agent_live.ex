@@ -23,35 +23,37 @@ defmodule OmniUI.AgentLive do
           current_id={@session_id} />
       </.side_panel>
 
-      <div class="flex-auto flex flex-col h-full">
-        <.header
-          title={@title}
-          open_sessions={@open_sessions}
-          open_files={@open_files} />
+      <.panel>
+        <:header>
+          <.chat_panel_header
+            title={@title || "Untitled"}
+            open_sessions={@open_sessions}
+            open_files={@open_files} />
+        </:header>
 
-        <div class="flex-1 min-h-0">
-          <.chat_interface>
-            <.turn_list stream={@streams.turns} tool_components={@tool_components} />
+        <.chat_interface>
+          <.turn_list
+            stream={@streams.turns}
+            tool_components={@tool_components} />
 
-            <.turn
-              :if={@current_turn}
-              turn={@current_turn}
-              tool_components={@tool_components} />
+          <.turn
+            :if={@current_turn}
+            turn={@current_turn}
+            tool_components={@tool_components} />
 
-            <:editor>
-              <.editor
-                model={@model}
-                model_options={@model_options}
-                thinking={@thinking}
-                usage={@usage} />
-            </:editor>
+          <:editor>
+            <.editor
+              model={@model}
+              model_options={@model_options}
+              thinking={@thinking}
+              usage={@usage} />
+          </:editor>
 
-            <:footer>
-              <p>Boring footer here. <a href="#todo">Privacy Policy</a></p>
-            </:footer>
-          </.chat_interface>
-        </div>
-      </div>
+          <:footer>
+            <p>Boring footer here. <a href="#todo">Privacy Policy</a></p>
+          </:footer>
+        </.chat_interface>
+      </.panel>
 
       <.side_panel
         align="right"
@@ -70,14 +72,14 @@ defmodule OmniUI.AgentLive do
     """
   end
 
-  attr :title, :string, default: nil
+  attr :title, :string, required: true
   attr :open_sessions, :boolean
   attr :open_files, :boolean
 
-  defp header(assigns) do
+  def chat_panel_header(assigns) do
     ~H"""
-    <div class="grid grid-cols-[1fr_auto_1fr] gap-2 h-12 px-4 border-b border-omni-border-3">
-      <div class="flex items-center gap-1">
+    <.panel_header title={@title}>
+      <:left>
         <button
           class={[
             "flex items-center justify-center size-8 rounded cursor-pointer",
@@ -91,15 +93,9 @@ defmodule OmniUI.AgentLive do
             <Lucideicons.panel_left_open class="size-4" />
           <% end %>
         </button>
-      </div>
+      </:left>
 
-      <div class="flex items-center justify-center">
-        <span class="px-2 py-1.5 text-sm text-omni-text-1 truncate max-w-80">
-          {@title || "Untitled"}
-        </span>
-      </div>
-
-      <div class="flex items-center justify-end gap-1">
+      <:right>
         <button
           class={[
             "flex items-center justify-center size-8 rounded cursor-pointer",
@@ -113,8 +109,8 @@ defmodule OmniUI.AgentLive do
             <Lucideicons.panel_right_open class="size-4" />
           <% end %>
         </button>
-      </div>
-    </div>
+      </:right>
+    </.panel_header>
     """
   end
 

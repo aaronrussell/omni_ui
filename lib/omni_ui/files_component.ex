@@ -36,8 +36,9 @@ defmodule OmniUI.FilesComponent do
 
   use Phoenix.LiveComponent
 
+  import OmniUI.CoreUI
   import OmniUI.FilesUI
-  import OmniUI.Helpers, only: [highlight_code: 2, md_styles: 0, to_md: 1]
+  import OmniUI.Helpers, only: [cls: 1, highlight_code: 2, md_styles: 0, to_md: 1]
 
   alias Omni.Tools.Files.FS
   alias OmniUI.Files.URL
@@ -54,15 +55,16 @@ defmodule OmniUI.FilesComponent do
   @impl true
   def render(assigns) do
     ~H"""
-    <section
-      class="omni-ui h-full flex flex-col bg-omni-bg">
-      <.file_bar
-        file={@files[@active_file]}
-        view_source={@view_source}
-        token={@token}
-        target={@myself} />
+    <section class="omni-ui h-full">
+      <.panel body_class={cls(["overflow-auto" | md_styles()])}>
+        <:header>
+          <.files_panel_header
+            file={@files[@active_file]}
+            view_source={@view_source}
+            token={@token}
+            target={@myself} />
+        </:header>
 
-      <div class={["flex-1 overflow-auto" | md_styles()]}>
         <%= if @active_file do %>
           <.file_view
             file={@files[@active_file]}
@@ -73,7 +75,7 @@ defmodule OmniUI.FilesComponent do
         <% else %>
           <.file_list files={@files} error={@error} target={@myself} />
         <% end %>
-      </div>
+      </.panel>
     </section>
     """
   end
