@@ -1,6 +1,6 @@
-defmodule OmniUI.SessionCase do
+defmodule Omni.UI.SessionCase do
   @moduledoc """
-  Test case for OmniUI tests that drive `Omni.Session.Manager` and
+  Test case for Omni.UI tests that drive `Omni.Session.Manager` and
   `Omni.Session` processes.
 
   Each test gets a unique Manager registered under a fresh atom, a
@@ -25,11 +25,11 @@ defmodule OmniUI.SessionCase do
       end
 
       defp tmp_store(%{tmp_dir: dir}), do: {FileSystem, base_dir: dir}
-      defp tmp_store(_), do: raise("OmniUI.SessionCase tests require @moduletag :tmp_dir")
+      defp tmp_store(_), do: raise("Omni.UI.SessionCase tests require @moduletag :tmp_dir")
 
       defp unique_name(prefix \\ "TM") do
         String.to_atom(
-          "Elixir.OmniUI.SessionCaseTest.#{prefix}#{System.unique_integer([:positive])}"
+          "Elixir.Omni.UI.SessionCaseTest.#{prefix}#{System.unique_integer([:positive])}"
         )
       end
 

@@ -12,18 +12,18 @@ Three layers — pick the entry point that matches how much control you
 want:
 
 ```
-OmniUI.AgentLive       — mountable LiveView. Header, sessions drawer,
+Omni.UI.AgentLive       — mountable LiveView. Header, sessions drawer,
                          files panel, Files+REPL+WebFetch tools, chat.
        │
-use OmniUI             — macro. Adds session streaming, state, and
+use Omni.UI             — macro. Adds session streaming, state, and
                          event handling to any LiveView.
        │
-OmniUI.ChatUI          — chat pipeline function components.
-OmniUI.CoreUI          — shared UI primitives (select, expandable,
+Omni.UI.ChatUI          — chat pipeline function components.
+Omni.UI.CoreUI          — shared UI primitives (select, expandable,
                          notifications, etc.).
 ```
 
-OmniUI does **not** own conversation state — `Omni.Session` (in
+Omni.UI does **not** own conversation state — `Omni.Session` (in
 `omni_agent`) does. The LiveView subscribes to a session and mirrors
 its state into assigns. There is no local tree-mutation path; all
 writes go through `Omni.Session`.
@@ -68,14 +68,14 @@ mix format                      # Auto-format
 - **No comments unless they explain a non-obvious *why*.** Don't
   describe what well-named code already says. Don't reference the
   current task or PR — those belong in the commit message.
-- **Component → parent messages** use `{OmniUI, :event_name, ...}`
-  tuples (e.g. `{OmniUI, :new_message, msg}`,
-  `{OmniUI, :edit_message, turn_id, msg}`,
-  `{OmniUI, :notify, notification}`). Subscribed-session events
+- **Component → parent messages** use `{Omni.UI, :event_name, ...}`
+  tuples (e.g. `{Omni.UI, :new_message, msg}`,
+  `{Omni.UI, :edit_message, turn_id, msg}`,
+  `{Omni.UI, :notify, notification}`). Subscribed-session events
   arrive as `{:session, pid, event, data}`. Manager events arrive as
   `{:manager, mod, event, data}`. Don't conflate the three.
 - **`omni:` prefix on `phx-click` events** for events the macro
-  routes through `OmniUI.Handlers.handle_event/3`. Bare event names
+  routes through `Omni.UI.Handlers.handle_event/3`. Bare event names
   belong to the consumer.
 - **Path variable naming:** `*_dir` for directory paths, `*_file`
   for file paths, `*_path` only for generic filesystem paths or

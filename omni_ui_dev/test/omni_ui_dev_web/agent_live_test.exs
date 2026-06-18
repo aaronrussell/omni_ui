@@ -3,7 +3,7 @@ defmodule OmniUIDevWeb.AgentLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias OmniUI.Sessions
+  alias Omni.UI.Sessions
 
   setup do
     # Snapshot every session id present at test start — both persisted (in
@@ -19,7 +19,7 @@ defmodule OmniUIDevWeb.AgentLiveTest do
     {:ok, baseline_open: baseline_open}
   end
 
-  describe "OmniUI.AgentLive mounted under OmniUI.Sessions Manager" do
+  describe "Omni.UI.AgentLive mounted under Omni.UI.Sessions Manager" do
     test "mount on / does NOT create a session (lazy creation)", %{
       conn: conn,
       baseline_open: baseline

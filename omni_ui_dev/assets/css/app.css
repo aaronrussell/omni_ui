@@ -6,7 +6,7 @@
 @source "../css";
 @source "../js";
 @source "../../lib/omni_ui_dev_web";
-@source "../../../lib/omni_ui";
+@source "../../../lib/omni/ui";
 @import "../../../priv/static/omni_ui.css";
 
 /* Add variants based on LiveView classes */

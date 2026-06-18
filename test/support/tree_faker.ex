@@ -1,7 +1,7 @@
-defmodule OmniUI.TreeFaker do
+defmodule Omni.UI.TreeFaker do
   @moduledoc false
 
-  # Generates a static `OmniUI.Tree` for UI development.
+  # Generates a static `Omni.UI.Tree` for UI development.
   #
   # Main conversation (nodes 1–24, active path):
   #

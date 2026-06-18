@@ -1,13 +1,13 @@
-defmodule OmniUI.TestEndpoint do
+defmodule Omni.UI.TestEndpoint do
   @moduledoc false
   # Minimal endpoint module for render_component/2. The LiveViewTest helpers
   # store this on the socket struct but don't call any functions on it during
   # static rendering, so a bare module is sufficient.
 end
 
-defmodule OmniUI.ComponentCase do
+defmodule Omni.UI.ComponentCase do
   @moduledoc """
-  Test case for OmniUI components.
+  Test case for Omni.UI components.
 
   Sets up `Phoenix.LiveViewTest` helpers with a test endpoint so that
   `render_component/2` and `rendered_to_string/1` work for both function
@@ -15,7 +15,7 @@ defmodule OmniUI.ComponentCase do
 
   ## Usage
 
-      use OmniUI.ComponentCase
+      use Omni.UI.ComponentCase
   """
 
   use ExUnit.CaseTemplate
@@ -24,10 +24,10 @@ defmodule OmniUI.ComponentCase do
     quote do
       import Phoenix.Component
       import Phoenix.LiveViewTest
-      import OmniUI.ChatUI
-      import OmniUI.CoreUI
+      import Omni.UI.ChatUI
+      import Omni.UI.CoreUI
 
-      @endpoint OmniUI.TestEndpoint
+      @endpoint Omni.UI.TestEndpoint
     end
   end
 end

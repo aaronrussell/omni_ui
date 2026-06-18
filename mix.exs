@@ -1,4 +1,4 @@
-defmodule OmniUI.MixProject do
+defmodule Omni.UI.MixProject do
   use Mix.Project
 
   def project do

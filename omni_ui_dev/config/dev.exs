@@ -55,7 +55,7 @@ config :omni_ui_dev, OmniUIDevWeb.Endpoint,
       ~r"lib/omni_ui_dev_web/router\.ex$"E,
       ~r"lib/omni_ui_dev_web/(controllers|live|components)/.*\.(ex|heex)$"E,
       # Omni UI
-      ~r"lib/omni_ui/.*ex$"E
+      ~r"lib/omni/ui/.*ex$"E
     ]
   ],
   reloadable_apps: [:omni_ui]
@@ -88,6 +88,6 @@ sessions_dir = Path.expand("priv/omni/sessions")
 
 config :omni_ui, :sessions_base_dir, sessions_dir
 
-config :omni_ui, OmniUI.Sessions,
+config :omni_ui, Omni.UI.Sessions,
   store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir},
   title_generator: {:openai, "gpt-5.4-nano"}

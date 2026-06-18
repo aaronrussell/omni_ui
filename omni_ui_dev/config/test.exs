@@ -27,6 +27,6 @@ sessions_dir = Path.expand("tmp/test_sessions")
 
 config :omni_ui, :sessions_base_dir, sessions_dir
 
-config :omni_ui, OmniUI.Sessions,
+config :omni_ui, Omni.UI.Sessions,
   store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir},
   title_generator: {:openai, "gpt-5.4-nano"}

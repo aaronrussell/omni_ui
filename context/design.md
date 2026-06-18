@@ -1,4 +1,4 @@
-# OmniUI — Package Design
+# Omni.UI — Package Design
 
 This is the single reference for how `omni_ui` is built. It covers the
 package end-to-end at the level of detail needed to work inside it
@@ -13,9 +13,9 @@ session/agent/store/manager mechanics this package consumes, see
 
 ## 1. What this package is
 
-OmniUI is a Phoenix LiveView component kit for building agent chat
+Omni.UI is a Phoenix LiveView component kit for building agent chat
 interfaces on top of [`omni_agent`](https://github.com/aaronrussell/omni_agent).
-It does not own conversation state — `Omni.Session` does. OmniUI's job
+It does not own conversation state — `Omni.Session` does. Omni.UI's job
 is to render a session, route UI events into session operations, and
 provide a small library of shipped tools that live well inside the
 chat UI (files, an Elixir REPL, and web fetching — powered by
@@ -24,21 +24,21 @@ chat UI (files, an Elixir REPL, and web fetching — powered by
 The package is layered. Each layer is independently consumable:
 
 ```
-OmniUI.AgentLive       — mountable LiveView. Wires header, sessions
+Omni.UI.AgentLive       — mountable LiveView. Wires header, sessions
                          drawer, files panel, Files+REPL+WebFetch
                          tools, and the chat interface.
        │
-use OmniUI             — macro. Adds session-streaming plumbing,
+use Omni.UI             — macro. Adds session-streaming plumbing,
                          state ownership, and event handling to any
                          LiveView. Public API: init_session/2,
                          attach_session/2, ensure_session/1,
                          update_session/2, notify/2,3.
        │
-OmniUI.ChatUI          — chat pipeline function components:
+Omni.UI.ChatUI          — chat pipeline function components:
                          chat_interface, editor, turn_list, turn,
                          user_message, assistant_message, content_block,
                          tool_use, attachment, markdown.
-OmniUI.CoreUI          — shared UI primitives: expandable, select,
+Omni.UI.CoreUI          — shared UI primitives: expandable, select,
                          version_nav, timestamp, usage_block,
                          notifications.
 ```
@@ -59,8 +59,8 @@ set_agent}`.
 
 - **`omni_tools`** — ready-to-use agent tools. `Omni.Tools.Files`
   (file CRUD), `Omni.Tools.Repl` (sandboxed Elixir execution),
-  `Omni.Tools.WebFetch` (URL fetching). `OmniUI.Agent` configures
-  and wires these at agent init time. OmniUI does not implement its
+  `Omni.Tools.WebFetch` (URL fetching). `Omni.UI.Agent` configures
+  and wires these at agent init time. Omni.UI does not implement its
   own tools.
 - **`omni`** — stateless LLM client. Provides `Omni.Model`,
   `Omni.Message`, `Omni.Content.{Text, Thinking, ToolUse, ToolResult,
@@ -70,20 +70,20 @@ set_agent}`.
   primary integration surface:
   - `Omni.Session` — subscribed-to per LiveView; events arrive as
     `{:session, pid, type, payload}` and translate directly to assign
-    mutations in `OmniUI.Handlers`.
+    mutations in `Omni.UI.Handlers`.
   - `Omni.Session.Tree` — pure data, mirrored into the `:tree` assign.
-    `OmniUI.Turn.all/1` and `Turn.get/2` operate on it.
-  - `Omni.Session.Manager` — `OmniUI.Sessions` is a thin `use
+    `Omni.UI.Turn.all/1` and `Turn.get/2` operate on it.
+  - `Omni.Session.Manager` — `Omni.UI.Sessions` is a thin `use
     Omni.Session.Manager` subclass under the `:omni_ui` otp_app.
     Consumers add it to their supervision tree with a configured store.
   - `Omni.Session.Snapshot` and `Omni.Agent.Snapshot` — applied to
-    socket assigns on attach (`apply_snapshot/4` in `OmniUI`).
+    socket assigns on attach (`apply_snapshot/4` in `Omni.UI`).
   - `Omni.Session.Stores.FileSystem` — referenced by config (consumers
-    pass it to `OmniUI.Sessions`); uses `:base_dir` for the absolute
+    pass it to `Omni.UI.Sessions`); uses `:base_dir` for the absolute
     storage path.
 
 **What lives where.** Persistence, idle shutdown, branching mechanics,
-and tool execution are all `omni_agent` concerns. OmniUI does not
+and tool execution are all `omni_agent` concerns. Omni.UI does not
 implement persistence, run tools, or compute the tree — it observes,
 displays, and dispatches. Where this document references those
 concepts (e.g. "the session emits `:tree` after every mutation"), the
@@ -91,10 +91,10 @@ canonical spec is in `../omni_agent/context/design.md`.
 
 ---
 
-## 3. The `use OmniUI` macro
+## 3. The `use Omni.UI` macro
 
 The macro is the primary integration point. A consumer writes `use
-OmniUI`, implements `render/1` and `mount/3` (calling
+Omni.UI`, implements `render/1` and `mount/3` (calling
 `init_session/2`), wires `handle_params/3` to call
 `attach_session/2`, and gets streaming, branching, persistence
 mirroring, notifications, and event handling injected automatically.
@@ -104,7 +104,7 @@ mirroring, notifications, and event handling injected automatically.
 ```elixir
 defmodule MyApp.ChatLive do
   use Phoenix.LiveView
-  use OmniUI
+  use Omni.UI
 
   def mount(_params, _session, socket) do
     {:ok, init_session(socket, model: {:anthropic, "claude-sonnet-4-5"})}
@@ -122,7 +122,7 @@ defmodule MyApp.ChatLive do
     end
   end
 
-  @impl OmniUI
+  @impl Omni.UI
   def agent_event(:turn, {:stop, response}, socket) do
     MyApp.Analytics.track(response.usage)
     socket
@@ -135,35 +135,35 @@ end
 ### 3.2 What the macro injects
 
 `__using__/1` registers `@before_compile` and imports
-`OmniUI.ChatUI` and `OmniUI.CoreUI` plus the public OmniUI API (`init_session/2`,
+`Omni.UI.ChatUI` and `Omni.UI.CoreUI` plus the public Omni.UI API (`init_session/2`,
 `attach_session/2`, `ensure_session/1`, `update_session/2`,
 `notify/2,3`).
 
 `__before_compile__/1` injects:
 
 - `handle_event("omni:" <> _, ...)` — routes namespaced events to
-  `OmniUI.Handlers.handle_event/3`.
-- `handle_info({OmniUI, :new_message, _}, ...)`,
-  `{OmniUI, :edit_message, _, _}`, `{OmniUI, :notify, _}`,
-  `{OmniUI, :dismiss_notification, _}` — component-bubbled messages
-  routed to `OmniUI.Handlers.handle_info/2`.
+  `Omni.UI.Handlers.handle_event/3`.
+- `handle_info({Omni.UI, :new_message, _}, ...)`,
+  `{Omni.UI, :edit_message, _, _}`, `{Omni.UI, :notify, _}`,
+  `{Omni.UI, :dismiss_notification, _}` — component-bubbled messages
+  routed to `Omni.UI.Handlers.handle_info/2`.
 - `handle_info({:session, pid, event, data}, ...)` — the session
   event dispatcher. Drops events from a session we've since detached
   from (pid mismatch with `socket.assigns.session`), then runs
-  `OmniUI.Handlers.handle_agent_event/3` and finally calls the
+  `Omni.UI.Handlers.handle_agent_event/3` and finally calls the
   consumer's `agent_event/3` callback.
 - A default `agent_event(_event, _data, socket), do: socket` if the
   consumer doesn't define one.
 
 Coexistence with consumer-defined handlers uses
-`@before_compile` + `defoverridable`: OmniUI clauses are tried first,
+`@before_compile` + `defoverridable`: Omni.UI clauses are tried first,
 and unrecognised events fall through via `super`.
 
 ### 3.3 Public API
 
 #### `init_session/2`
 
-Initialises every OmniUI-owned assign and stream. Called once from
+Initialises every Omni.UI-owned assign and stream. Called once from
 `mount/3`. Sets:
 
 - Agent config: `:manager`, `:agent_module`, `:model`, `:thinking`,
@@ -182,7 +182,7 @@ session.
 Options of note:
 
 - `:model` (required) — `%Omni.Model{}` or `{provider, id}` tuple.
-- `:manager` — Manager module (default `OmniUI.Sessions`).
+- `:manager` — Manager module (default `Omni.UI.Sessions`).
 - `:agent_module` — module that `use`s `Omni.Agent`. The session
   starts the agent under this module, so its `init/1` callback can
   bake in tools, system prompt, etc.
@@ -225,7 +225,7 @@ already attached, returns the socket unchanged.
 
 The split between `create` (fresh) and `open` (existing) matters:
 `create` generates a new id; `open` looks up an existing one. That
-distinction is owned by the Manager, not OmniUI.
+distinction is owned by the Manager, not Omni.UI.
 
 #### `update_session/2`
 
@@ -252,7 +252,7 @@ Values get passed to the session at `ensure_session/1` time.
 #### `notify/2,3`
 
 In-process toaster. `notify(level, message, opts)` does
-`send(self(), {OmniUI, :notify, %Notification{}})`. Levels:
+`send(self(), {Omni.UI, :notify, %Notification{}})`. Levels:
 `:info | :success | :warning | :error`. Default timeout 20s.
 Imported via the macro, so it's in scope from anywhere in the
 LiveView (LiveComponents whose `self()` is the parent LV
@@ -262,7 +262,7 @@ No PubSub, no registry — strictly in-process v1.
 
 ### 3.4 The `agent_event/3` callback
 
-Fires for every session event after OmniUI's default handling, with
+Fires for every session event after Omni.UI's default handling, with
 the already-mutated socket. Receives the session-event tag (e.g.
 `:turn`, `:tree`, `:store`, `:state`, `:status`, `:title`,
 `:text_delta`, `:tool_use_end`, `:tool_result`, `:error`, etc.) and
@@ -276,7 +276,7 @@ polish list.
 
 ## 4. State ownership and lifecycle
 
-### 4.1 OmniUI-owned assigns
+### 4.1 Omni.UI-owned assigns
 
 | Assign | Purpose |
 |---|---|
@@ -292,7 +292,7 @@ polish list.
 | `:session_id` | Binary id or nil |
 | `:title` | Title string or nil |
 | `:tree` | `%Omni.Session.Tree{}` mirror |
-| `:current_turn` | `%OmniUI.Turn{}` while streaming, else nil |
+| `:current_turn` | `%Omni.UI.Turn{}` while streaming, else nil |
 | `:usage` | Cumulative `%Omni.Usage{}` from `Tree.usage/1` |
 | `:url_synced` | `:store {:saved, _}` URL-patch latch |
 | `:notification_ids` | FIFO order list (cap = 5) |
@@ -302,7 +302,7 @@ polish list.
 Consumers own everything else (model option lists, view-toggle
 booleans, custom event handlers).
 
-The rule for consumers: if `mount/3` is setting an OmniUI-owned
+The rule for consumers: if `mount/3` is setting an Omni.UI-owned
 assign directly, reach for `init_session/2` instead.
 
 ### 4.2 The lifecycle
@@ -317,7 +317,7 @@ handle_params/3
   └─ id: same_as_now  → no-op
 
 EditorComponent submit
-  └─ {OmniUI, :new_message, message}
+  └─ {Omni.UI, :new_message, message}
        └─ Handlers.handle_info → ensure_session/1 → Omni.Session.prompt
             (lazy session creation if none attached)
 
@@ -368,7 +368,7 @@ is already gone.
 
 ## 5. Event handling
 
-`OmniUI.Handlers` is a private module containing pure
+`Omni.UI.Handlers` is a private module containing pure
 event/info/session-event dispatch. The macro routes to it; the
 module returns `{:noreply, socket}` (for `handle_event`/`handle_info`)
 or just a socket (for `handle_agent_event`).
@@ -395,13 +395,13 @@ toast and logs the unknown cases.
 
 | Message | Effect |
 |---|---|
-| `{OmniUI, :new_message, msg}` | `ensure_session` + `Session.prompt` + set `current_turn` |
-| `{OmniUI, :edit_message, turn_id, msg}` | `Session.branch(parent_id, content)` (target = parent assistant) |
-| `{OmniUI, :notify, notification}` | Stream insert + FIFO eviction at cap = 5 |
-| `{OmniUI, :dismiss_notification, id}` | Stream delete |
-| `{OmniUI, :active_session_deleted}` | Caught in AgentLive — `push_patch` to `/` |
+| `{Omni.UI, :new_message, msg}` | `ensure_session` + `Session.prompt` + set `current_turn` |
+| `{Omni.UI, :edit_message, turn_id, msg}` | `Session.branch(parent_id, content)` (target = parent assistant) |
+| `{Omni.UI, :notify, notification}` | Stream insert + FIFO eviction at cap = 5 |
+| `{Omni.UI, :dismiss_notification, id}` | Stream delete |
+| `{Omni.UI, :active_session_deleted}` | Caught in AgentLive — `push_patch` to `/` |
 
-**Edit semantics.** `{OmniUI, :edit_message, turn_id, message}` — the
+**Edit semantics.** `{Omni.UI, :edit_message, turn_id, message}` — the
 sender is `TurnComponent`, the `turn_id` is the *user* node being
 edited. Per `Omni.Session.branch/3`, branching from an assistant pushes
 a new user+assistant pair as its children, so we look up
@@ -478,10 +478,10 @@ never lost.
 
 ### 5.4 Notifications
 
-`OmniUI.notify/2,3` sends `{OmniUI, :notify, %Notification{}}` to
+`Omni.UI.notify/2,3` sends `{Omni.UI, :notify, %Notification{}}` to
 `self()`. The handler:
 
-1. Schedules `Process.send_after(self(), {OmniUI, :dismiss_notification, id}, timeout)`.
+1. Schedules `Process.send_after(self(), {Omni.UI, :dismiss_notification, id}, timeout)`.
 2. Appends the id to `:notification_ids`.
 3. Splits at the cap (5). Evicted ids are stream-deleted.
 4. Stream-inserts the new notification at position 0.
@@ -492,17 +492,17 @@ element are both no-ops.
 
 ---
 
-## 6. Tree consumption and the `OmniUI.Turn` view
+## 6. Tree consumption and the `Omni.UI.Turn` view
 
 The session's tree is one node per message — assistant, user, and
 tool-result messages are all separate nodes. UI rendering wants
 *turns*: one user prompt + any tool-use rounds + the final assistant
-response, presented as one unit. `OmniUI.Turn` is that projection.
+response, presented as one unit. `Omni.UI.Turn` is that projection.
 
 ### 6.1 Struct
 
 ```elixir
-%OmniUI.Turn{
+%Omni.UI.Turn{
   id:                node_id(),         # user node id
   res_id:            node_id() | nil,   # first assistant node id
   status:            :complete | :streaming | :error,
@@ -521,7 +521,7 @@ response, presented as one unit. `OmniUI.Turn` is that projection.
 
 `edits` and `regens` always include the active node (`id` in `edits`,
 `res_id` in `regens`). UI components compute position with
-`OmniUI.Helpers.sibling_pos/2` (`"2/3"`) and draw prev/next nav from
+`Omni.UI.Helpers.sibling_pos/2` (`"2/3"`) and draw prev/next nav from
 the lists directly.
 
 ### 6.2 Building turns
@@ -578,21 +578,21 @@ modules:
 `chat_interface/1` is the root wrapper. Provides the scroll
 container, optional `:editor` and `:footer` slots, and the markdown
 typography styles via a class list returned by
-`OmniUI.Helpers.md_styles/0`. When `:editor` is not provided, renders
+`Omni.UI.Helpers.md_styles/0`. When `:editor` is not provided, renders
 a plain `EditorComponent`. `editor/1` wraps `EditorComponent` with
 default controls (model select, thinking toggle, usage display).
 
 ### 7.2 The two LiveComponents
 
-- **`OmniUI.TurnComponent`** — renders one completed turn. Owns the
+- **`Omni.UI.TurnComponent`** — renders one completed turn. Owns the
   inline-edit textarea state. On submit, sends
-  `{OmniUI, :edit_message, turn_id, message}` to the parent. Forwards
+  `{Omni.UI, :edit_message, turn_id, message}` to the parent. Forwards
   `omni:navigate` and `omni:regenerate` via plain `phx-click`
   (no `phx-target`, so they bubble to the LV).
-- **`OmniUI.EditorComponent`** — owns the textarea input, drag-drop
+- **`Omni.UI.EditorComponent`** — owns the textarea input, drag-drop
   zone (`phx-drop-target`), and `allow_upload(:attachments, ...)`.
   On submit, base64-encodes attachments and sends
-  `{OmniUI, :new_message, %Omni.Message{}}` to the parent. Accepts a
+  `{Omni.UI, :new_message, %Omni.Message{}}` to the parent. Accepts a
   `:controls` slot.
 
 LiveComponents isolate high-frequency state (textarea keystrokes,
@@ -634,7 +634,7 @@ AgentLive (LiveView)
 ```
 
 The header is currently private to `AgentLive`. It will likely move
-into `OmniUI.ChatUI` so consumers building their own LV can use
+into `Omni.UI.ChatUI` so consumers building their own LV can use
 it without recreating the title-edit + sessions-toggle plumbing.
 
 ### 7.5 Session-scoped TurnComponent ids
@@ -672,7 +672,7 @@ shapes:
 {%Omni.Tool{}, component: fun}            # custom rendering
 ```
 
-`OmniUI.normalise_tools/1` (public, undocumented for testing) splits
+`Omni.UI.normalise_tools/1` (public, undocumented for testing) splits
 the list into a flat `[%Omni.Tool{}]` (handed to the agent) and a
 `%{name => fun}` map (assigned to `:tool_components`). The
 keyword-list shape on the tuple is forward-compatible — sibling keys
@@ -733,7 +733,7 @@ appropriate UI pre-state.
 |---|---|---|
 | Switch branches | `omni:navigate` (phx-click bubbled from TurnComponent) | `Omni.Session.navigate(session, node_id)` |
 | Regenerate | `omni:regenerate` (phx-click bubbled) | `Omni.Session.branch(session, turn_id)` (regen, target = user node) |
-| Edit user message | `{OmniUI, :edit_message, turn_id, msg}` (sent from TurnComponent on submit) | `Omni.Session.branch(session, parent_assistant_id, content)` |
+| Edit user message | `{Omni.UI, :edit_message, turn_id, msg}` (sent from TurnComponent on submit) | `Omni.Session.branch(session, parent_assistant_id, content)` |
 
 For regen and edit, the handler sets `:current_turn` to a streaming
 turn *before* the session emits its first event — so the UI shows
@@ -753,10 +753,10 @@ them to user-friendly toasts.
 
 ## 10. Sessions
 
-### 10.1 `OmniUI.Sessions` — the default Manager
+### 10.1 `Omni.UI.Sessions` — the default Manager
 
 ```elixir
-defmodule OmniUI.Sessions do
+defmodule Omni.UI.Sessions do
   use Omni.Session.Manager, otp_app: :omni_ui
 end
 ```
@@ -769,11 +769,11 @@ sessions_dir = Path.expand("priv/omni/sessions")
 
 config :omni_ui, :sessions_base_dir, sessions_dir
 
-config :omni_ui, OmniUI.Sessions,
+config :omni_ui, Omni.UI.Sessions,
   store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir}
 
 # application.ex
-children = [OmniUI.Sessions, ...]
+children = [Omni.UI.Sessions, ...]
 ```
 
 Start-time opts override app-env values. Consumers wanting multiple
@@ -781,7 +781,7 @@ Managers (multi-tenant isolation, per-workspace) define their own
 `use Omni.Session.Manager` modules and pass them via the `:manager`
 option to `init_session/2`.
 
-### 10.2 `OmniUI.SessionsComponent` — the drawer
+### 10.2 `Omni.UI.SessionsComponent` — the drawer
 
 A LiveComponent rendering a left-sidebar list of sessions. Receives
 `current_id` and `manager` from the parent. State:
@@ -795,7 +795,7 @@ _}`) don't reach LiveComponents directly — the parent LV catches
 them in `handle_info/2` and forwards via:
 
 ```elixir
-send_update(OmniUI.SessionsComponent, id: "sessions", manager_event: msg)
+send_update(Omni.UI.SessionsComponent, id: "sessions", manager_event: msg)
 ```
 
 The component pattern-matches `update(%{manager_event: event}, ...)`
@@ -817,7 +817,7 @@ a CSS sibling selector that reveals the "Sure?" confirm button for
 5 seconds. The `delete` event handler calls `manager.delete/1` and
 removes the session from the local list.
 
-Deleting the current session sends `{OmniUI, :active_session_deleted}`
+Deleting the current session sends `{Omni.UI, :active_session_deleted}`
 to the parent — `AgentLive` listens for this and `push_patch`es to
 `/`.
 
@@ -839,7 +839,7 @@ Session titles are edited via the session list's inline rename form.
 `SessionsComponent` handles the `rename` event and calls
 `manager.rename(id, title)`. For running sessions, the manager calls
 `Omni.Session.set_title/2`, which persists and emits a session
-`:title` event — `OmniUI.Handlers` mirrors it into `@title`. For
+`:title` event — `Omni.UI.Handlers` mirrors it into `@title`. For
 non-running sessions, the manager updates the store directly and
 broadcasts a manager `:title` event — `SessionsComponent` folds
 it into the local list.
@@ -855,14 +855,14 @@ loop.
 ## 11. Notifications
 
 A kit-native toaster for transient in-app messages. Replaces flash
-because flash is tied to mount/navigate; OmniUI needs to push to a
+because flash is tied to mount/navigate; Omni.UI needs to push to a
 surface from session events, async callbacks, and library code (e.g.
 `update_session/2`'s lenient model branch).
 
 ### 11.1 Shape
 
 ```elixir
-%OmniUI.Notification{
+%Omni.UI.Notification{
   id:      integer(),                  # System.unique_integer([:positive])
   level:   :info | :success | :warning | :error,
   message: String.t(),
@@ -873,11 +873,11 @@ surface from session events, async callbacks, and library code (e.g.
 ### 11.2 Plumbing
 
 - `notify/2,3` (imported via the macro) — `send(self(),
-  {OmniUI, :notify, %Notification{}})`.
+  {Omni.UI, :notify, %Notification{}})`.
 - `init_session/2` sets up `stream(:notifications, [])` and
   `:notification_ids = []`.
-- Macro injects `handle_info` clauses for `{OmniUI, :notify, _}` and
-  `{OmniUI, :dismiss_notification, _}`; the existing `omni:` event
+- Macro injects `handle_info` clauses for `{Omni.UI, :notify, _}` and
+  `{Omni.UI, :dismiss_notification, _}`; the existing `omni:` event
   prefix routes the close-button click.
 - `notifications/1` function component renders the bottom-right stack
   and is rendered explicitly by the consumer (AgentLive does this).
@@ -898,7 +898,7 @@ dismiss.
 
 Each level has a distinct border color and Lucide icon: info
 (neutral), success (green check), warning (amber triangle), error
-(red x-circle). Defined in `OmniUI.CoreUI.notifications/1`.
+(red x-circle). Defined in `Omni.UI.CoreUI.notifications/1`.
 
 ---
 
@@ -913,12 +913,12 @@ reconstruct file state is too complex for the value.
 ### 12.1 Tools — `omni_tools`
 
 The file, REPL, and web-fetch tools come from the `omni_tools`
-package. OmniUI does not implement its own tools — it configures and
+package. Omni.UI does not implement its own tools — it configures and
 wires the `omni_tools` implementations at agent init time.
 
-`OmniUI.Agent.init/1` reads
+`Omni.UI.Agent.init/1` reads
 `state.private.omni.session_id`, derives the files directory via
-`OmniUI.Sessions.session_files_dir/1`, and appends three tools:
+`Omni.UI.Sessions.session_files_dir/1`, and appends three tools:
 
 - `Omni.Tools.Files.new(base_dir: files_dir, nested: false)` — flat
   file CRUD scoped to the session's files directory.
@@ -932,7 +932,7 @@ wires the `omni_tools` implementations at agent init time.
 `{sessions_base_dir}/{session_id}/files/{filename}`
 
 The base dir is configured via `config :omni_ui, :sessions_base_dir`.
-`OmniUI.Sessions` exposes `session_dir/1` and `session_files_dir/1`
+`Omni.UI.Sessions` exposes `session_dir/1` and `session_files_dir/1`
 helpers that derive paths from this config.
 
 Co-locating files with session data means session deletion (via the
@@ -941,7 +941,7 @@ cleans up files.
 
 The `Omni.Tools.Files.FS` module (from `omni_tools`) handles all
 filesystem operations. The `FilesComponent` and `Plug` construct
-`FS` structs via `session_files_dir/1` — no OmniUI-specific
+`FS` structs via `session_files_dir/1` — no Omni.UI-specific
 filesystem module exists.
 
 ### 12.3 HTTP serving — `Files.Plug`
@@ -952,7 +952,7 @@ URL to hit, not `srcdoc`, so cross-file relative paths work
 downloaded.
 
 ```elixir
-forward "/omni_files", OmniUI.Files.Plug
+forward "/omni_files", Omni.UI.Files.Plug
 ```
 
 URL format: `/{prefix}/{token}/{filename}`. The token is a
@@ -968,10 +968,10 @@ sub-resource fetches (e.g. JSON loaded by HTML) need them.
 `content-disposition` is `inline` for browser-displayable types and
 `attachment` for everything else.
 
-`OmniUI.Files.URL` is the signing/URL-construction helper —
+`Omni.UI.Files.URL` is the signing/URL-construction helper —
 `sign_token/2`, `verify_token/3`, `file_url/3`. URL prefix
 defaults to `"/omni_files"`, configurable via
-`config :omni_ui, OmniUI.Files, url_prefix: "/your_prefix"`.
+`config :omni_ui, Omni.UI.Files, url_prefix: "/your_prefix"`.
 
 ### 12.4 `FilesComponent`
 
@@ -1006,13 +1006,13 @@ file button in the chat). AgentLive holds zero file assigns.
 
 ### 12.5 Inline chat components — `ToolsUI`
 
-`OmniUI.ToolsUI` provides custom tool-use renderers for the
+`Omni.UI.ToolsUI` provides custom tool-use renderers for the
 chat stream, registered via the `tool_components` map:
 
 ```elixir
 tool_components: %{
-  "files" => &OmniUI.ToolsUI.files_tool_use/1,
-  "repl"  => &OmniUI.ToolsUI.repl_tool_use/1
+  "files" => &Omni.UI.ToolsUI.files_tool_use/1,
+  "repl"  => &Omni.UI.ToolsUI.repl_tool_use/1
 }
 ```
 
@@ -1034,8 +1034,8 @@ execution results with check/error indicators.
 
 ## 13. REPL and WebFetch
 
-The REPL and WebFetch tools come from `omni_tools`. OmniUI
-configures them in `OmniUI.Agent.init/1` and provides a custom
+The REPL and WebFetch tools come from `omni_tools`. Omni.UI
+configures them in `Omni.UI.Agent.init/1` and provides a custom
 chat renderer for the REPL.
 
 ### 13.1 REPL configuration
@@ -1068,7 +1068,7 @@ distribution boot), see the `omni_tools` documentation.
 
 `Omni.Tools.WebFetch` fetches URLs and converts HTML to markdown.
 No custom ChatUI — uses the default tool-use renderer. No
-OmniUI-specific configuration.
+Omni.UI-specific configuration.
 
 ---
 
@@ -1092,7 +1092,7 @@ Consumers override the theme by redefining the CSS custom properties
 `chat_interface` element scopes the component tree.
 
 **Markdown typography** is defined as Tailwind descendant-selector
-classes (`[&_.mdex_*]`) returned by `OmniUI.Helpers.md_styles/0`.
+classes (`[&_.mdex_*]`) returned by `Omni.UI.Helpers.md_styles/0`.
 Applied at `chat_interface` (and `FilesComponent`) root,
 they target the `.mdex` class MDEx applies to rendered HTML. This
 keeps the `markdown/1` component's markup minimal while defining
@@ -1120,8 +1120,8 @@ lib/
     handlers.ex                    # private — event/info/session-event dispatch
     helpers.ex                     # cls, format_*, time_ago, md_styles, to_md, etc.
     notification.ex                # %Notification{}
-    sessions.ex                    # OmniUI.Sessions — default Manager + dir helpers
-    turn.ex                        # %OmniUI.Turn{} + Turn.all/1, Turn.get/2, Turn.new/3
+    sessions.ex                    # Omni.UI.Sessions — default Manager + dir helpers
+    turn.ex                        # %Omni.UI.Turn{} + Turn.all/1, Turn.get/2, Turn.new/3
     files/
       plug.ex                      # signed-token HTTP serving
       url.ex                       # token signing + URL construction
@@ -1130,11 +1130,11 @@ omni_ui_dev/                       # companion Phoenix app for browser testing
 test/                              # ExUnit suite
 ```
 
-Public modules carry `@moduledoc` with examples. `OmniUI.Handlers`
+Public modules carry `@moduledoc` with examples. `Omni.UI.Handlers`
 is `@moduledoc false` (private dispatch).
 
 The companion app at `omni_ui_dev/` is the consumer reference. It
-wires `OmniUI.Sessions` into the supervision tree, configures the
+wires `Omni.UI.Sessions` into the supervision tree, configures the
 FileSystem store, mounts
-`OmniUI.Files.Plug` at `/omni_files`, and routes `/` to
-`OmniUI.AgentLive`.
+`Omni.UI.Files.Plug` at `/omni_files`, and routes `/` to
+`Omni.UI.AgentLive`.

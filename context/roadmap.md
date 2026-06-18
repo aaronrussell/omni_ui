@@ -1,6 +1,6 @@
-# OmniUI Roadmap
+# Omni.UI Roadmap
 
-Open work on the OmniUI package. The architectural workstreams
+Open work on the Omni.UI package. The architectural workstreams
 (macro, persistence, advanced tooling, session management, the
 `Omni.Session` pivot) are all done — see `context/design.md` for the
 current shape. What remains is mostly polish, naming/API decisions,
@@ -12,10 +12,6 @@ and a release path.
 
 Smaller items that don't need major design work but should land
 before a public release.
-
-- **Project namespacing** — `OmniUI` vs `Omni.UI`. The rest of the
-  ecosystem uses the `Omni` namespace (`Omni.Agent`, `Omni.Session`).
-  Decide whether to align before publishing.
 
 - **Error retry** — errored turns preserve the user message via
   `stream_insert(... status: :error)`. Add a retry button that
@@ -43,17 +39,17 @@ before a public release.
 
 - **Config-key rationalisation** — configuration spans `:omni` and
   `:omni_ui` atoms with a mix of bare-app and module-scoped keys
-  (`config :omni_ui, OmniUI.Sessions, store: ...`,
-  `config :omni_ui, OmniUI.Files, url_prefix: ...`,
+  (`config :omni_ui, Omni.UI.Sessions, store: ...`,
+  `config :omni_ui, Omni.UI.Files, url_prefix: ...`,
   `config :omni, providers: ...`). Single coherent pattern across
   the Omni ecosystem before release. Dovetails with namespacing.
 
 - **Package API surface** — decide what's public vs internal.
-  `OmniUI`, `OmniUI.ChatUI`, `OmniUI.CoreUI`, `OmniUI.Turn`,
-  `OmniUI.Sessions`, `OmniUI.Notification`, and the
+  `Omni.UI`, `Omni.UI.ChatUI`, `Omni.UI.CoreUI`, `Omni.UI.Turn`,
+  `Omni.UI.Sessions`, `Omni.UI.Notification`, and the
   Files/Tools/Sessions UI modules
-  are public. `OmniUI.Handlers`,
-  `OmniUI.Helpers`, internal structs may not be. `OmniUI.TreeFaker`
+  are public. `Omni.UI.Handlers`,
+  `Omni.UI.Helpers`, internal structs may not be. `Omni.UI.TreeFaker`
   lives in `test/support/` (not published).
 
 - **Streaming-perf delta debounce** — debounce text deltas (50–100ms
@@ -66,12 +62,12 @@ before a public release.
 
 - **Hex docs** — moduledocs are mostly in shape. Need a usage guide
   covering: the three layers; the `init_session` / `attach_session`
-  / `ensure_session` lifecycle; wiring `OmniUI.Sessions`
+  / `ensure_session` lifecycle; wiring `Omni.UI.Sessions`
   into a supervision tree; mounting
   `Files.Plug`; registering custom tool-use components.
 
 - **Test backfill** — current coverage is good for data
   structures, components, and the macro lifecycle. Areas that would
-  benefit from more: `OmniUI.Handlers` session-event paths
-  end-to-end (with stubbed `Omni.Session`), `OmniUI.SessionsComponent`
+  benefit from more: `Omni.UI.Handlers` session-event paths
+  end-to-end (with stubbed `Omni.Session`), `Omni.UI.SessionsComponent`
   manager-event reducers, branch-error notification mappings.
