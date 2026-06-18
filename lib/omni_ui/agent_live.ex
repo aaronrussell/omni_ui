@@ -244,5 +244,4 @@ defmodule OmniUI.AgentLive do
   end
 
   def agent_event(_event, _data, socket), do: socket
-
 end
