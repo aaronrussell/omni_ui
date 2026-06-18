@@ -96,7 +96,7 @@ defmodule OmniUI.FilesUI do
 
   def file_list(assigns) do
     ~H"""
-    <div class="size-full p-16 pt-12 flex flex-col overflow-y-auto">
+    <div class="size-full p-6 flex flex-col overflow-y-auto">
       <div :if={@error} class="flex items-center gap-3 mb-4 px-4 py-3 text-red-600 bg-omni-bg-2 border border-red-500 rounded">
         <Lucideicons.triangle_alert class="size-4" />
         <p class="text-sm">{@error}</p>
@@ -154,7 +154,7 @@ defmodule OmniUI.FilesUI do
 
   def file_view(%{view: :markdown} = assigns) do
     ~H"""
-    <div class="min-h-full p-16 pt-12 bg-omni-bg-1">
+    <div class="min-h-full p-6">
       <div class="max-w-xl mx-auto mdex leading-[1.5]">
         {@content}
       </div>
@@ -167,7 +167,7 @@ defmodule OmniUI.FilesUI do
     <div
       class={[
         "h-full",
-        "[&>pre]:min-h-full! [&>pre]:m-0 [&>pre]:px-16 [&>pre]:py-12 [&>pre]:text-sm",
+        "[&>pre]:min-h-full! [&>pre]:m-0 [&>pre]:p-6 [&>pre]:text-sm",
         "[&>pre]:whitespace-pre-wrap"
       ]}>
       {@content}
@@ -177,7 +177,7 @@ defmodule OmniUI.FilesUI do
 
   def file_view(%{view: :media} = assigns) do
     ~H"""
-    <div class="min-h-full flex items-center justify-center p-16 pt-12 bg-omni-bg-1">
+    <div class="min-h-full flex items-center justify-center p-6 bg-omni-bg-1">
       <img
         src={file_url(@token, @file.filename)}
         alt={@file.filename}
@@ -189,7 +189,7 @@ defmodule OmniUI.FilesUI do
 
   def file_view(%{view: :download} = assigns) do
     ~H"""
-    <div class="h-full flex items-center justify-center p-16 pt-12">
+    <div class="h-full flex items-center justify-center p-6">
       <a
         href={file_url(@token, @file.filename)}
         download={@file.filename}
