@@ -412,9 +412,9 @@ old tree-owns-state model, where edit navigated to the user's parent
 and pushed a sibling user.
 
 Both `:new_message` and `:edit_message` set `:current_turn` to a
-streaming-status turn built from the user's content with `id: nil` —
-the user node id isn't known until the session emits `:tree` with
-`new_nodes` populated. `adopt_current_turn_id/2` patches it in.
+streaming-status turn built from the user's content. The `:turn`
+handler nils it before `:tree` fires, so the committed turn appears
+in the rebuilt stream without filtering.
 
 ### 5.3 Session events (`handle_agent_event/3`)
 
@@ -432,27 +432,25 @@ Receives the `event` atom and `data` payload from
 
 **Turn boundary.** `:turn`:
 
-- `{:stop, _}` → `current_turn: nil`. The `:tree` event that follows
-  carries the committed nodes; the rebuilt turn list will include the
-  just-finished turn.
-- `{:continue, _}` → keep `current_turn`. Continuations are multiple
-  agent turns concatenated into one UI turn.
+- `{:stop, _}` and `{:continue, _}` both nil `current_turn`. The
+  `:tree` event that follows carries the committed nodes; the rebuilt
+  turn list includes the just-finished turn.
 
-**Tree mirror.** `:tree` with `%{tree: tree, new_nodes: [...]}`:
+For continuations, the agent emits a `:message` event with the
+continuation user prompt immediately after the `:turn {:continue}`
+commit. The `:message` handler detects that no turn is in flight
+(`current_turn == nil`) and starts a fresh streaming turn from it.
+This keeps the streaming view consistent with the reload view —
+each continuation is a separate turn in both.
 
-- `adopt_current_turn_id/2` patches the in-flight `current_turn.id`
-  if it's still nil. The first non-empty `new_nodes` after streaming
-  starts has the user node at the head — adopting it lets the rebuild
-  filter the in-flight turn out by id.
-- Rebuild turns from `Turn.all(tree)`, reject the in-flight turn,
-  reset the `:turns` stream with `reset: true`. Update `:tree` and
-  `:usage` assigns.
+**Tree mirror.** `:tree` with `%{tree: tree, ...}`:
 
-The reject-by-id is what prevents the streaming `current_turn` and
-the rebuilt completed turn from both rendering during the brief
-window between commit and `current_turn: nil`. Navigates and
-mid-branch resyncs send `:tree` with `new_nodes: []` — same code
-path, just no in-flight turn to reject.
+- Rebuild turns from `Turn.all(tree)`, reset the `:turns` stream
+  with `reset: true`. Update `:tree` and `:usage` assigns.
+
+No in-flight filtering is needed — `:turn` always nils
+`current_turn` before `:tree` fires, so the in-flight turn is never
+in the tree at rebuild time.
 
 **Persistence acks.** `:store`:
 

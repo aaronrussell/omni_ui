@@ -166,16 +166,24 @@ defmodule Omni.UI.Handlers do
     end)
   end
 
-  # Turn boundary. Session forwards this from the inner agent. On {:stop, _}
-  # the streaming turn is over — drop @current_turn so subsequent renders
-  # show the committed turn from the :tree event that follows. On
-  # {:continue, _} keep @current_turn so streaming carries on across the
-  # continuation step.
-  def handle_agent_event(:turn, {:stop, _response}, socket) do
+  # Turn boundary. Nil out @current_turn so the committed turn appears
+  # in the :turns stream via the :tree event that follows. For
+  # continuations, a subsequent :message event sets up a fresh
+  # @current_turn for the new turn the agent kicks off.
+  def handle_agent_event(:turn, {_kind, _response}, socket) do
     assign(socket, :current_turn, nil)
   end
 
-  def handle_agent_event(:turn, {:continue, _response}, socket), do: socket
+  # Continuation user message. The agent emits :message for the new user
+  # prompt after :turn {:continue} commits. When no turn is in flight,
+  # start a fresh streaming turn from this message.
+  def handle_agent_event(:message, %Omni.Message{role: :user} = message, socket) do
+    if socket.assigns.current_turn == nil do
+      assign(socket, :current_turn, streaming_turn(nil, message))
+    else
+      socket
+    end
+  end
 
   # Tree mirror. Session emits this after every tree mutation: turn commit
   # (with new node ids), navigate (empty new_nodes), and the apply_navigation
@@ -183,18 +191,11 @@ defmodule Omni.UI.Handlers do
   # the new tree on each event — Turn.all walks the active path so navigates
   # and branches naturally drop turns that have left the path.
   #
-  # During streaming, the in-flight turn is rendered separately via
-  # @current_turn. We filter it out of the rebuilt list to avoid duplicating
-  # it once the turn (or a continuation step) commits to the tree.
-  def handle_agent_event(:tree, %{tree: tree, new_nodes: new_nodes}, socket) do
-    socket = adopt_current_turn_id(socket, new_nodes)
-
-    in_flight_id = if socket.assigns.current_turn, do: socket.assigns.current_turn.id
-
-    turns =
-      tree
-      |> Omni.UI.Turn.all()
-      |> Enum.reject(&(&1.id == in_flight_id))
+  # The in-flight streaming turn (@current_turn) is rendered separately and
+  # is not yet in the tree, so no filtering is needed — :turn always nils
+  # @current_turn before :tree fires.
+  def handle_agent_event(:tree, %{tree: tree}, socket) do
+    turns = Omni.UI.Turn.all(tree)
 
     socket
     |> assign(tree: tree, usage: Tree.usage(tree))
@@ -259,24 +260,6 @@ defmodule Omni.UI.Handlers do
   def handle_agent_event(_event, _data, socket), do: socket
 
   # ── Helpers ──────────────────────────────────────────────────────
-
-  # New-message and edit flows start streaming with `current_turn.id == nil`
-  # because the new user node hasn't been created yet. On the first commit
-  # (the first :tree event with non-empty new_nodes after streaming starts),
-  # the user node is the head of new_nodes — adopt it so subsequent rebuilds
-  # can filter the in-flight turn out by id. Regen flows already have
-  # current_turn.id set up front, and continuation commits leave it alone.
-  defp adopt_current_turn_id(socket, [first_id | _]) do
-    case socket.assigns.current_turn do
-      %Omni.UI.Turn{id: nil} = turn ->
-        assign(socket, :current_turn, %{turn | id: first_id})
-
-      _ ->
-        socket
-    end
-  end
-
-  defp adopt_current_turn_id(socket, []), do: socket
 
   defp streaming_turn(id, %Omni.Message{} = message) do
     %Omni.UI.Turn{
