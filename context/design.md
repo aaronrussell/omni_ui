@@ -193,7 +193,12 @@ Options of note:
   the consumer doesn't construct (typically tools added by the
   `:agent_module`'s `init/1`). Merged with components extracted from
   `:tools`; this map wins on conflicts.
-- `:tool_timeout` — per-tool execution timeout in ms.
+- `:tool_timeout` — tool execution timeout. Integer (ms, applied to
+  all tools) or 1-arity function receiving the tool name and returning
+  a timeout. Defaults to `&Omni.UI.tool_timeout/1`, which returns
+  per-tool values matched to the built-in omni_tools defaults + a 5 s
+  buffer. Overridable via application config (see `tool_timeout/1`
+  docs).
 
 #### `attach_session/2`
 
@@ -287,7 +292,7 @@ polish list.
 | `:system` | System prompt or nil |
 | `:tools` | Flat `[%Omni.Tool{}]` |
 | `:tool_components` | `%{name => component_fun}` |
-| `:tool_timeout` | Per-tool timeout ms |
+| `:tool_timeout` | Per-tool timeout — fn or integer, default `&Omni.UI.tool_timeout/1` |
 | `:session` | Session pid or nil |
 | `:session_id` | Binary id or nil |
 | `:title` | Title string or nil |

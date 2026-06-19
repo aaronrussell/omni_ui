@@ -76,6 +76,13 @@ defmodule Omni.UI do
   import Phoenix.LiveView, only: [stream: 3, stream: 4]
   import Omni.Util, only: [maybe_put: 3]
 
+  @tool_timeouts %{
+    "repl" => 65_000,
+    "bash" => 35_000,
+    "web_fetch" => 20_000
+  }
+  @default_tool_timeout 10_000
+
   # ── Behaviour ─────────────────────────────────────────────────────
 
   @doc """
@@ -251,7 +258,11 @@ defmodule Omni.UI do
       that aren't constructed by the consumer (typically tools added by an
       `:agent_module`'s `init/1` callback). Merged with components extracted
       from `:tools` entries; this map wins on key conflicts.
-    * `:tool_timeout` — per-tool execution timeout in ms
+    * `:tool_timeout` — tool execution timeout. Either an integer in ms
+      (applied to all tools) or a 1-arity function receiving the tool name
+      and returning a timeout. When omitted, defaults to `&Omni.UI.tool_timeout/1`
+      which returns per-tool values matched to the built-in omni_tools defaults.
+      See `tool_timeout/1` for override options via application config.
 
   ## Example
 
@@ -448,7 +459,7 @@ defmodule Omni.UI do
 
   defp build_agent_opts(agent_module, model, thinking, system, tools, tool_timeout) do
     opts =
-      [model: model, opts: [thinking: thinking]]
+      [model: model, opts: [thinking: thinking], tool_timeout: &tool_timeout/1]
       |> maybe_put(:system, system)
       |> maybe_put(:tools, tools)
       |> maybe_put(:tool_timeout, tool_timeout)
@@ -607,6 +618,35 @@ defmodule Omni.UI do
       when level in [:info, :success, :warning, :error] do
     send(self(), {Omni.UI, :notify, Omni.UI.Notification.new(level, message, opts)})
     :ok
+  end
+
+  @doc """
+  Returns the agent-level tool timeout (in ms) for the given tool name.
+
+  Used as the default `tool_timeout` function passed to `Omni.Agent`
+  via `build_agent_opts/6`. Each built-in tool's default is its own
+  internal timeout plus a 5 s buffer, so the tool can timeout gracefully
+  before the agent kills the task.
+
+  Built-in defaults: `repl` 65 000, `bash` 35 000, `web_fetch` 20 000.
+  All other tools fall back to 10 000.
+
+  Override per-tool or the fallback via application config:
+
+      config :omni_ui, Omni.UI,
+        tool_timeouts: %{"repl" => 120_000},
+        default_tool_timeout: 15_000
+
+  Consumers who pass a custom `:tool_timeout` to `init_session/2` bypass
+  this function entirely.
+  """
+  @spec tool_timeout(String.t()) :: pos_integer()
+  def tool_timeout(tool_name) do
+    config = Application.get_env(:omni_ui, Omni.UI, [])
+    overrides = Keyword.get(config, :tool_timeouts, %{})
+    default = Keyword.get(config, :default_tool_timeout, @default_tool_timeout)
+
+    Map.get(overrides, tool_name, Map.get(@tool_timeouts, tool_name, default))
   end
 
   # ── Private ────────────────────────────────────────────────────────

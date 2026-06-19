@@ -19,11 +19,6 @@ before a public release.
   for any out-of-tree consumer. Decide whether the symmetry is worth
   the churn before the public API locks in.
 
-- **Per-tool timeouts** — the agent has a single timeout applied to
-  all tool calls; the REPL tool has its own separate setting. Need to
-  decide whether tools can declare their own timeout that overrides
-  the agent default. Likely requires changes in `omni_agent`.
-
 - **Event-name rationalisation** — across `phx-click` UI events,
   LiveView `handle_event` events, events scoped to AgentLive vs the
   macro vs LiveComponents, and the symbolic atoms passed to the

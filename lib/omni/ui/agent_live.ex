@@ -179,8 +179,7 @@ defmodule Omni.UI.AgentLive do
          "files" => &Omni.UI.ToolsUI.files_tool_use/1,
          "repl" => &Omni.UI.ToolsUI.repl_tool_use/1
        },
-       model: @default_model,
-       tool_timeout: 120_000
+       model: @default_model
      )}
   end
 
