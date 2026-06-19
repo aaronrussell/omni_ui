@@ -13,11 +13,6 @@ and a release path.
 Smaller items that don't need major design work but should land
 before a public release.
 
-- **Error retry** — errored turns preserve the user message via
-  `stream_insert(... status: :error)`. Add a retry button that
-  re-prompts the agent. Straightforward given the current tree/turn
-  architecture.
-
 - **`agent_event/3` → `session_event/3` rename** — the callback name
   predates the `:session` event prefix. Renaming would align the
   callback with the event tag it handles, but it's a breaking change

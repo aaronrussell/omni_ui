@@ -39,6 +39,23 @@ defmodule Omni.UI.Handlers do
     end
   end
 
+  def handle_event("omni:retry", _params, socket) do
+    turn = socket.assigns.current_turn
+
+    if turn && turn.status == :error do
+      content = turn.user_text ++ turn.user_attachments
+      :ok = Omni.Session.prompt(socket.assigns.session, content)
+      message = Omni.message(role: :user, content: content)
+
+      {:noreply,
+       socket
+       |> assign(:current_turn, streaming_turn(nil, message))
+       |> push_event("omni:updated", %{})}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("omni:regenerate", %{"turn_id" => turn_id}, socket) do
     case Omni.Session.branch(socket.assigns.session, turn_id) do
       :ok ->
@@ -242,17 +259,14 @@ defmodule Omni.UI.Handlers do
 
   def handle_agent_event(:error, reason, socket) do
     Logger.error("Session error: #{inspect(reason)}")
-
-    Omni.UI.notify(:error, "Something went wrong")
+    Omni.UI.notify(:error, format_error(reason))
 
     case socket.assigns.current_turn do
       nil ->
         socket
 
       turn ->
-        socket
-        |> assign(:current_turn, nil)
-        |> stream_insert(:turns, %{turn | status: :error})
+        assign(socket, :current_turn, %{turn | status: :error, error: format_error(reason)})
     end
   end
 
@@ -270,6 +284,10 @@ defmodule Omni.UI.Handlers do
       user_timestamp: message.timestamp
     }
   end
+
+  defp format_error(%{message: message}) when is_binary(message), do: message
+  defp format_error(reason) when is_binary(reason), do: reason
+  defp format_error(_reason), do: "Something went wrong. Please try again."
 
   defp notify_branch_error(:busy),
     do: Omni.UI.notify(:warning, "Wait for the current turn to finish.")

@@ -269,14 +269,14 @@ defmodule Omni.UI.ChatUI do
           {render_slot(@user, @turn)}
         <% else %>
           <.user_message text={@turn.user_text} attachments={@turn.user_attachments} />
-          <%= if @turn.status == :streaming do %>
-            <.timestamp time={@turn.user_timestamp} />
-          <% else %>
+          <%= if @turn.status == :complete do %>
             <.user_message_actions
               turn_id={@turn.id}
               versions={@turn.edits}
               timestamp={@turn.user_timestamp}
               target={@target} />
+          <% else %>
+            <.timestamp time={@turn.user_timestamp} />
           <% end %>
         <% end %>
       </div>
@@ -301,6 +301,9 @@ defmodule Omni.UI.ChatUI do
             target={@target} />
           <.busy_block
             :if={@turn.status == :streaming and show_busy?(@turn.content)} />
+          <.error_block
+            :if={@turn.status == :error}
+            error={@turn.error} />
         <% end %>
       </div>
     </div>
@@ -401,8 +404,6 @@ defmodule Omni.UI.ChatUI do
           tool_components={@tool_components}
           streaming={@streaming and idx == length(@content) - 1} />
       </div>
-
-      <!-- TODO - message error -->
     </div>
     """
   end
@@ -466,6 +467,26 @@ defmodule Omni.UI.ChatUI do
         <div class="text-sm text-omni-text-3">Working</div>
         <.busy_anim />
       </div>
+    </div>
+    """
+  end
+
+  attr :error, :string, required: true
+
+  defp error_block(assigns) do
+    ~H"""
+    <div class="flex items-center gap-3 mb-4 px-4 py-3 text-red-600 bg-omni-bg-2 border border-red-500 rounded">
+      <Lucideicons.triangle_alert class="size-4" />
+      <p class="flex-1 text-sm">{@error}</p>
+      <button
+        class={[
+          "inline-flex items-center gap-1.5 p-1.5 rounded text-sm border transition-colors cursor-pointer",
+          "text-omni-text-1 bg-omni-bg border-omni-border-3 hover:bg-omni-accent-2/5 hover:border-omni-accent-2"
+        ]}
+        phx-click="omni:retry">
+        <Lucideicons.rotate_cw class="size-3" />
+        <span class="text-xs">Retry</span>
+      </button>
     </div>
     """
   end
@@ -680,6 +701,7 @@ defmodule Omni.UI.ChatUI do
   end
 
   defp show_assistant?(%{status: :streaming}), do: true
+  defp show_assistant?(%{status: :error}), do: true
   defp show_assistant?(%{content: [_ | _]}), do: true
   defp show_assistant?(_), do: false
 

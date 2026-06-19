@@ -384,6 +384,7 @@ Routed by the `"omni:" <> _` prefix:
 | `omni:dismiss_notification` | Stream-deletes the toast |
 | `omni:navigate` | `Omni.Session.navigate/2` |
 | `omni:regenerate` | `Omni.Session.branch/2` (regen) |
+| `omni:retry` | Re-prompts `Session.prompt/2` with the errored turn's user content |
 
 `omni:navigate` and `omni:regenerate` map directly to
 `Omni.Session` calls. Errors come back as
@@ -469,10 +470,13 @@ future Manager-level update) would otherwise leave the LV stale.
 **`:status`** is currently a no-op clause; the LV doesn't yet surface
 busy/idle distinctions in chrome.
 
-**Errors.** `:error` logs, notifies, and stream-inserts the
-`current_turn` with `status: :error` so the user message is
-preserved with an error-shaped assistant slot. The user message is
-never lost.
+**Errors.** `:error` keeps `current_turn` with `status: :error` and
+a human-readable `error` message — it is not stream-inserted (error
+turns aren't committed to the session tree and don't belong in the
+`:turns` stream). The turn component renders an error block with
+Retry and Cancel buttons. Retry re-prompts `Session.prompt/2` with
+the original user message content. Cancel clears `current_turn`. The
+editor is disabled while an error turn is showing.
 
 ### 5.4 Notifications
 
