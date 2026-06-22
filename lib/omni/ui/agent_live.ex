@@ -237,10 +237,10 @@ defmodule Omni.UI.AgentLive do
   end
 
   @impl Omni.UI
-  def agent_event(:tool_result, %{name: name}, socket) when name in ["files", "repl"] do
+  def session_event(:tool_result, %{name: name}, socket) when name in ["files", "repl"] do
     send_update(FilesComponent, id: "files-panel", action: :rescan)
     socket
   end
 
-  def agent_event(_event, _data, socket), do: socket
+  def session_event(_event, _data, socket), do: socket
 end

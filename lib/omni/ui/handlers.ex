@@ -142,19 +142,19 @@ defmodule Omni.UI.Handlers do
   # Streaming-deltas accumulate into @current_turn.
 
   @doc false
-  def handle_agent_event(:thinking_start, _data, socket) do
+  def handle_session_event(:thinking_start, _data, socket) do
     update(socket, :current_turn, fn turn ->
       Omni.UI.Turn.push_content(turn, %Omni.Content.Thinking{text: ""})
     end)
   end
 
-  def handle_agent_event(:text_start, _data, socket) do
+  def handle_session_event(:text_start, _data, socket) do
     update(socket, :current_turn, fn turn ->
       Omni.UI.Turn.push_content(turn, %Omni.Content.Text{text: ""})
     end)
   end
 
-  def handle_agent_event(delta_type, %{delta: delta}, socket)
+  def handle_session_event(delta_type, %{delta: delta}, socket)
       when delta_type in [:thinking_delta, :text_delta] do
     update(socket, :current_turn, fn turn ->
       Omni.UI.Turn.push_delta(turn, delta)
@@ -163,7 +163,7 @@ defmodule Omni.UI.Handlers do
 
   # Push a stub ToolUse on start so the header (icon, tool name) renders
   # immediately. The fully-formed struct replaces it on :tool_use_end.
-  def handle_agent_event(:tool_use_start, %{id: id, name: name} = data, socket) do
+  def handle_session_event(:tool_use_start, %{id: id, name: name} = data, socket) do
     stub = %Omni.Content.ToolUse{id: id, name: name, input: Map.get(data, :input, %{})}
 
     update(socket, :current_turn, fn turn ->
@@ -171,13 +171,13 @@ defmodule Omni.UI.Handlers do
     end)
   end
 
-  def handle_agent_event(:tool_use_end, %{content: tool_use}, socket) do
+  def handle_session_event(:tool_use_end, %{content: tool_use}, socket) do
     update(socket, :current_turn, fn turn ->
       Omni.UI.Turn.replace_content(turn, tool_use)
     end)
   end
 
-  def handle_agent_event(:tool_result, tool_result, socket) do
+  def handle_session_event(:tool_result, tool_result, socket) do
     update(socket, :current_turn, fn turn ->
       Omni.UI.Turn.put_tool_result(turn, tool_result)
     end)
@@ -187,14 +187,14 @@ defmodule Omni.UI.Handlers do
   # in the :turns stream via the :tree event that follows. For
   # continuations, a subsequent :message event sets up a fresh
   # @current_turn for the new turn the agent kicks off.
-  def handle_agent_event(:turn, {_kind, _response}, socket) do
+  def handle_session_event(:turn, {_kind, _response}, socket) do
     assign(socket, :current_turn, nil)
   end
 
   # Continuation user message. The agent emits :message for the new user
   # prompt after :turn {:continue} commits. When no turn is in flight,
   # start a fresh streaming turn from this message.
-  def handle_agent_event(:message, %Omni.Message{role: :user} = message, socket) do
+  def handle_session_event(:message, %Omni.Message{role: :user} = message, socket) do
     if socket.assigns.current_turn == nil do
       assign(socket, :current_turn, streaming_turn(nil, message))
     else
@@ -211,7 +211,7 @@ defmodule Omni.UI.Handlers do
   # The in-flight streaming turn (@current_turn) is rendered separately and
   # is not yet in the tree, so no filtering is needed — :turn always nils
   # @current_turn before :tree fires.
-  def handle_agent_event(:tree, %{tree: tree}, socket) do
+  def handle_session_event(:tree, %{tree: tree}, socket) do
     turns = Omni.UI.Turn.all(tree)
 
     socket
@@ -222,7 +222,7 @@ defmodule Omni.UI.Handlers do
   # Persistence acks. The first save after starting a fresh session is the
   # signal that the session id is real — patch the URL so the user can
   # bookmark/share/reload.
-  def handle_agent_event(:store, {:saved, _kind}, socket) do
+  def handle_session_event(:store, {:saved, _kind}, socket) do
     if socket.assigns[:url_synced] do
       socket
     else
@@ -232,7 +232,7 @@ defmodule Omni.UI.Handlers do
     end
   end
 
-  def handle_agent_event(:store, {:error, kind, reason}, socket) do
+  def handle_session_event(:store, {:error, kind, reason}, socket) do
     Logger.error("Session store error (#{kind}): #{inspect(reason)}")
     Omni.UI.notify(:error, "Couldn't save your changes.")
     socket
@@ -240,14 +240,14 @@ defmodule Omni.UI.Handlers do
 
   # Title changes (set via Omni.Session.set_title/2). Mirror to assigns; the
   # consumer can render @title if it surfaces a title bar.
-  def handle_agent_event(:title, title, socket) do
+  def handle_session_event(:title, title, socket) do
     assign(socket, :title, title)
   end
 
   # Best-effort sync if the session's agent state changes underneath us
   # (e.g. via a future Manager). The explicit update_session/2 paths already
   # keep model/thinking aligned, so this is defensive.
-  def handle_agent_event(:state, %_{model: model, opts: opts}, socket) do
+  def handle_session_event(:state, %_{model: model, opts: opts}, socket) do
     thinking = Keyword.get(opts, :thinking, false)
 
     socket
@@ -255,9 +255,9 @@ defmodule Omni.UI.Handlers do
     |> assign(:thinking, thinking)
   end
 
-  def handle_agent_event(:status, _status, socket), do: socket
+  def handle_session_event(:status, _status, socket), do: socket
 
-  def handle_agent_event(:error, reason, socket) do
+  def handle_session_event(:error, reason, socket) do
     Logger.error("Session error: #{inspect(reason)}")
     Omni.UI.notify(:error, format_error(reason))
 
@@ -271,7 +271,7 @@ defmodule Omni.UI.Handlers do
   end
 
   # Catch-all for unhandled session events
-  def handle_agent_event(_event, _data, socket), do: socket
+  def handle_session_event(_event, _data, socket), do: socket
 
   # ── Helpers ──────────────────────────────────────────────────────
 

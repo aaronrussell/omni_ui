@@ -13,16 +13,10 @@ and a release path.
 Smaller items that don't need major design work but should land
 before a public release.
 
-- **`agent_event/3` → `session_event/3` rename** — the callback name
-  predates the `:session` event prefix. Renaming would align the
-  callback with the event tag it handles, but it's a breaking change
-  for any out-of-tree consumer. Decide whether the symmetry is worth
-  the churn before the public API locks in.
-
 - **Event-name rationalisation** — across `phx-click` UI events,
   LiveView `handle_event` events, events scoped to AgentLive vs the
   macro vs LiveComponents, and the symbolic atoms passed to the
-  `agent_event/3` callback. Today they've accumulated organically
+  `session_event/3` callback. Today they've accumulated organically
   (`omni:*` namespaced vs bare `save_title`, component-bubbled
   events, etc.). Review for a coherent, documented convention before
   the public API locks in.

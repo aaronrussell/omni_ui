@@ -24,14 +24,14 @@ defmodule Omni.UI do
           {:noreply, attach_session(socket, id: params["session_id"])}
         end
 
-        # Optional: observe agent events after default handling
+        # Optional: observe session events after default handling
         @impl Omni.UI
-        def agent_event(:turn, {:stop, response}, socket) do
+        def session_event(:turn, {:stop, response}, socket) do
           MyApp.Analytics.track(response.usage)
           socket
         end
 
-        def agent_event(_event, _data, socket), do: socket
+        def session_event(_event, _data, socket), do: socket
       end
 
   Sessions are supervised by an `Omni.Session.Manager`. Omni.UI ships
@@ -65,7 +65,7 @@ defmodule Omni.UI do
   - Injects `handle_info/2` clauses for session streaming and component messages
   - Wraps developer-defined handlers via `defoverridable` so Omni.UI events
     are dispatched first and unrecognised events fall through
-  - Injects a default `agent_event/3` pass-through if the developer doesn't define one
+  - Injects a default `session_event/3` pass-through if the developer doesn't define one
 
   Persistence is handled by `Omni.Session` itself — the LiveView mirrors the
   session's tree from `:tree` events and observes `:store` events for save
@@ -86,12 +86,18 @@ defmodule Omni.UI do
   # ── Behaviour ─────────────────────────────────────────────────────
 
   @doc """
-  Called after Omni.UI's default handling for session events.
+  Called after Omni.UI's default handling for each session event.
 
-  Receives the event type, event data, and the already-updated socket.
+  The LiveView receives events from the `Omni.Session` it is subscribed
+  to. These include agent lifecycle events (`:turn`, `:text_delta`,
+  `:tool_result`, `:error`, etc.) and session-level events (`:tree`,
+  `:store`, `:title`). Omni.UI handles each event first — updating
+  streams, assigns, and UI state — then calls this callback with the
+  already-updated socket so the consumer can layer on additional logic.
+
   Must return the socket (possibly with additional assign mutations).
   """
-  @callback agent_event(event :: atom(), data :: term(), Phoenix.LiveView.Socket.t()) ::
+  @callback session_event(event :: atom(), data :: term(), Phoenix.LiveView.Socket.t()) ::
               Phoenix.LiveView.Socket.t()
 
   # ── Macro ──────────────────────────────────────────────────────────
@@ -118,16 +124,16 @@ defmodule Omni.UI do
   defmacro __before_compile__(env) do
     has_handle_event = Module.defines?(env.module, {:handle_event, 3})
     has_handle_info = Module.defines?(env.module, {:handle_info, 2})
-    has_agent_event = Module.defines?(env.module, {:agent_event, 3})
+    has_session_event = Module.defines?(env.module, {:session_event, 3})
 
     event_clauses = inject_handle_event(has_handle_event)
     info_clauses = inject_handle_info(has_handle_info)
-    agent_event_clause = unless has_agent_event, do: inject_default_agent_event()
+    session_event_clause = unless has_session_event, do: inject_default_session_event()
 
     quote do
       unquote(event_clauses)
       unquote(info_clauses)
-      unquote(agent_event_clause)
+      unquote(session_event_clause)
     end
   end
 
@@ -196,15 +202,15 @@ defmodule Omni.UI do
         # session switch, the old session's queued events may linger in our
         # mailbox; processing them would mutate the new session's assigns.
         if pid == socket.assigns[:session] do
-          socket = Omni.UI.Handlers.handle_agent_event(event, data, socket)
+          socket = Omni.UI.Handlers.handle_session_event(event, data, socket)
 
           socket =
-            case __MODULE__.agent_event(event, data, socket) do
+            case __MODULE__.session_event(event, data, socket) do
               %Phoenix.LiveView.Socket{} = s ->
                 s
 
               other ->
-                raise "#{inspect(__MODULE__)}.agent_event/3 must return a socket, got: #{inspect(other)}"
+                raise "#{inspect(__MODULE__)}.session_event/3 must return a socket, got: #{inspect(other)}"
             end
 
           {:noreply, socket}
@@ -217,10 +223,10 @@ defmodule Omni.UI do
     end
   end
 
-  defp inject_default_agent_event do
+  defp inject_default_session_event do
     quote do
       @impl Omni.UI
-      def agent_event(_event, _data, socket), do: socket
+      def session_event(_event, _data, socket), do: socket
     end
   end
 

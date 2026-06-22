@@ -123,12 +123,12 @@ defmodule MyApp.ChatLive do
   end
 
   @impl Omni.UI
-  def agent_event(:turn, {:stop, response}, socket) do
+  def session_event(:turn, {:stop, response}, socket) do
     MyApp.Analytics.track(response.usage)
     socket
   end
 
-  def agent_event(_event, _data, socket), do: socket
+  def session_event(_event, _data, socket), do: socket
 end
 ```
 
@@ -150,9 +150,9 @@ end
 - `handle_info({:session, pid, event, data}, ...)` — the session
   event dispatcher. Drops events from a session we've since detached
   from (pid mismatch with `socket.assigns.session`), then runs
-  `Omni.UI.Handlers.handle_agent_event/3` and finally calls the
-  consumer's `agent_event/3` callback.
-- A default `agent_event(_event, _data, socket), do: socket` if the
+  `Omni.UI.Handlers.handle_session_event/3` and finally calls the
+  consumer's `session_event/3` callback.
+- A default `session_event(_event, _data, socket), do: socket` if the
   consumer doesn't define one.
 
 Coexistence with consumer-defined handlers uses
@@ -265,7 +265,7 @@ process; library code running inside the LV; async callbacks).
 
 No PubSub, no registry — strictly in-process v1.
 
-### 3.4 The `agent_event/3` callback
+### 3.4 The `session_event/3` callback
 
 Fires for every session event after Omni.UI's default handling, with
 the already-mutated socket. Receives the session-event tag (e.g.
@@ -273,9 +273,10 @@ the already-mutated socket. Receives the session-event tag (e.g.
 `:text_delta`, `:tool_use_end`, `:tool_result`, `:error`, etc.) and
 its payload. Must return a socket.
 
-Naming oddity: events arrive in `{:session, ...}` tuples but the
-callback is `agent_event/3`. Renaming to `session_event/3` is on the
-polish list.
+Events include both agent lifecycle events (streaming deltas, turn
+boundaries, tool results) and session-level events (`:tree`, `:store`,
+`:title`). The callback name reflects the subscription source — the
+`Omni.Session` process — rather than any single event origin.
 
 ---
 
@@ -327,7 +328,7 @@ EditorComponent submit
             (lazy session creation if none attached)
 
 session events {:session, pid, type, data}
-  └─ macro handle_info → Handlers.handle_agent_event → agent_event/3
+  └─ macro handle_info → Handlers.handle_session_event → session_event/3
 ```
 
 ### 4.3 The "blank session" / lazy-create pattern
@@ -346,7 +347,7 @@ LiveView process, so the subscription is `mode: :controller`.
 ### 4.4 URL synchronisation
 
 The first time the session writes anything to disk
-(`:store {:saved, _}` event), the `Handlers.handle_agent_event/3`
+(`:store {:saved, _}` event), the `Handlers.handle_session_event/3`
 clause for `:store` patches the URL to `?session_id=<id>` and sets
 `:url_synced = true`. The latch prevents repatching on subsequent
 saves.
@@ -376,7 +377,7 @@ is already gone.
 `Omni.UI.Handlers` is a private module containing pure
 event/info/session-event dispatch. The macro routes to it; the
 module returns `{:noreply, socket}` (for `handle_event`/`handle_info`)
-or just a socket (for `handle_agent_event`).
+or just a socket (for `handle_session_event`).
 
 ### 5.1 UI events (`handle_event/3`)
 
@@ -422,7 +423,7 @@ streaming-status turn built from the user's content. The `:turn`
 handler nils it before `:tree` fires, so the committed turn appears
 in the rebuilt stream without filtering.
 
-### 5.3 Session events (`handle_agent_event/3`)
+### 5.3 Session events (`handle_session_event/3`)
 
 Receives the `event` atom and `data` payload from
 `{:session, pid, event, data}` after the pid filter.
@@ -838,7 +839,7 @@ In `AgentLive`, `header/1` is a private function component:
 
 Title editing lives in the session list (`SessionsUI.rename_form/1`),
 not the header. The header just mirrors `@title`, which is kept
-in sync by `Handlers.handle_agent_event(:title, ...)`.
+in sync by `Handlers.handle_session_event(:title, ...)`.
 
 ### 10.4 Title commit flow
 
@@ -1007,7 +1008,7 @@ HTML, Markdown, and SVG files support a Preview/Code toggle
 (`view_source` boolean overrides the default).
 
 Communication from parent: `send_update(FilesComponent, action: ...)`
-— `:rescan` (called from `AgentLive.agent_event(:tool_result, ...)`)
+— `:rescan` (called from `AgentLive.session_event(:tool_result, ...)`)
 or `{:view, filename}` (called when the user clicks an inline
 file button in the chat). AgentLive holds zero file assigns.
 

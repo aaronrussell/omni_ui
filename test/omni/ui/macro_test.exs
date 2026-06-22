@@ -4,8 +4,8 @@ defmodule Omni.UI.MacroTest do
   alias Phoenix.LiveView.Socket
 
   alias Omni.UI.Test.{
-    BadAgentEventView,
-    CustomAgentEventView,
+    BadSessionEventView,
+    CustomSessionEventView,
     CustomHandlersView,
     MinimalView
   }
@@ -14,8 +14,8 @@ defmodule Omni.UI.MacroTest do
     Code.ensure_loaded!(Omni.UI)
     Code.ensure_loaded!(MinimalView)
     Code.ensure_loaded!(CustomHandlersView)
-    Code.ensure_loaded!(CustomAgentEventView)
-    Code.ensure_loaded!(BadAgentEventView)
+    Code.ensure_loaded!(CustomSessionEventView)
+    Code.ensure_loaded!(BadSessionEventView)
     :ok
   end
 
@@ -27,9 +27,9 @@ defmodule Omni.UI.MacroTest do
   end
 
   describe "behaviour" do
-    test "defines agent_event/3 callback" do
+    test "defines session_event/3 callback" do
       callbacks = Omni.UI.behaviour_info(:callbacks)
-      assert {:agent_event, 3} in callbacks
+      assert {:session_event, 3} in callbacks
     end
   end
 
@@ -42,8 +42,8 @@ defmodule Omni.UI.MacroTest do
       assert function_exported?(MinimalView, :handle_info, 2)
     end
 
-    test "injects default agent_event/3" do
-      assert function_exported?(MinimalView, :agent_event, 3)
+    test "injects default session_event/3" do
+      assert function_exported?(MinimalView, :session_event, 3)
     end
   end
 
@@ -56,14 +56,14 @@ defmodule Omni.UI.MacroTest do
       assert function_exported?(CustomHandlersView, :handle_info, 2)
     end
 
-    test "injects default agent_event/3" do
-      assert function_exported?(CustomHandlersView, :agent_event, 3)
+    test "injects default session_event/3" do
+      assert function_exported?(CustomHandlersView, :session_event, 3)
     end
   end
 
-  describe "macro injection — CustomAgentEventView (developer defines agent_event)" do
-    test "exports developer's agent_event/3" do
-      assert function_exported?(CustomAgentEventView, :agent_event, 3)
+  describe "macro injection — CustomSessionEventView (developer defines session_event)" do
+    test "exports developer's session_event/3" do
+      assert function_exported?(CustomSessionEventView, :session_event, 3)
     end
   end
 
@@ -258,7 +258,7 @@ defmodule Omni.UI.MacroTest do
     end
   end
 
-  describe "agent_event/3 return-value contract" do
+  describe "session_event/3 return-value contract" do
     test "MinimalView round-trips a session event cleanly" do
       socket = build_socket(%{session: self(), current_turn: nil, tree: nil})
 
@@ -266,20 +266,20 @@ defmodule Omni.UI.MacroTest do
                MinimalView.handle_info({:session, self(), :status, :idle}, socket)
     end
 
-    test "CustomAgentEventView round-trips a session event cleanly" do
+    test "CustomSessionEventView round-trips a session event cleanly" do
       socket = build_socket(%{session: self(), current_turn: nil, tree: nil})
 
       assert {:noreply, %Socket{} = result} =
-               CustomAgentEventView.handle_info({:session, self(), :status, :idle}, socket)
+               CustomSessionEventView.handle_info({:session, self(), :status, :idle}, socket)
 
-      assert result.assigns.last_agent_event == {:status, :idle}
+      assert result.assigns.last_session_event == {:status, :idle}
     end
 
-    test "raises if the developer's agent_event/3 returns a non-socket" do
+    test "raises if the developer's session_event/3 returns a non-socket" do
       socket = build_socket(%{session: self(), current_turn: nil, tree: nil})
 
-      assert_raise RuntimeError, ~r/agent_event\/3 must return a socket/, fn ->
-        BadAgentEventView.handle_info({:session, self(), :status, :idle}, socket)
+      assert_raise RuntimeError, ~r/session_event\/3 must return a socket/, fn ->
+        BadSessionEventView.handle_info({:session, self(), :status, :idle}, socket)
       end
     end
   end
