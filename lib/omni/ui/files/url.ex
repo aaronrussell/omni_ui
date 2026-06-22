@@ -7,7 +7,7 @@ defmodule Omni.UI.Files.URL do
 
   ## Configuration
 
-      config :omni_ui, Omni.UI.Files, url_prefix: "/omni_files"
+      config :omni_ui, files_url_prefix: "/omni_files"
 
   The `:url_prefix` defaults to `"/omni_files"` and should match the path
   where `Omni.UI.Files.Plug` is mounted in the router.
@@ -75,7 +75,6 @@ defmodule Omni.UI.Files.URL do
   end
 
   defp url_prefix do
-    Application.get_env(:omni_ui, Omni.UI.Files, [])
-    |> Keyword.get(:url_prefix, "/omni_files")
+    Application.get_env(:omni_ui, :files_url_prefix, "/omni_files")
   end
 end

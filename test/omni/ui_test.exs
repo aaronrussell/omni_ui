@@ -3,9 +3,21 @@ defmodule Omni.UITest do
 
   describe "tool_timeout/1" do
     setup do
-      prev = Application.get_env(:omni_ui, Omni.UI)
-      on_exit(fn -> Application.put_env(:omni_ui, Omni.UI, prev || []) end)
-      Application.delete_env(:omni_ui, Omni.UI)
+      prev_timeouts = Application.get_env(:omni_ui, :tool_timeouts)
+      prev_default = Application.get_env(:omni_ui, :default_tool_timeout)
+
+      on_exit(fn ->
+        if prev_timeouts,
+          do: Application.put_env(:omni_ui, :tool_timeouts, prev_timeouts),
+          else: Application.delete_env(:omni_ui, :tool_timeouts)
+
+        if prev_default,
+          do: Application.put_env(:omni_ui, :default_tool_timeout, prev_default),
+          else: Application.delete_env(:omni_ui, :default_tool_timeout)
+      end)
+
+      Application.delete_env(:omni_ui, :tool_timeouts)
+      Application.delete_env(:omni_ui, :default_tool_timeout)
       :ok
     end
 
@@ -21,14 +33,14 @@ defmodule Omni.UITest do
     end
 
     test "app config tool_timeouts map overrides built-in defaults" do
-      Application.put_env(:omni_ui, Omni.UI, tool_timeouts: %{"repl" => 120_000})
+      Application.put_env(:omni_ui, :tool_timeouts, %{"repl" => 120_000})
 
       assert Omni.UI.tool_timeout("repl") == 120_000
       assert Omni.UI.tool_timeout("bash") == 35_000
     end
 
     test "app config default_tool_timeout overrides the fallback" do
-      Application.put_env(:omni_ui, Omni.UI, default_tool_timeout: 15_000)
+      Application.put_env(:omni_ui, :default_tool_timeout, 15_000)
 
       assert Omni.UI.tool_timeout("files") == 15_000
       assert Omni.UI.tool_timeout("repl") == 65_000

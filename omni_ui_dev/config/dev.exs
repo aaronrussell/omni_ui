@@ -86,8 +86,7 @@ config :phoenix_live_view,
 # Configure Omni
 sessions_dir = Path.expand("priv/omni/sessions")
 
-config :omni_ui, :sessions_base_dir, sessions_dir
-
 config :omni_ui, Omni.UI.Sessions,
+  sessions_base_dir: sessions_dir,
   store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir},
   title_generator: {:openai, "gpt-5.4-nano"}

@@ -7,9 +7,11 @@ defmodule Omni.UI.Sessions do
 
       # config/config.exs
       config :omni_ui, Omni.UI.Sessions,
+        sessions_base_dir: "/absolute/path/to/sessions",
         store:
           {Omni.Session.Stores.FileSystem,
-           base_dir: "/absolute/path/to/sessions"}
+           base_dir: "/absolute/path/to/sessions"},
+        title_generator: {:anthropic, "claude-haiku-4-5"}
 
       # application.ex
       children = [Omni.UI.Sessions]
@@ -26,7 +28,13 @@ defmodule Omni.UI.Sessions do
   use Omni.Session.Manager, otp_app: :omni_ui
 
   def session_dir(session_id) do
-    base_dir = Application.fetch_env!(:omni_ui, :sessions_base_dir)
+    config = Application.get_env(:omni_ui, __MODULE__, [])
+
+    base_dir =
+      Keyword.get(config, :sessions_base_dir) ||
+        raise ArgumentError,
+              "missing :sessions_base_dir in config :omni_ui, Omni.UI.Sessions"
+
     Path.join([base_dir, session_id])
   end
 

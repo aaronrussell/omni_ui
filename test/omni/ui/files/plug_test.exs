@@ -17,8 +17,19 @@ defmodule Omni.UI.Files.PlugTest do
   @session_id "test-session"
 
   setup %{tmp_dir: tmp_dir} do
-    Application.put_env(:omni_ui, :sessions_base_dir, tmp_dir)
-    on_exit(fn -> Application.delete_env(:omni_ui, :sessions_base_dir) end)
+    prev = Application.get_env(:omni_ui, Omni.UI.Sessions)
+
+    Application.put_env(
+      :omni_ui,
+      Omni.UI.Sessions,
+      Keyword.put(prev || [], :sessions_base_dir, tmp_dir)
+    )
+
+    on_exit(fn ->
+      if prev,
+        do: Application.put_env(:omni_ui, Omni.UI.Sessions, prev),
+        else: Application.delete_env(:omni_ui, Omni.UI.Sessions)
+    end)
 
     files_dir = Omni.UI.Sessions.session_files_dir(@session_id)
     File.mkdir_p!(files_dir)

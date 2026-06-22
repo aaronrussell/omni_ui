@@ -231,7 +231,6 @@ defmodule Omni.UI.FilesUI do
   end
 
   defp url_prefix do
-    Application.get_env(:omni_ui, Omni.UI.Files, [])
-    |> Keyword.get(:url_prefix, "/omni_files")
+    Application.get_env(:omni_ui, :files_url_prefix, "/omni_files")
   end
 end

@@ -775,9 +775,8 @@ Consumers add it to their supervision tree with a configured store:
 # config/dev.exs
 sessions_dir = Path.expand("priv/omni/sessions")
 
-config :omni_ui, :sessions_base_dir, sessions_dir
-
 config :omni_ui, Omni.UI.Sessions,
+  sessions_base_dir: sessions_dir,
   store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir}
 
 # application.ex
@@ -939,9 +938,9 @@ wires the `omni_tools` implementations at agent init time.
 
 `{sessions_base_dir}/{session_id}/files/{filename}`
 
-The base dir is configured via `config :omni_ui, :sessions_base_dir`.
-`Omni.UI.Sessions` exposes `session_dir/1` and `session_files_dir/1`
-helpers that derive paths from this config.
+The base dir is configured via `config :omni_ui, Omni.UI.Sessions,
+sessions_base_dir: "..."`. `Omni.UI.Sessions` exposes `session_dir/1`
+and `session_files_dir/1` helpers that derive paths from this config.
 
 Co-locating files with session data means session deletion (via the
 Manager's `delete/1` → `Stores.FileSystem` `File.rm_rf`) naturally
@@ -979,7 +978,7 @@ sub-resource fetches (e.g. JSON loaded by HTML) need them.
 `Omni.UI.Files.URL` is the signing/URL-construction helper —
 `sign_token/2`, `verify_token/3`, `file_url/3`. URL prefix
 defaults to `"/omni_files"`, configurable via
-`config :omni_ui, Omni.UI.Files, url_prefix: "/your_prefix"`.
+`config :omni_ui, files_url_prefix: "/your_prefix"`.
 
 ### 12.4 `FilesComponent`
 
@@ -1146,3 +1145,66 @@ wires `Omni.UI.Sessions` into the supervision tree, configures the
 FileSystem store, mounts
 `Omni.UI.Files.Plug` at `/omni_files`, and routes `/` to
 `Omni.UI.AgentLive`.
+
+---
+
+## 16. Configuration
+
+### 16.1 Convention across the Omni ecosystem
+
+All packages use runtime configuration via `Application.get_env/3` —
+no compile-time config. The convention for when to use bare-app keys
+vs module-scoped keys:
+
+- **Module-scoped** (`config :app, SomeModule, key: val`) — for
+  entities with their own lifecycle or identity: providers, tools,
+  session managers, store adapters. The module is a meaningful thing
+  you'd configure independently.
+- **Bare-app** (`config :app, key: val`) — for library-level knobs
+  that don't belong to any single module. General behavioural
+  settings for the package as a whole.
+
+Each package follows this consistently:
+
+| Package | App | Pattern |
+|---|---|---|
+| `omni` | `:omni` | Module-scoped per provider (`Omni.Providers.Anthropic`, etc.); bare `:providers` for the global registry |
+| `omni_agent` | consumer's `:otp_app` | Module-scoped per Manager |
+| `omni_tools` | `:omni_tools` | Module-scoped per tool and per search provider |
+| `omni_ui` | `:omni_ui` | Bare keys for library knobs; module-scoped for `Omni.UI.Sessions` |
+
+### 16.2 `omni_ui` configuration reference
+
+**Bare `:omni_ui` keys** — library-level settings read by various
+internal modules:
+
+```elixir
+config :omni_ui,
+  tool_timeouts: %{"repl" => 120_000},    # per-tool agent timeout overrides
+  default_tool_timeout: 15_000,           # fallback agent timeout (default 10_000)
+  files_url_prefix: "/omni_files"         # URL prefix for Files.Plug (default "/omni_files")
+```
+
+**Module-scoped: `Omni.UI.Sessions`** — the built-in session manager.
+This is a `use Omni.Session.Manager` module with its own supervision
+tree, so it gets module-scoped config:
+
+```elixir
+config :omni_ui, Omni.UI.Sessions,
+  sessions_base_dir: "/var/data/sessions",
+  store: {Omni.Session.Stores.FileSystem, base_dir: "/var/data/sessions"},
+  title_generator: {:anthropic, "claude-haiku-4-5"}
+```
+
+Consumers defining their own Manager (`use Omni.Session.Manager,
+otp_app: :my_app`) configure it under their own app and module name —
+`Omni.UI.Sessions` config does not apply to custom managers.
+
+### 16.3 Resolution order
+
+All packages follow a layered merge where more-specific values win:
+
+- **`omni`** — provider defaults (`config/0`) <- app config <- call-site opts
+- **`omni_tools`** — `@defaults` <- app config <- explicit `new/1` opts
+- **`omni_agent`** — app config <- `start_link/1` opts
+- **`omni_ui`** — module defaults (`@tool_timeouts`, etc.) <- app config; `Omni.UI.Sessions` follows `omni_agent`'s Manager pattern

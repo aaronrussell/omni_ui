@@ -13,13 +13,6 @@ and a release path.
 Smaller items that don't need major design work but should land
 before a public release.
 
-- **Config-key rationalisation** — configuration spans `:omni` and
-  `:omni_ui` atoms with a mix of bare-app and module-scoped keys
-  (`config :omni_ui, Omni.UI.Sessions, store: ...`,
-  `config :omni_ui, Omni.UI.Files, url_prefix: ...`,
-  `config :omni, providers: ...`). Single coherent pattern across
-  the Omni ecosystem before release. Dovetails with namespacing.
-
 - **Package API surface** — decide what's public vs internal.
   `Omni.UI`, `Omni.UI.ChatUI`, `Omni.UI.CoreUI`, `Omni.UI.Turn`,
   `Omni.UI.Sessions`, `Omni.UI.Notification`, and the

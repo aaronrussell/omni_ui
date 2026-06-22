@@ -86,9 +86,8 @@ if config_env() == :prod do
   # Configure Omni
   sessions_dir = System.get_env("SESSIONS_DIR", "/var/data/sessions")
 
-  config :omni_ui, :sessions_base_dir, sessions_dir
-
   config :omni_ui, Omni.UI.Sessions,
+    sessions_base_dir: sessions_dir,
     store: {Omni.Session.Stores.FileSystem, base_dir: sessions_dir},
     title_generator: {:openai, "gpt-5.4-nano"}
 end

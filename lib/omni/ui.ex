@@ -639,7 +639,7 @@ defmodule Omni.UI do
 
   Override per-tool or the fallback via application config:
 
-      config :omni_ui, Omni.UI,
+      config :omni_ui,
         tool_timeouts: %{"repl" => 120_000},
         default_tool_timeout: 15_000
 
@@ -648,9 +648,8 @@ defmodule Omni.UI do
   """
   @spec tool_timeout(String.t()) :: pos_integer()
   def tool_timeout(tool_name) do
-    config = Application.get_env(:omni_ui, Omni.UI, [])
-    overrides = Keyword.get(config, :tool_timeouts, %{})
-    default = Keyword.get(config, :default_tool_timeout, @default_tool_timeout)
+    overrides = Application.get_env(:omni_ui, :tool_timeouts, %{})
+    default = Application.get_env(:omni_ui, :default_tool_timeout, @default_tool_timeout)
 
     Map.get(overrides, tool_name, Map.get(@tool_timeouts, tool_name, default))
   end
