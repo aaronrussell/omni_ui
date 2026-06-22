@@ -39,7 +39,7 @@ defmodule Omni.UI.SessionsUI do
           class={session.id == @current_id && "bg-omni-accent-2/10"}>
           <div
             role="button"
-            phx-click="switch_session"
+            phx-click="open_session"
             phx-value-session-id={session.id}
             class="group w-full px-3 py-2 text-left cursor-pointer">
 
@@ -75,7 +75,7 @@ defmodule Omni.UI.SessionsUI do
         |> JS.remove_class("editing", to: {:closest, ".group"})
       }
       phx-target={@target}
-      phx-click={JS.dispatch("noop")}
+      phx-click={%JS{}}
       phx-stop-propagation="click"
       class="flex-1 min-w-0 hidden group-[.editing]:block">
       <input type="hidden" name="session_id" value={@session.id} />

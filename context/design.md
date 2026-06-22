@@ -385,9 +385,9 @@ Routed by the `"omni:" <> _` prefix:
 
 | Event | Effect |
 |---|---|
-| `omni:select_model` | `update_session(model: ...)` |
-| `omni:select_thinking` | `update_session(thinking: ...)` |
-| `omni:dismiss_notification` | Stream-deletes the toast |
+| `omni:select` (name: model) | `update_session(model: ...)` |
+| `omni:select` (name: thinking) | `update_session(thinking: ...)` |
+| `omni:dismiss` | Stream-deletes the toast |
 | `omni:navigate` | `Omni.Session.navigate/2` |
 | `omni:regenerate` | `Omni.Session.branch/2` (regen) |
 | `omni:retry` | Re-prompts `Session.prompt/2` with the errored turn's user content |
@@ -406,7 +406,7 @@ toast and logs the unknown cases.
 | `{Omni.UI, :edit_message, turn_id, msg}` | `Session.branch(parent_id, content)` (target = parent assistant) |
 | `{Omni.UI, :notify, notification}` | Stream insert + FIFO eviction at cap = 5 |
 | `{Omni.UI, :dismiss_notification, id}` | Stream delete |
-| `{Omni.UI, :active_session_deleted}` | Caught in AgentLive — `push_patch` to `/` |
+| `:active_session_deleted` | Caught in AgentLive — `push_patch` to `/` |
 
 **Edit semantics.** `{Omni.UI, :edit_message, turn_id, message}` — the
 sender is `TurnComponent`, the `turn_id` is the *user* node being

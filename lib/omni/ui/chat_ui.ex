@@ -165,7 +165,7 @@ defmodule Omni.UI.ChatUI do
                 id="model-select"
                 options={@formatted_model_options}
                 value={model_key(@model)}
-                event="omni:select_model"
+                event="omni:select" name="model"
                 position="above" />
             </div>
 
@@ -179,7 +179,7 @@ defmodule Omni.UI.ChatUI do
                 id="thinking-select"
                 options={@formatted_thinking_options}
                 value={to_string(@thinking)}
-                event="omni:select_thinking"
+                event="omni:select" name="thinking"
                 prompt="Thinking"
                 position="above" />
             </div>
@@ -356,7 +356,7 @@ defmodule Omni.UI.ChatUI do
 
       <button
         phx-click={
-          JS.push("copy_message", value: %{role: "user"}, target: @target)
+          JS.push("copy", value: %{role: "user"}, target: @target)
           |> JS.transition("success", time: 2000, blocking: false)
         }
         class={[
@@ -420,7 +420,7 @@ defmodule Omni.UI.ChatUI do
     <div class="flex items-center gap-4">
       <button
         phx-click={
-          JS.push("copy_message", value: %{role: "assistant"}, target: @target)
+          JS.push("copy", value: %{role: "assistant"}, target: @target)
           |> JS.transition("success", time: 2000, blocking: false)
         }
         class={[

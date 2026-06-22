@@ -10,6 +10,7 @@ defmodule Omni.UI.FilesUI do
 
   use Phoenix.Component
   alias Omni.Tools.Files.Entry
+  alias Phoenix.LiveView.JS
   import Omni.UI.CoreUI, only: [panel_header: 1]
 
   attr :file, Entry, default: nil
@@ -27,7 +28,7 @@ defmodule Omni.UI.FilesUI do
               "flex items-center justify-center size-8 rounded cursor-pointer",
               "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
             ]}
-            phx-click="close_file"
+            phx-click="close"
             phx-target={@target}>
             <Lucideicons.arrow_left class="size-4" />
           </button>
@@ -61,7 +62,7 @@ defmodule Omni.UI.FilesUI do
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
           title="Close files"
-          phx-click="toggle_files">
+          phx-click={JS.push("toggle", value: %{name: "files"})}>
           <Lucideicons.x class="size-4" />
         </button>
       </:right>
@@ -103,7 +104,7 @@ defmodule Omni.UI.FilesUI do
               "px-2 py-3 grid grid-cols-[50%_1fr_1fr] gap-x-4 text-sm text-omni-text-3 group cursor-pointer transition-colors",
               "hover:bg-omni-bg-2"
             ]}
-            phx-click="select_file"
+            phx-click="open"
             phx-value-filename={filename}
             phx-target={@target}>
             <div class={[
@@ -191,7 +192,7 @@ defmodule Omni.UI.FilesUI do
     <div
       class="flex items-center rounded-lg bg-omni-bg-1 p-0.5 text-xs font-medium">
       <button
-        phx-click="toggle_view" phx-target={@target}
+        phx-click="toggle" phx-target={@target}
         class={[
           "px-2.5 py-1 rounded-md transition-colors cursor-pointer",
           if(@view_source == false,
@@ -201,7 +202,7 @@ defmodule Omni.UI.FilesUI do
         Preview
       </button>
       <button
-        phx-click="toggle_view" phx-target={@target}
+        phx-click="toggle" phx-target={@target}
         class={[
           "px-2.5 py-1 rounded-md transition-colors cursor-pointer",
           if(@view_source == true,

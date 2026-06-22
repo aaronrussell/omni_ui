@@ -68,15 +68,29 @@ mix format                      # Auto-format
 - **No comments unless they explain a non-obvious *why*.** Don't
   describe what well-named code already says. Don't reference the
   current task or PR — those belong in the commit message.
-- **Component → parent messages** use `{Omni.UI, :event_name, ...}`
-  tuples (e.g. `{Omni.UI, :new_message, msg}`,
-  `{Omni.UI, :edit_message, turn_id, msg}`,
-  `{Omni.UI, :notify, notification}`). Subscribed-session events
-  arrive as `{:session, pid, event, data}`. Manager events arrive as
-  `{:manager, mod, event, data}`. Don't conflate the three.
-- **`omni:` prefix on `phx-click` events** for events the macro
-  routes through `Omni.UI.Handlers.handle_event/3`. Bare event names
-  belong to the consumer.
+- **Event naming conventions:**
+  - **`omni:`-prefixed** browser events are macro-routed through
+    `Omni.UI.Handlers.handle_event/3` — the namespace prevents
+    collision with consumer events.
+  - **Bare verb_noun** events belong to AgentLive (cross-scope, so
+    the noun disambiguates): `open_session`, `open_file`, `new_session`.
+  - **Bare verb** events belong to LiveComponents (`phx-target={@myself}`),
+    where the component is the implicit noun: `open`, `close`, `toggle`,
+    `edit`, `submit`. Exception: keep the noun when the component has
+    multiple things the verb could apply to (e.g. `cancel_upload`).
+  - **Generic events** (`omni:select`, `toggle`) use a `"name"` param
+    to distinguish targets rather than separate event names per target.
+  - **JS dispatch events** use hyphens (web convention):
+    `omni:before-update`, `omni:focus`. **Elixir events** use
+    underscores: `omni:select`, `cancel_upload`.
+  - **Process messages** routed by the macro use `{Omni.UI, :verb, ...}`
+    tuples (e.g. `{Omni.UI, :new_message, msg}`,
+    `{Omni.UI, :edit_message, turn_id, msg}`,
+    `{Omni.UI, :notify, notification}`). AgentLive-only messages use
+    bare atoms (e.g. `:active_session_deleted`).
+  - **Session events** arrive as `{:session, pid, event, data}`.
+    **Manager events** arrive as `{:manager, mod, event, data}`.
+    Don't conflate the three message envelopes.
 - **Path variable naming:** `*_dir` for directory paths, `*_file`
   for file paths, `*_path` only for generic filesystem paths or
   non-filesystem concepts (e.g. URL paths). This convention applies

@@ -12,19 +12,19 @@ defmodule Omni.UI.Handlers do
 
   # ── Events ───────────────────────────────────────────────────────
 
-  def handle_event("omni:select_model", %{"value" => value}, socket) do
+  def handle_event("omni:select", %{"name" => "model", "value" => value}, socket) do
     [provider, model_id] = String.split(value, ":", parts: 2)
     socket = Omni.UI.update_session(socket, model: {String.to_existing_atom(provider), model_id})
     {:noreply, socket}
   end
 
-  def handle_event("omni:select_thinking", %{"value" => value}, socket) do
+  def handle_event("omni:select", %{"name" => "thinking", "value" => value}, socket) do
     thinking = String.to_existing_atom(value)
     socket = Omni.UI.update_session(socket, thinking: thinking)
     {:noreply, socket}
   end
 
-  def handle_event("omni:dismiss_notification", %{"id" => id}, socket) do
+  def handle_event("omni:dismiss", %{"id" => id}, socket) do
     handle_info({Omni.UI, :dismiss_notification, String.to_integer(id)}, socket)
   end
 

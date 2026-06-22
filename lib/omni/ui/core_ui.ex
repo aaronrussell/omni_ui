@@ -12,6 +12,7 @@ defmodule Omni.UI.CoreUI do
 
   use Phoenix.Component
   import Omni.UI.Helpers
+  import Omni.Util, only: [maybe_put: 3]
   alias Phoenix.LiveView.JS
 
   # ── Panels ─────────────────────────────────────────────────────
@@ -142,6 +143,7 @@ defmodule Omni.UI.CoreUI do
   attr :options, :list, required: true
   attr :value, :string, default: nil
   attr :prompt, :string, default: "Select..."
+  attr :name, :string, default: nil
   attr :event, :string, required: true
   attr :target, :any, default: nil
   attr :position, :string, default: "below", values: ~w(above below)
@@ -186,6 +188,7 @@ defmodule Omni.UI.CoreUI do
           :for={item <- @options}
           item={item}
           value={@value}
+          name={@name}
           event={@event}
           target={@target}
           select_id={@id} />
@@ -205,6 +208,7 @@ defmodule Omni.UI.CoreUI do
       :for={option <- @options}
       option={option}
       value={@value}
+      name={@name}
       event={@event}
       target={@target}
       select_id={@select_id} />
@@ -216,6 +220,7 @@ defmodule Omni.UI.CoreUI do
     <.select_option
       option={@item}
       value={@value}
+      name={@name}
       event={@event}
       target={@target}
       select_id={@select_id} />
@@ -234,7 +239,7 @@ defmodule Omni.UI.CoreUI do
         )
       ]}
       phx-click={
-        JS.push(@event, value: %{value: @option.value})
+        JS.push(@event, value: maybe_put(%{value: @option.value}, :name, @name))
         |> JS.remove_class("active", to: "##{@select_id}")
       }
       {if @target, do: [{"phx-target", @target}], else: []}>
@@ -370,7 +375,7 @@ defmodule Omni.UI.CoreUI do
             "flex items-center justify-center size-6 rounded cursor-pointer",
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
-          phx-click="omni:dismiss_notification"
+          phx-click="omni:dismiss"
           phx-value-id={n.id}>
           <Lucideicons.x class="size-4" />
         </button>

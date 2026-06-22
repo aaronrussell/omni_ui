@@ -21,7 +21,7 @@ defmodule Omni.UI.TurnComponent do
     * `"edit"` — enters edit mode, populating the textarea with current text.
     * `"cancel"` — exits edit mode.
     * `"change"` — tracks textarea input.
-    * `"copy_message"` — pushes clipboard event to client.
+    * `"copy"` — pushes clipboard event to client.
 
   Events forwarded to parent via `send/2`:
 
@@ -150,7 +150,7 @@ defmodule Omni.UI.TurnComponent do
     {:noreply, assign(socket, input: input)}
   end
 
-  def handle_event("copy_message", %{"role" => role}, socket) do
+  def handle_event("copy", %{"role" => role}, socket) do
     text = Omni.UI.Turn.get_text(socket.assigns.turn, String.to_existing_atom(role))
     {:noreply, push_event(socket, "omni:clipboard", %{text: text})}
   end

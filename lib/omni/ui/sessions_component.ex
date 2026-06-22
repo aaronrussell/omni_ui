@@ -27,11 +27,11 @@ defmodule Omni.UI.SessionsComponent do
 
   ## Events bubbled to the parent LiveView (not `phx-target`-ed)
 
-    * `switch_session` with `session-id` — parent should `push_patch` to the
+    * `open_session` with `session-id` — parent should `push_patch` to the
       session URL
     * `new_session` — parent should `push_patch` to `/`
-    * `{Omni.UI, :active_session_deleted}` — sent as a process message when
-      the user deletes the currently active session
+    * `:active_session_deleted` — sent as a process message when the user
+      deletes the currently active session
   """
 
   use Phoenix.LiveComponent
@@ -103,7 +103,7 @@ defmodule Omni.UI.SessionsComponent do
     :ok = socket.assigns.manager.delete(id)
 
     if id == socket.assigns.current_id do
-      send(self(), {Omni.UI, :active_session_deleted})
+      send(self(), :active_session_deleted)
     end
 
     sessions = Enum.reject(socket.assigns.sessions, &(&1.id == id))

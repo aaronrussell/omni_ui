@@ -3,6 +3,7 @@ defmodule Omni.UI.AgentLive do
   use Omni.UI
 
   alias Omni.UI.FilesComponent
+  alias Phoenix.LiveView.JS
 
   @default_model {:ollama, "gemma4:latest"}
 
@@ -15,7 +16,7 @@ defmodule Omni.UI.AgentLive do
       <.side_panel
         align="left"
         open={@open_sessions}
-        close_event="toggle_sessions">
+        close_event={JS.push("toggle", value: %{name: "sessions"})}>
         <.live_component
           module={Omni.UI.SessionsComponent}
           id="sessions"
@@ -58,7 +59,7 @@ defmodule Omni.UI.AgentLive do
       <.side_panel
         align="right"
         open={@open_files}
-        close_event="toggle_files"
+        close_event={JS.push("toggle", value: %{name: "files"})}
         outer_class="lg:w-96 xl:w-128 2xl:w-160"
         inner_class="w-screen md:w-96 xl:w-128 2xl:w-160">
         <.live_component
@@ -86,7 +87,7 @@ defmodule Omni.UI.AgentLive do
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
           title="Sessions"
-          phx-click="toggle_sessions">
+          phx-click={JS.push("toggle", value: %{name: "sessions"})}>
           <%= if @open_sessions do %>
             <Lucideicons.panel_left_close class="size-4" />
           <% else %>
@@ -102,7 +103,7 @@ defmodule Omni.UI.AgentLive do
             "text-omni-text-1 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
           ]}
           title="Open files panel"
-          phx-click="toggle_files">
+          phx-click={JS.push("toggle", value: %{name: "files"})}>
           <%= if @open_files do %>
             <Lucideicons.panel_right_close class="size-4" />
           <% else %>
@@ -116,7 +117,7 @@ defmodule Omni.UI.AgentLive do
 
   attr :align, :string, values: ["left", "right"], required: true
   attr :open, :boolean, required: true
-  attr :close_event, :string, required: true
+  attr :close_event, Phoenix.LiveView.JS, required: true
   attr :outer_class, :string, default: "lg:w-72"
   attr :inner_class, :string, default: "w-72"
   slot :inner_block, required: true
@@ -199,7 +200,7 @@ defmodule Omni.UI.AgentLive do
   end
 
   @impl Phoenix.LiveView
-  def handle_event("switch_session", %{"session-id" => id}, socket) do
+  def handle_event("open_session", %{"session-id" => id}, socket) do
     {:noreply, push_patch(socket, to: "/?session_id=#{id}")}
   end
 
@@ -216,14 +217,9 @@ defmodule Omni.UI.AgentLive do
     {:noreply, assign(socket, :open_files, true)}
   end
 
-  def handle_event("toggle_sessions", _params, socket) do
-    bool = not socket.assigns.open_sessions
-    {:noreply, assign(socket, :open_sessions, bool)}
-  end
-
-  def handle_event("toggle_files", _params, socket) do
-    bool = not socket.assigns.open_files
-    {:noreply, assign(socket, :open_files, bool)}
+  def handle_event("toggle", %{"name" => name}, socket) do
+    key = String.to_existing_atom("open_#{name}")
+    {:noreply, assign(socket, key, not socket.assigns[key])}
   end
 
   @impl Phoenix.LiveView
@@ -232,7 +228,7 @@ defmodule Omni.UI.AgentLive do
     {:noreply, socket}
   end
 
-  def handle_info({Omni.UI, :active_session_deleted}, socket) do
+  def handle_info(:active_session_deleted, socket) do
     {:noreply, push_patch(socket, to: "/")}
   end
 

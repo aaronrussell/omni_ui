@@ -154,7 +154,7 @@ defmodule Omni.UI.FilesComponent do
   end
 
   @impl true
-  def handle_event("select_file", %{"filename" => filename}, socket) do
+  def handle_event("open", %{"filename" => filename}, socket) do
     socket =
       socket
       |> assign(active_file: filename, view_source: false, error: nil)
@@ -163,7 +163,7 @@ defmodule Omni.UI.FilesComponent do
     {:noreply, socket}
   end
 
-  def handle_event("toggle_view", _, socket) do
+  def handle_event("toggle", _, socket) do
     socket =
       socket
       |> assign(view_source: !socket.assigns.view_source)
@@ -172,7 +172,7 @@ defmodule Omni.UI.FilesComponent do
     {:noreply, socket}
   end
 
-  def handle_event("close_file", _, socket) do
+  def handle_event("close", _, socket) do
     {:noreply,
      assign(socket,
        active_file: nil,

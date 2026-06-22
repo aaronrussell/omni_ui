@@ -84,7 +84,7 @@ defmodule Omni.UI.EditorComponent do
               <:action>
                 <button
                   type="button"
-                  phx-click="cancel-upload"
+                  phx-click="cancel_upload"
                   phx-value-ref={entry.ref}
                   phx-target={@myself}
                   class={[
@@ -136,7 +136,7 @@ defmodule Omni.UI.EditorComponent do
     {:noreply, assign(socket, input: input)}
   end
 
-  def handle_event("cancel-upload", %{"ref" => ref}, socket) do
+  def handle_event("cancel_upload", %{"ref" => ref}, socket) do
     {:noreply, cancel_upload(socket, :attachments, ref)}
   end
 

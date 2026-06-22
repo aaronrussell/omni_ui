@@ -13,14 +13,6 @@ and a release path.
 Smaller items that don't need major design work but should land
 before a public release.
 
-- **Event-name rationalisation** — across `phx-click` UI events,
-  LiveView `handle_event` events, events scoped to AgentLive vs the
-  macro vs LiveComponents, and the symbolic atoms passed to the
-  `session_event/3` callback. Today they've accumulated organically
-  (`omni:*` namespaced vs bare `save_title`, component-bubbled
-  events, etc.). Review for a coherent, documented convention before
-  the public API locks in.
-
 - **Config-key rationalisation** — configuration spans `:omni` and
   `:omni_ui` atoms with a mix of bare-app and module-scoped keys
   (`config :omni_ui, Omni.UI.Sessions, store: ...`,

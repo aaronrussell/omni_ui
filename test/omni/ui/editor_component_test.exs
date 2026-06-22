@@ -42,7 +42,7 @@ defmodule Omni.UI.EditorComponentTest do
       html = render_component(EditorComponent, id: "editor")
 
       # The attachment section should not be rendered (it has :if guard)
-      refute html =~ "cancel-upload"
+      refute html =~ "cancel_upload"
     end
   end
 
