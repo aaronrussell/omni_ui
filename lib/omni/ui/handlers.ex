@@ -1,6 +1,15 @@
 defmodule Omni.UI.Handlers do
   @moduledoc false
 
+  # Central event dispatch for `use Omni.UI`. The macro injects clauses
+  # that delegate here — this module is not called directly by consumers.
+  #
+  # Three entry points:
+  #
+  #   handle_event/3         — "omni:*" browser events (returns {:noreply, socket})
+  #   handle_info/2          — {Omni.UI, ...} component messages (returns {:noreply, socket})
+  #   handle_session_event/3 — {:session, ...} streaming events (returns bare socket)
+
   import Phoenix.LiveView
   import Phoenix.Component
 
@@ -12,6 +21,7 @@ defmodule Omni.UI.Handlers do
 
   # ── Events ───────────────────────────────────────────────────────
 
+  @doc false
   def handle_event("omni:select", %{"name" => "model", "value" => value}, socket) do
     [provider, model_id] = String.split(value, ":", parts: 2)
     socket = Omni.UI.update_session(socket, model: {String.to_existing_atom(provider), model_id})
@@ -74,6 +84,7 @@ defmodule Omni.UI.Handlers do
 
   # ── Messages ─────────────────────────────────────────────────────
 
+  @doc false
   def handle_info({Omni.UI, :new_message, message}, socket) do
     socket = Omni.UI.ensure_session(socket)
     :ok = Omni.Session.prompt(socket.assigns.session, message.content)

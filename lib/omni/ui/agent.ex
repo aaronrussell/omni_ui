@@ -2,12 +2,15 @@ defmodule Omni.UI.Agent do
   @moduledoc """
   Default `Omni.Agent` module for Omni.UI.
 
-  Bakes in the files, REPL, and web-fetch tools at agent-init time,
-  reading the session id from `state.private.omni.session_id` (set by
-  `Omni.Session` when it starts the agent).
+  Bakes in the Files, REPL, WebFetch, and WebSearch tools at agent-init
+  time, reading the session id from `state.private.omni.session_id`
+  (set by `Omni.Session` when it starts the agent). Consumer-provided
+  tools (passed through `Omni.UI.init_session/2`) are preserved — the
+  built-in tools are appended.
 
-  Consumer-provided tools (passed through `Omni.UI.init_session/2`) are
-  preserved — the built-in tools are appended.
+  Used by `Omni.UI.AgentLive` as its `:agent_module`. Consumers who
+  need different tools or a different system prompt can define their own
+  `Omni.Agent` module and pass it to `init_session/2` instead.
   """
 
   use Omni.Agent
