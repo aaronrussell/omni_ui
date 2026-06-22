@@ -2,12 +2,10 @@ defmodule Omni.UI.CoreUI do
   @moduledoc """
   Shared UI primitives used across the Omni.UI component kit.
 
-    * `expandable/1` — collapsible section with icon and toggle
-    * `version_nav/1` — prev/next navigation with position display
-    * `timestamp/1` — formatted time display
-    * `usage_block/1` — compact token count and cost display
-    * `select/1` — dropdown select with grouped options
-    * `notifications/1` — stacked toaster for in-app notifications
+  Imported automatically by `use Omni.UI`. These are general-purpose
+  layout and control components (panels, selects, notifications) used by
+  both the chat pipeline and the surrounding chrome (sessions sidebar,
+  files panel).
   """
 
   use Phoenix.Component
@@ -17,6 +15,13 @@ defmodule Omni.UI.CoreUI do
 
   # ── Panels ─────────────────────────────────────────────────────
 
+  @doc """
+  Flex column layout with a header and scrollable body.
+
+  When the `:header` slot is provided it replaces the default
+  `panel_header/1`. Used by `AgentLive`, `SessionsComponent`, and
+  `FilesComponent` as the top-level section wrapper.
+  """
   attr :title, :string, default: ""
   attr :body_class, :string, default: nil
   slot :header, required: false
@@ -37,6 +42,13 @@ defmodule Omni.UI.CoreUI do
     """
   end
 
+  @doc """
+  Three-column header bar with a title and optional left/right action slots.
+
+  The `:align` attr controls title placement — `"center"` (default) uses a
+  three-column grid so the title stays centered regardless of slot widths;
+  `"left"` or `"right"` collapses to a two-column flow.
+  """
   attr :title, :string, required: true
   attr :align, :string, values: ~w(left center right), default: "center"
   slot :left, required: false

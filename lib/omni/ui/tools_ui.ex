@@ -1,38 +1,20 @@
 defmodule Omni.UI.ToolsUI do
   @moduledoc """
-  Custom tool-use components rendered inline in the chat stream.
+  Custom tool-use components for the built-in tools.
 
-  Each function is designed to be registered in the `tool_components` map
-  so that `Omni.UI.ChatUI.content_block/1` dispatches to it for the
-  matching tool name:
+  Register these in the `:tool_components` map passed to `init_session/2`
+  so that `content_block/1` dispatches to them instead of the default
+  `tool_use/1` renderer:
 
-      tool_components: %{
-        "files" => &Omni.UI.ToolsUI.files_tool_use/1,
-        "repl"  => &Omni.UI.ToolsUI.repl_tool_use/1
-      }
+      init_session(socket,
+        tool_components: %{
+          "files" => &Omni.UI.ToolsUI.files_tool_use/1,
+          "repl"  => &Omni.UI.ToolsUI.repl_tool_use/1
+        },
+        ...
+      )
 
-  ## Files tool
-
-  `files_tool_use/1` wraps `Omni.UI.ChatUI.tool_use/1` and slots
-  command-specific content into its `:aside` slot. The aside is only
-  rendered once the tool has produced a result; during streaming and
-  execution the default component is shown unmodified. The aside content
-  varies per command:
-
-    * **`write` / `patch`** — a button labelled with the filename that
-      dispatches an `open_file` event, opening the file in the panel.
-    * **`read` / `delete`** — a short status label referencing the filename.
-    * **`list`** — a "Listed files" label.
-
-  ## REPL tool
-
-  `repl_tool_use/1` replaces the default renderer entirely:
-
-    * The icon is a terminal instead of a cog.
-    * The toggle shows the agent-provided `title` field (an active-form
-      description like "Calculating average score") instead of the tool name.
-    * The expanded body shows syntax-highlighted Elixir code (the `code`
-      input field) instead of the raw JSON tool params.
+  `Omni.UI.AgentLive` registers both by default.
   """
 
   use Phoenix.Component
@@ -52,8 +34,8 @@ defmodule Omni.UI.ToolsUI do
   with command-specific content. Receives the normalised tool-use assigns
   map from `content_block/1`: `@tool_use`, `@tool_result`, `@streaming`.
   """
-  attr :tool_use, :map, required: true
-  attr :tool_result, :map, default: nil
+  attr :tool_use, Omni.Content.ToolUse, required: true
+  attr :tool_result, Omni.Content.ToolResult, default: nil
   attr :streaming, :boolean, default: false
 
   def files_tool_use(assigns) do
@@ -120,8 +102,8 @@ defmodule Omni.UI.ToolsUI do
   Receives the normalised tool-use assigns map from `content_block/1`:
   `@tool_use`, `@tool_result`, `@streaming`.
   """
-  attr :tool_use, :map, required: true
-  attr :tool_result, :map, default: nil
+  attr :tool_use, Omni.Content.ToolUse, required: true
+  attr :tool_result, Omni.Content.ToolResult, default: nil
   attr :streaming, :boolean, default: false
 
   def repl_tool_use(assigns) do

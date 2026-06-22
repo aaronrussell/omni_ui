@@ -1,4 +1,24 @@
 defmodule Omni.UI.AgentLive do
+  @moduledoc """
+  A batteries-included LiveView for agent chat.
+
+  Mounts a complete chat interface with a sessions drawer, files panel,
+  and the built-in tools (Files, REPL, WebFetch, WebSearch) wired up
+  via `Omni.UI.Agent`. Drop it into your router for a working agent UI
+  with no additional setup beyond configuring `Omni.UI.Sessions`:
+
+      # router.ex
+      forward "/omni_files", Omni.UI.Files.Plug
+      live "/", Omni.UI.AgentLive
+
+  The files Plug must be mounted so the files panel can serve agent-generated
+  files (HTML documents and code artifacts). See `Omni.UI.Files.Plug`
+  for token signing and configuration details.
+
+  For more control over layout, tools, or event handling, skip this
+  module and `use Omni.UI` in your own LiveView instead.
+  """
+
   use Phoenix.LiveView
   use Omni.UI
 
@@ -73,11 +93,13 @@ defmodule Omni.UI.AgentLive do
     """
   end
 
+  # Chat panel header — extracted as a function component for readability,
+  # not for reuse.
   attr :title, :string, required: true
   attr :open_sessions, :boolean
   attr :open_files, :boolean
 
-  def chat_panel_header(assigns) do
+  defp chat_panel_header(assigns) do
     ~H"""
     <.panel_header title={@title}>
       <:left>
@@ -115,6 +137,7 @@ defmodule Omni.UI.AgentLive do
     """
   end
 
+  # Side panel — used only in the above render/1 function.
   attr :align, :string, values: ["left", "right"], required: true
   attr :open, :boolean, required: true
   attr :close_event, Phoenix.LiveView.JS, required: true

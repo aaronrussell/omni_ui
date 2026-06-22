@@ -27,6 +27,8 @@ defmodule Omni.UI.Sessions do
 
   use Omni.Session.Manager, otp_app: :omni_ui
 
+  @doc "Returns the root directory path for a session's on-disk storage."
+  @spec session_dir(String.t()) :: String.t()
   def session_dir(session_id) do
     config = Application.get_env(:omni_ui, __MODULE__, [])
 
@@ -38,6 +40,8 @@ defmodule Omni.UI.Sessions do
     Path.join([base_dir, session_id])
   end
 
+  @doc "Returns the directory path where a session's user-facing files are stored."
+  @spec session_files_dir(String.t()) :: String.t()
   def session_files_dir(session_id) do
     Path.join([session_dir(session_id), "files"])
   end

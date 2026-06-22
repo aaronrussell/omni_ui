@@ -2,7 +2,8 @@ defmodule Omni.UI.SessionsUI do
   @moduledoc """
   Function components for the sessions sidebar.
 
-    * `session_list/1` — renders a list of session summaries as clickable rows
+  Used internally by `Omni.UI.SessionsComponent`. Not imported by
+  `use Omni.UI`.
   """
 
   use Phoenix.Component

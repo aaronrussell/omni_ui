@@ -2,37 +2,10 @@ defmodule Omni.UI.ChatUI do
   @moduledoc """
   Function components for the chat rendering pipeline.
 
-  All components use the semantic color tokens defined in `priv/static/omni_ui.css`
-  and are designed to be composed within a `chat_interface/1` root.
-
-  ## Layout
-
-    * `chat_interface/1` — root wrapper, provides scroll container, editor, and
-      markdown typography styles
-    * `turn_list/1` — stream container for committed turns with optional
-      `:user` and `:assistant` slot overrides
-    * `turn/1` — renders a turn with data-driven defaults and overridable
-      `:user` and `:assistant` slots
-
-  ## Messages
-
-    * `user_message/1` — renders user text and attachment content blocks
-    * `assistant_message/1` — renders assistant content blocks with streaming support
-    * `user_message_actions/1` — copy, edit, and version navigation for user messages
-    * `assistant_message_actions/1` — copy, redo, version navigation, and usage display
-
-  ## Content blocks
-
-    * `content_block/1` — pattern-matched renderer for `Text`, `Thinking`,
-      `ToolUse`, and `Attachment` content types
-    * `markdown/1` — converts markdown text to styled HTML via MDEx
-    * `tool_use/1` — default tool-use renderer with expandable input/output
-    * `attachment/1` — thumbnail tile for images and file icons
-
-  ## Editor
-
-    * `editor/1` — wraps `EditorComponent` with optional model selector,
-      thinking toggle, and usage summary controls
+  Imported automatically by `use Omni.UI`. Components are designed to
+  compose within a `chat_interface/1` root, which provides the scroll
+  container, editor area, and markdown typography styles. All components
+  use the semantic OKLCH color tokens defined in `priv/static/omni_ui.css`.
   """
 
   use Phoenix.Component
@@ -581,18 +554,12 @@ defmodule Omni.UI.ChatUI do
   function — for example, to add a per-tool control via the `:aside` slot —
   by calling `ChatUI.tool_use/1` with the normalised assigns map.
   """
-  attr :tool_use, :map, required: true, doc: "the `%Omni.Content.ToolUse{}` struct"
-
-  attr :tool_result, :map,
-    default: nil,
-    doc: "the matching `%Omni.Content.ToolResult{}`, or `nil` if not yet available"
-
-  attr :streaming, :boolean,
-    default: false,
-    doc: "`true` if this is the last block of a streaming message"
+  attr :tool_use, Omni.Content.ToolUse, required: true
+  attr :tool_result, Omni.Content.ToolResult, default: nil
+  attr :streaming, :boolean, default: false
 
   slot :aside,
-    doc: "optional content rendered alongside the header, outside the expandable's click target"
+    doc: "content rendered alongside the header, outside the expandable's click target"
 
   def tool_use(assigns) do
     ~H"""

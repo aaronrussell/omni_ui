@@ -2,10 +2,8 @@ defmodule Omni.UI.FilesUI do
   @moduledoc """
   Function components for the files panel.
 
-    * `file_bar/1` — header with filename, view toggle, download, and close
-    * `file_list/1` — directory listing with name, size, and updated columns
-    * `file_view/1` — pattern-matched file viewer (iframe, markdown, source,
-      media, download)
+  Used internally by `Omni.UI.FilesComponent` to render the file list,
+  file viewer, and panel header. Not imported by `use Omni.UI`.
   """
 
   use Phoenix.Component
@@ -13,6 +11,12 @@ defmodule Omni.UI.FilesUI do
   alias Phoenix.LiveView.JS
   import Omni.UI.CoreUI, only: [panel_header: 1]
 
+  @doc """
+  Header bar for the files panel.
+
+  Shows a back arrow when viewing a file, and slots in the source toggle,
+  download link, and close button on the right.
+  """
   attr :file, Entry, default: nil
   attr :view_source, :boolean, default: false
   attr :token, :string, required: true
@@ -70,6 +74,7 @@ defmodule Omni.UI.FilesUI do
     """
   end
 
+  @doc "Renders the directory listing with name, size, and updated columns."
   attr :files, :map, required: true
   attr :error, :string, default: nil
   attr :target, :any, default: nil
@@ -122,6 +127,19 @@ defmodule Omni.UI.FilesUI do
     </div>
     """
   end
+
+  @doc """
+  Renders file content, dispatching on the `:view` assign.
+
+  View modes: `:iframe` (HTML, PDF), `:markdown` (rendered Markdown),
+  `:source` (syntax-highlighted text), `:media` (images), `:download`
+  (fallback download link).
+  """
+  attr :file, Entry, required: true
+  attr :content, :any, default: nil, doc: "pre-rendered content for :markdown and :source views"
+  attr :view, :atom, required: true, doc: "one of :iframe, :markdown, :source, :media, :download"
+  attr :token, :string, required: true
+  attr :target, :any, default: nil
 
   def file_view(%{view: :iframe} = assigns) do
     ~H"""
@@ -184,6 +202,7 @@ defmodule Omni.UI.FilesUI do
     """
   end
 
+  @doc "Preview/Code toggle for file types that support both views."
   attr :view_source, :boolean, default: false
   attr :target, :any, default: nil
 
