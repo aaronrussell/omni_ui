@@ -99,6 +99,32 @@ mix format                      # Auto-format
   mood, ~50-char subject, terse body when needed. Sign with
   `AI-assisted commit (Claude)`.
 
+## Documentation
+
+- All public modules must have a `@moduledoc`. Internal/private
+  modules use `@moduledoc false`.
+- All public types must have a `@typedoc`. Keep it on one line
+  unless complex.
+- All public functions must have a `@doc` and a `@spec`. Rely on
+  `@spec` for types — don't repeat in prose.
+- Function components must have a `@doc` that says what the
+  component renders and when to reach for it. `@spec` is not
+  needed — `attr`/`slot` declarations replace it.
+- LiveComponent `render/1` must declare `attr` and `slot` for its
+  interface — they provide compile-time validation at call sites
+  and generate documentation. `@doc` on `render/1` is not needed;
+  the `@moduledoc` covers intent.
+- Other LiveComponent callbacks (`mount/1`, `update/2`,
+  `handle_event/3`) do not need `@doc` — they are implementation,
+  not public API.
+- Add inline `doc:` on `attr` and `slot` declarations when the
+  name alone is ambiguous or the accepted values need explanation.
+  Skip it when the name is self-evident.
+- Document options when a function accepts them.
+- Private functions (`defp`) do not need `@doc` annotations.
+- Tone: practical, concise, example-driven. Lead with what you do,
+  not what things are.
+
 ## Reference docs
 
 - `context/design.md` — architecture, data flow, design decisions
