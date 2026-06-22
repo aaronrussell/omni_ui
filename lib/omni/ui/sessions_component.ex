@@ -39,6 +39,9 @@ defmodule Omni.UI.SessionsComponent do
   import Omni.UI.CoreUI
   import Omni.UI.SessionsUI
 
+  attr :current_id, :string, default: nil
+  attr :manager, :atom, required: true
+
   @impl true
   def render(assigns) do
     ~H"""

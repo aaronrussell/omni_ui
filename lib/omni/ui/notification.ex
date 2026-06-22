@@ -6,8 +6,10 @@ defmodule Omni.UI.Notification do
   construction and used by the stream + FIFO-cap bookkeeping.
   """
 
+  @typedoc "Notification severity."
   @type level :: :info | :success | :warning | :error
 
+  @typedoc "A notification struct with id, level, message, and auto-dismiss timeout."
   @type t :: %__MODULE__{
           id: integer(),
           level: level(),

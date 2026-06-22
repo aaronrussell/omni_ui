@@ -286,7 +286,10 @@ defmodule Omni.UI.Helpers do
   end
 
   @doc """
-  TODO
+  Returns the Tailwind utility classes that apply markdown typography styles.
+
+  Applied at the `chat_interface/1` level via descendant selectors targeting
+  the `.mdex` class, so individual markdown components stay minimal.
   """
   @spec md_styles() :: [String.t()]
   def md_styles(), do: @markdown_styles

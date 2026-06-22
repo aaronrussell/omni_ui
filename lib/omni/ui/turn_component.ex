@@ -37,6 +37,9 @@ defmodule Omni.UI.TurnComponent do
   import Omni.UI.ChatUI
   alias Phoenix.LiveView.JS
 
+  attr :turn, Omni.UI.Turn, required: true
+  attr :tool_components, :map, default: %{}
+
   slot :user, doc: "custom user slot; forwarded to turn/1 unless editing"
   slot :assistant, doc: "custom assistant slot; forwarded to turn/1"
 

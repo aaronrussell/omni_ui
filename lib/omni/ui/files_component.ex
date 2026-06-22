@@ -52,6 +52,8 @@ defmodule Omni.UI.FilesComponent do
     application/x-yaml application/x-sh application/sql
   )
 
+  attr :session_id, :string, default: nil
+
   @impl true
   def render(assigns) do
     ~H"""

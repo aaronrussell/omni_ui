@@ -57,6 +57,9 @@ defmodule Omni.UI.Turn do
     usage: %Omni.Usage{}
   ]
 
+  @typedoc """
+  A UI-oriented view of a single conversation exchange. See module docs for fields.
+  """
   @type t :: %__MODULE__{
           id: Tree.node_id() | nil,
           res_id: Tree.node_id() | nil,
