@@ -174,9 +174,14 @@ defmodule Omni.UI.Turn do
   """
   @spec replace_content(t(), Omni.Message.content()) :: t()
   def replace_content(%__MODULE__{} = turn, %{id: id} = content_block) when id != nil do
-    idx = Enum.find_index(turn.content, &(Map.get(&1, :id) == id)) || -1
-    content = List.replace_at(turn.content, idx, content_block)
-    %{turn | content: content}
+    case Enum.find_index(turn.content, &(Map.get(&1, :id) == id)) do
+      nil ->
+        raise ArgumentError, "no content block with id #{inspect(id)} in turn #{inspect(turn.id)}"
+
+      idx ->
+        content = List.replace_at(turn.content, idx, content_block)
+        %{turn | content: content}
+    end
   end
 
   def replace_content(%__MODULE__{} = turn, content_block) do

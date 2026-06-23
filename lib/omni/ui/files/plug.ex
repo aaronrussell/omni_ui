@@ -36,7 +36,7 @@ defmodule Omni.UI.Files.Plug do
   end
 
   @impl Plug
-  def call(%Plug.Conn{path_info: [token, raw_filename]} = conn, %{max_age: max_age}) do
+  def call(%Plug.Conn{method: "GET", path_info: [token, raw_filename]} = conn, %{max_age: max_age}) do
     endpoint = conn.private[:phoenix_endpoint]
     filename = URI.decode(raw_filename)
 
@@ -85,7 +85,8 @@ defmodule Omni.UI.Files.Plug do
     if inline?(content_type) do
       "inline"
     else
-      ~s(attachment; filename="#{filename}")
+      escaped = String.replace(filename, ~S("), ~S(\"))
+      ~s(attachment; filename="#{escaped}")
     end
   end
 
