@@ -1,0 +1,29 @@
+name: Elixir CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    strategy:
+      matrix:
+        otp: ['27.x', '28.x', '29.x']
+        elixir: ['1.18.x', '1.19.x', '1.20.x']
+        exclude:
+          - otp: '29.x'
+            elixir: '1.18.x'
+          - otp: '29.x'
+            elixir: '1.19.x'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+          elixir-version: ${{matrix.elixir}}
+      - run: mix deps.get
+      - run: mix test
