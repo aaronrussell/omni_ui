@@ -128,4 +128,4 @@ Full API reference is available on [HexDocs](https://hexdocs.pm/omni_ui).
 
 This package is open source and released under the [Apache-2 License](https://github.com/aaronrussell/omni_ui/blob/main/LICENSE).
 
-(c) Copyright 2026 [Push Code Ltd](https://www.pushcode.com/).
+© Copyright 2026 [Push Code Ltd](https://www.pushcode.com/).
