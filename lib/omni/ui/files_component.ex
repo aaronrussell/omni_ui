@@ -106,7 +106,12 @@ defmodule Omni.UI.FilesComponent do
         {:ok, assign(socket, files: files, active_file: nil, error: nil)}
 
       _ ->
-        {:ok, assign(socket, files: files, error: nil)}
+        socket =
+          socket
+          |> assign(files: files, error: nil)
+          |> assign_content()
+
+        {:ok, socket}
     end
   end
 

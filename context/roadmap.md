@@ -32,3 +32,17 @@ before a public release.
 - **Cross-browser QA** — thorough testing across browsers. The
   files panel iframe + sandbox token URLs are the most
   sensitive area.
+
+---
+
+## Known Issues
+
+- **`update_session/2` silently fails while agent is busy** —
+  `Omni.Session.set_agent` flat-out rejects changes when the agent
+  is streaming or paused (`{:error, :busy}`). `update_session/2`
+  updates socket assigns optimistically, but the agent keeps the old
+  values. The `:state` event after the turn completes then reverts
+  the assigns — so the user's change is silently lost. Needs an
+  upstream change in `omni_agent`: queue `set_state` calls during
+  busy state (analogous to the existing `next_prompt` mechanism)
+  so they apply when the agent returns to idle.

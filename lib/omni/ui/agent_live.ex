@@ -213,7 +213,7 @@ defmodule Omni.UI.AgentLive do
       try do
         {:noreply, attach_session(socket, id: params["session_id"])}
       rescue
-        _ ->
+        _e in RuntimeError ->
           notify(:warning, "Session not found.")
           {:noreply, push_patch(socket, to: "/")}
       end
