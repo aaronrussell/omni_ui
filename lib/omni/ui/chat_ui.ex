@@ -367,6 +367,8 @@ defmodule Omni.UI.ChatUI do
   attr :tool_components, :map, default: %{}
 
   def assistant_message(assigns) do
+    assigns = assign(assigns, :last_idx, length(assigns.content) - 1)
+
     ~H"""
     <div>
       <div class="flex flex-col gap-4">
@@ -375,7 +377,7 @@ defmodule Omni.UI.ChatUI do
           content={content}
           tool_results={@tool_results}
           tool_components={@tool_components}
-          streaming={@streaming and idx == length(@content) - 1} />
+          streaming={@streaming and idx == @last_idx} />
       </div>
     </div>
     """

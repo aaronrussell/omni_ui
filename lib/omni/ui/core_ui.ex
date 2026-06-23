@@ -267,7 +267,7 @@ defmodule Omni.UI.CoreUI do
   attr :versions, :list, required: true
 
   def version_nav(assigns) do
-    idx = Enum.find_index(assigns.versions, &(&1 == assigns.version_id))
+    idx = Enum.find_index(assigns.versions, &(&1 == assigns.version_id)) || -1
 
     assigns =
       assigns

@@ -252,6 +252,8 @@ defmodule Omni.UI do
   reach for `init_session/2` instead.
   """
 
+  require Logger
+
   import Phoenix.Component
   import Phoenix.LiveView, only: [stream: 3, stream: 4]
   import Omni.Util, only: [maybe_put: 3]
@@ -735,8 +737,6 @@ defmodule Omni.UI do
             assign(socket, :model, model)
 
           {:error, reason} ->
-            require Logger
-
             Logger.warning(
               "update_session: ignoring unresolvable model #{inspect(value)} (#{inspect(reason)})"
             )
