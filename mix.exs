@@ -68,7 +68,7 @@ defmodule Omni.UI.MixProject do
 
   defp pkg do
     [
-      description: "...todo...",
+      description: "Agent chat UI for Elixir — ready-made LiveView interface and components for building Omni-powered agents.",
       licenses: ["Apache-2.0"],
       maintainers: ["Aaron Russell"],
       files: ~w(lib .formatter.exs mix.exs CHANGELOG.md LICENSE README.md),

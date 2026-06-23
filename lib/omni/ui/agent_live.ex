@@ -185,7 +185,7 @@ defmodule Omni.UI.AgentLive do
   def mount(_params, _session, socket) do
     {:ok, models1} = Omni.list_models(:ollama)
     {:ok, models2} = Omni.list_models(:alibaba)
-    {:ok, models3} = Omni.list_models(:opencode)
+    {:ok, models3} = Omni.list_models(:venice)
     model_options = models1 ++ models2 ++ models3
 
     if connected?(socket), do: Omni.UI.Sessions.subscribe()

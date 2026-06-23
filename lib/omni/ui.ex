@@ -1,8 +1,93 @@
 defmodule Omni.UI do
   @moduledoc """
-  Omni.UI adds agent chat capabilities to any LiveView.
+  ![License](https://img.shields.io/github/license/aaronrussell/omni_ui?color=informational)
 
-  ## Usage
+  **Agent chat UI for Elixir** — a ready-made LiveView interface for
+  exploring, prototyping, and experimenting with
+  [Omni Agent](https://github.com/aaronrussell/omni_agent) powered
+  agents.
+
+  Omni.UI gives you two ways to work:
+
+  | Approach | What you get |
+  | --- | --- |
+  | `Omni.UI.AgentLive` | A batteries-included LiveView — mount it in your router and you have a working agent chat with sessions, files, REPL, and web tools |
+  | `use Omni.UI` | A macro that injects session streaming, state management, and event routing into your own LiveView — you bring the template and any custom behaviour |
+
+  `AgentLive` is the fastest path to seeing Omni in action. When you need
+  full control over layout, tools, or event handling, drop down to the
+  macro and the `Omni.UI.ChatUI` / `Omni.UI.CoreUI` components.
+
+  ## Installation
+
+  Add Omni UI to your dependencies:
+
+      def deps do
+        [
+          {:omni_ui, "~> 0.1"}
+        ]
+      end
+
+  Omni UI depends on `omni`, which provides the LLM API layer. Configure
+  your provider API keys as described in the
+  [Omni README](https://github.com/aaronrussell/omni#installation).
+
+  ### Assets
+
+  Omni UI ships CSS and JavaScript that your application needs to include.
+
+  In your CSS entry point, add a `@source` directive pointing at the
+  Omni UI component templates so Tailwind can scan them, and `@import`
+  the shipped stylesheet:
+
+      /* assets/css/app.css */
+      @source "../../deps/omni_ui/lib/omni/ui";
+      @import "../../deps/omni_ui/priv/static/omni_ui.css";
+
+  In your JavaScript entry point, import the shipped JS:
+
+      // assets/js/app.js
+      import "../../deps/omni_ui/priv/static/omni_ui.js"
+
+  The CSS defines OKLCH semantic colour tokens with light and dark variants.
+  Override any token to match your application's palette.
+
+  ## Quick start with AgentLive
+
+  Configure `Omni.UI.Sessions` (the shipped session manager), add it
+  to your supervision tree, and mount `Omni.UI.AgentLive` in your
+  router:
+
+      # config/config.exs
+      config :omni_ui, Omni.UI.Sessions,
+        store: {Omni.Session.Stores.FileSystem, base_dir: "priv/sessions"},
+        title_generator: {:anthropic, "claude-haiku-4-5"}
+
+      # application.ex
+      children = [
+        # ... your other children
+        Omni.UI.Sessions,
+      ]
+
+      # router.ex
+      scope "/" do
+        pipe_through :browser
+        live "/", Omni.UI.AgentLive
+      end
+
+      forward "/omni_files", Omni.UI.Files.Plug
+
+  Start your server and open the browser — you have a working agent
+  chat with streaming, branching, a files panel, an Elixir REPL, and
+  web tools. See `Omni.UI.AgentLive` for configuration options.
+
+  ## Building a custom LiveView
+
+  `use Omni.UI` in your own LiveView for full control over the template,
+  tools, and event handling. The macro injects `handle_event/3` and
+  `handle_info/2` clauses that route session events and UI interactions
+  automatically — your own handlers compose alongside them via
+  `defoverridable`.
 
       defmodule MyAppWeb.ChatLive do
         use Phoenix.LiveView
@@ -11,34 +96,142 @@ defmodule Omni.UI do
         def render(assigns) do
           ~H\"\"\"
           <.chat_interface>
-            ...
+            <.turn_list stream={@streams.turns} tool_components={@tool_components} />
+            <.turn :if={@current_turn} turn={@current_turn} tool_components={@tool_components} />
+            <:editor>
+              <.editor model={@model} />
+            </:editor>
           </.chat_interface>
           \"\"\"
         end
 
         def mount(_params, _session, socket) do
-          {:ok, init_session(socket, model: {:anthropic, "claude-sonnet-4-5"})}
+          {:ok, init_session(socket, model: {:anthropic, "claude-sonnet-4-6"})}
         end
 
         def handle_params(params, _uri, socket) do
           {:noreply, attach_session(socket, id: params["session_id"])}
         end
-
-        # Optional: observe session events after default handling
-        @impl Omni.UI
-        def session_event(:turn, {:stop, response}, socket) do
-          MyApp.Analytics.track(response.usage)
-          socket
-        end
-
-        def session_event(_event, _data, socket), do: socket
       end
 
-  Sessions are supervised by an `Omni.Session.Manager`. Omni.UI ships
-  `Omni.UI.Sessions` as the default Manager — add it to your application
-  supervision tree with a configured store, then `attach_session/2` will
-  use it automatically. Custom Managers can be passed via the `:manager`
-  option to `init_session/2`.
+  Three functions drive the session lifecycle:
+
+  1. **`init_session/2`** — called once in `mount/3`. Sets up all
+     Omni.UI assigns (model, tools, streams, etc.) but does **not**
+     create a session — `:session` is `nil` after this call.
+  2. **`attach_session/2`** — called in `handle_params/3`. When the
+     URL contains a session id, opens that session from the store and
+     subscribes the LiveView. When the id is `nil` (e.g. the user
+     navigates to `/`), resets to a blank state with no session.
+  3. **`ensure_session/1`** — called automatically by the macro when
+     the user sends their first message. If a session is already
+     attached, this is a no-op. Otherwise it creates a new session on
+     the fly. This lazy-creation avoids piling up empty draft sessions
+     every time someone refreshes the page.
+
+  A typical lifecycle looks like:
+
+      mount/3           → init_session (config only, no session)
+      handle_params/3   → attach_session(id: nil)     # blank page
+      user sends "hi"   → ensure_session              # session created now
+                        → prompt sent to session
+      user clicks a     → handle_params/3
+        session link    → attach_session(id: "abc")   # detach old, attach new
+
+  ### Rendering with components
+
+  `use Omni.UI` imports all components from `Omni.UI.ChatUI` (chat
+  pipeline — `chat_interface`, `editor`, `turn_list`, `turn`,
+  `user_message`, `assistant_message`, `content_block`, `markdown`)
+  and `Omni.UI.CoreUI` (shared primitives — `expandable`, `select`,
+  `version_nav`, `notifications`). Compose them freely in your
+  template.
+
+  ### The session_event callback
+
+  After each session event is processed by the macro's default
+  handlers, your module's `session_event/3` callback is called with
+  the already-updated socket. Use it to layer on custom behaviour —
+  analytics, side effects, additional assigns:
+
+      @impl Omni.UI
+      def session_event(:turn, {:stop, response}, socket) do
+        MyApp.Analytics.track(response.usage)
+        socket
+      end
+
+      def session_event(_event, _data, socket), do: socket
+
+  ## Sessions
+
+  Conversations are managed by an `Omni.Session.Manager`. Omni.UI
+  ships `Omni.UI.Sessions` as the default — configure a store, add it
+  to your supervision tree, and `attach_session/2` uses it
+  automatically. For multi-tenant apps or custom isolation, define
+  your own manager module and pass it via the `:manager` option to
+  `init_session/2`. See `Omni.UI.Sessions` for configuration details.
+
+  Sessions are created lazily on the first prompt (via
+  `ensure_session/1`), so refreshing the page without sending a
+  message doesn't pile up untouched drafts. The macro handles
+  subscription, snapshot reconstruction for mid-stream joins, and
+  event routing — the LiveView is a subscriber, not the owner.
+  Persistence, branching, and idle shutdown are all `Omni.Session`
+  concerns.
+
+  ## Custom agents and tools
+
+  By default, `AgentLive` uses `Omni.UI.Agent` which wires in the
+  Files, REPL, WebFetch, and WebSearch tools. When building your own
+  LiveView, pass a custom `Omni.Agent` module via `:agent_module` to
+  `init_session/2`, or pass tools directly via `:tools`:
+
+      init_session(socket,
+        model: {:anthropic, "claude-sonnet-4-6"},
+        agent_module: MyApp.Agent,
+        tools: [my_tool, {another_tool, component: &MyAppWeb.ToolUI.render/1}]
+      )
+
+  Tools can be paired with a component function that replaces the
+  default content-block rendering for that tool's uses. Alternatively,
+  pass a `:tool_components` map for tools added by the agent module's
+  `init/1` callback. See `init_session/2` for the full options
+  reference.
+
+  ## Theming
+
+  Omni UI's shipped CSS defines semantic colour tokens using OKLCH
+  values, with automatic light/dark variants:
+
+  | Token | Role |
+  | --- | --- |
+  | `--color-omni-bg`, `--color-omni-bg-1` ... `-bg-2` | Background surfaces |
+  | `--color-omni-text`, `--color-omni-text-1` ... `-text-4` | Text hierarchy |
+  | `--color-omni-border-1` ... `-border-3` | Border weights |
+  | `--color-omni-accent-1` ... `-accent-2` | Accent / interactive |
+
+  Override any token in your own CSS to match your application's
+  palette. All components reference these tokens through Tailwind
+  classes (`bg-omni-bg`, `text-omni-text-1`, etc.), so a single
+  override propagates everywhere.
+
+  ## Configuration
+
+  Application-level config is namespaced under `:omni_ui`:
+
+      # Tool execution timeouts (ms)
+      config :omni_ui,
+        tool_timeouts: %{"repl" => 120_000},
+        default_tool_timeout: 15_000
+
+      # Session manager
+      config :omni_ui, Omni.UI.Sessions,
+        store: {Omni.Session.Stores.FileSystem, base_dir: "priv/sessions"},
+        title_generator: {:anthropic, "claude-haiku-4-5"}
+
+  Per-session configuration (model, tools, thinking, system prompt) is
+  set via `init_session/2` options and can be updated at runtime with
+  `update_session/2`.
 
   ## State ownership
 
@@ -57,19 +250,6 @@ defmodule Omni.UI do
 
   The rule: if `mount/3` is setting an Omni.UI-owned assign directly,
   reach for `init_session/2` instead.
-
-  ## Macro behaviour
-
-  - Imports every public function from `Omni.UI`, `Omni.UI.ChatUI`, and `Omni.UI.CoreUI`
-  - Injects `handle_event/3` clauses for Omni.UI-namespaced events
-  - Injects `handle_info/2` clauses for session streaming and component messages
-  - Wraps developer-defined handlers via `defoverridable` so Omni.UI events
-    are dispatched first and unrecognised events fall through
-  - Injects a default `session_event/3` pass-through if the developer doesn't define one
-
-  Persistence is handled by `Omni.Session` itself — the LiveView mirrors the
-  session's tree from `:tree` events and observes `:store` events for save
-  outcomes.
   """
 
   import Phoenix.Component
@@ -314,27 +494,25 @@ defmodule Omni.UI do
   end
 
   @doc """
-  Attaches the LiveView to a session by id, or detaches it.
+  Connects the LiveView to a session, loading its tree, title, and usage
+  into the socket assigns.
 
   Call from `handle_params/3` after `init_session/2` has set the defaults
-  in `mount/3`. Idempotent for the same `:id` — re-entering with the
-  currently-attached id is a no-op (so `push_patch` to the same URL
-  doesn't churn the subscription).
+  in `mount/3`. The function opens the session via the configured Manager,
+  atomically subscribes-with-snapshot, and populates the session-state
+  assigns. Raises if the id isn't found in the store (wrap in
+  `try/rescue` to handle gracefully).
 
-  Otherwise always detaches the previous session (releasing its
-  `:controller` hold so it can idle-shutdown) before applying the new
-  state.
+  If an existing session is already attached, it is detached first
+  (releasing its `:controller` hold so it can idle-shutdown). Idempotent
+  for the same `:id` — re-entering with the currently-attached id is a
+  no-op, so `push_patch` to the same URL doesn't churn the subscription.
 
-  ## Behaviour
-
-    * **`:id` is a binary** — opens that session via the configured
-      Manager, atomically subscribes-with-snapshot, and populates the
-      session-state assigns. Raises if the id isn't found in the store
-      (wrap in `try/rescue` to handle gracefully).
-    * **`:id` is `nil` or omitted** — resets the LV to the blank state
-      (no session attached). The session will be lazily created by
-      `ensure_session/1` on the first `:new_message`, so refreshing on
-      `/` doesn't pile up untitled draft sessions.
+  When `:id` is `nil` or omitted, the socket is reset to the blank state
+  with no session attached. This is the normal path when the user
+  navigates to a URL with no session id (e.g. `/`). The session will be
+  created lazily by `ensure_session/1` when the user sends their first
+  message.
 
   Reads agent configuration (`:manager`, `:model`, `:thinking`, `:system`,
   `:tools`, `:tool_timeout`) from the assigns set by `init_session/2`.

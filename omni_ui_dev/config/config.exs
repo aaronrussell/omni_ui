@@ -52,8 +52,6 @@ config :logger, :default_formatter,
 config :phoenix, :json_library, Jason
 
 # Configure Omni
-config :omni, providers: [:alibaba, :anthropic, :openai, :google, :opencode, :openrouter, :ollama]
-
 config :omni, Omni.Providers.Ollama,
   models: [
     [id: "gemma4:latest", reasoning: true],

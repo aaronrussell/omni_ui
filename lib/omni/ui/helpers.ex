@@ -246,7 +246,7 @@ defmodule Omni.UI.Helpers do
   auto-detects the language. The `lang` value can be a language name
   (`"elixir"`, `"json"`) or a filename (`"report.html"`).
 
-  Returns a `Phoenix.HTML.safe/0` tuple for direct use in HEEx templates.
+  Returns a `t:Phoenix.HTML.safe/0` tuple for direct use in HEEx templates.
   """
   @spec highlight_code(String.t(), String.t() | nil) :: Phoenix.HTML.safe()
   def highlight_code(code, lang \\ nil) do
@@ -297,7 +297,7 @@ defmodule Omni.UI.Helpers do
   @doc """
   Converts a markdown string to HTML using MDEx with GFM and Mermaid support.
 
-  Returns a `Phoenix.HTML.safe/0` tuple for direct use in HEEx templates.
+  Returns a `t:Phoenix.HTML.safe/0` tuple for direct use in HEEx templates.
 
   ## Options
 
