@@ -6,6 +6,8 @@
 
 **Agent chat UI for Elixir** — a ready-made LiveView interface for exploring, prototyping, and experimenting with [Omni Agent](https://github.com/aaronrussell/omni_agent) powered agents.
 
+![Omni UI](https://raw.githubusercontent.com/aaronrussell/omni_ui/main/media/screenshot.webp)
+
 ## Features
 
 - **Built on Omni** — multi-provider LLM support, streaming, tool use, structured output, persistent sessions, branching conversations, and pluggable storage — all inherited from [Omni](https://github.com/aaronrussell/omni), [Omni Agent](https://github.com/aaronrussell/omni_agent), and [Omni Tools](https://github.com/aaronrussell/omni_tools)
