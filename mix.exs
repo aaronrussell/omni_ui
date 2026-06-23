@@ -61,14 +61,15 @@ defmodule Omni.UI.MixProject do
           Omni.UI.Notification,
           Omni.UI.Turn
         ],
-        Files: ~r/^Omni\.UI\.Files\..+$/,
+        Files: ~r/^Omni\.UI\.Files\..+$/
       ]
     ]
   end
 
   defp pkg do
     [
-      description: "Agent chat UI for Elixir — ready-made LiveView interface and components for building Omni-powered agents.",
+      description:
+        "Agent chat UI for Elixir — ready-made LiveView interface and components for building Omni-powered agents.",
       licenses: ["Apache-2.0"],
       maintainers: ["Aaron Russell"],
       files: ~w(lib .formatter.exs mix.exs CHANGELOG.md LICENSE README.md),
