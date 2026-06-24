@@ -1,8 +1,50 @@
+defmodule Omni.UI.TestErrorHTML do
+  @moduledoc false
+  def render(template, _assigns), do: Phoenix.Controller.status_message_from_template(template)
+end
+
+defmodule Omni.UI.TestRouter do
+  @moduledoc false
+  use Phoenix.Router
+  import Phoenix.LiveView.Router
+
+  pipeline :browser do
+    plug(:accepts, ["html"])
+    plug(:fetch_session)
+    plug(:fetch_live_flash)
+    plug(:protect_from_forgery)
+    plug(:put_secure_browser_headers)
+  end
+
+  scope "/" do
+    pipe_through(:browser)
+    live("/", Omni.UI.AgentLive)
+  end
+end
+
 defmodule Omni.UI.TestEndpoint do
   @moduledoc false
-  # Minimal endpoint module for render_component/2. The LiveViewTest helpers
-  # store this on the socket struct but don't call any functions on it during
-  # static rendering, so a bare module is sufficient.
+  use Phoenix.Endpoint, otp_app: :omni_ui
+
+  @session_options [
+    store: :cookie,
+    key: "_omni_ui_test_key",
+    signing_salt: "test_salt"
+  ]
+
+  socket("/live", Phoenix.LiveView.Socket,
+    websocket: [connect_info: [session: @session_options]],
+    longpoll: [connect_info: [session: @session_options]]
+  )
+
+  plug(Plug.Parsers,
+    parsers: [:urlencoded, :multipart, :json],
+    pass: ["*/*"],
+    json_decoder: Phoenix.json_library()
+  )
+
+  plug(Plug.Session, @session_options)
+  plug(Omni.UI.TestRouter)
 end
 
 defmodule Omni.UI.ComponentCase do
