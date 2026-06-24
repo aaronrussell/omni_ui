@@ -41,6 +41,7 @@ defmodule Omni.UI.MixProject do
       {:mdex, "~> 0.13"},
       {:mdex_gfm, "~> 0.2"},
       {:mdex_mermaid, "~> 0.3"},
+      {:phoenix, "~> 1.8"},
       {:phoenix_live_view, "~> 1.2"},
 
       # dev dependencies
