@@ -34,12 +34,12 @@ defmodule Omni.UI.ChatUI do
     <div
       class={[
         "omni-ui flex flex-col h-full @container/chat",
-        "[interpolate-size:allow-keywords]",
-        "bg-omni-bg text-omni-text"
+        "[interpolate-size:allow-keywords]"
         | md_styles()
       ]}>
       <div
         id="omni-view"
+        phx-hook=".OmniScroll"
         class={[
           "flex-auto overflow-y-scroll",
           "px-4 py-8 @md/chat:px-8 @md/chat:py-16 @lg/chat:px-12"
@@ -75,6 +75,91 @@ defmodule Omni.UI.ChatUI do
         </div>
       </div>
     </div>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".OmniScroll">
+      export default {
+        mounted() {
+          this._content = this.el.querySelector("#omni-content");
+          this._sentinel = this.el.querySelector("#omni-sentinel");
+          this._autoScroll = false;
+          this._scrollLock = false;
+          this._prevScrollTop = this.el.scrollTop;
+
+          this._onScroll = () => {
+            const { scrollTop, scrollHeight, clientHeight } = this.el;
+            const gap = scrollHeight - scrollTop - clientHeight;
+
+            if (scrollTop !== 0 && scrollTop < this._prevScrollTop && gap > 64) {
+              this._autoScroll = false;
+            } else if (gap < 16) {
+              this._autoScroll = true;
+            }
+
+            this._prevScrollTop = scrollTop;
+          };
+          this.el.addEventListener("scroll", this._onScroll);
+
+          this._resizeObserver = new ResizeObserver(() => {
+            if (this._autoScroll) {
+              this.el.scrollTop = this.el.scrollHeight;
+            }
+          });
+          if (this._content) this._resizeObserver.observe(this._content);
+
+          this._intersectionObserver = new IntersectionObserver(
+            (entries) => {
+              if (this._scrollLock && !entries[0].isIntersecting) {
+                document.body.style.removeProperty("--scroll-lock");
+                this._scrollLock = false;
+              }
+            },
+            { root: this.el, rootMargin: "0px 0px -64px 0px" }
+          );
+          if (this._sentinel) this._intersectionObserver.observe(this._sentinel);
+
+          this._onBeforeUpdate = () => {
+            const lockHeight = this.el.scrollTop + this.el.clientHeight;
+            document.body.style.setProperty("--scroll-lock", lockHeight + "px");
+            this._autoScroll = false;
+          };
+          document.addEventListener("omni:before-update", this._onBeforeUpdate);
+
+          this.handleEvent("omni:updated", () => {
+            this._scrollLock = true;
+          });
+        },
+
+        destroyed() {
+          this.el.removeEventListener("scroll", this._onScroll);
+          if (this._resizeObserver) this._resizeObserver.disconnect();
+          if (this._intersectionObserver) this._intersectionObserver.disconnect();
+          document.removeEventListener("omni:before-update", this._onBeforeUpdate);
+        }
+      }
+    </script>
+
+    <script :type={Phoenix.LiveView.ColocatedJS}>
+      window.addEventListener("phx:omni:clipboard", (e) => {
+        if (e.detail.text != null) {
+          navigator.clipboard.writeText(e.detail.text);
+        }
+      });
+
+      document.addEventListener("omni:focus", (e) => {
+        e.target.focus();
+      });
+
+      document.addEventListener("omni:select", (e) => {
+        requestAnimationFrame(() => {
+          e.target.focus();
+          e.target.select();
+        });
+      });
+
+      document.addEventListener("omni:reset", (e) => {
+        e.target.value = e.target.getAttribute("value");
+      });
+    </script>
     """
   end
 

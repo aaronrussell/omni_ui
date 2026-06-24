@@ -10,6 +10,7 @@ defmodule Omni.UI.MixProject do
       name: "Omni UI",
       version: @version,
       elixir: "~> 1.18",
+      compilers: [:phoenix_live_view] ++ Mix.compilers(),
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
@@ -72,7 +73,7 @@ defmodule Omni.UI.MixProject do
         "Agent chat UI for Elixir — ready-made LiveView interface and components for building Omni-powered agents.",
       licenses: ["Apache-2.0"],
       maintainers: ["Aaron Russell"],
-      files: ~w(lib .formatter.exs mix.exs CHANGELOG.md LICENSE README.md),
+      files: ~w(lib priv .formatter.exs mix.exs CHANGELOG.md LICENSE README.md),
       links: %{
         "GitHub" => @source_url
       }

@@ -41,12 +41,21 @@ In your CSS entry point, add a `@source` directive pointing at the Omni UI compo
 @import "../../deps/omni_ui/priv/static/omni_ui.css";
 ```
 
-In your JavaScript entry point, import the shipped JS:
+In your JavaScript entry point, import the colocated hooks and spread them
+into your LiveSocket:
 
 ```js
 // assets/js/app.js
-import "../../deps/omni_ui/priv/static/omni_ui.js"
+import {hooks as omniHooks} from "phoenix-colocated/omni_ui"
+
+const liveSocket = new LiveSocket("/live", Socket, {
+  hooks: {...omniHooks},
+  // ...
+})
 ```
+
+This requires your esbuild `NODE_PATH` to include `Mix.Project.build_path()`,
+which is the default for Phoenix 1.8+ applications.
 
 The CSS defines [OKLCH](https://oklch.com/) semantic colour tokens (`--color-omni-bg`, `--color-omni-text`, `--color-omni-accent-1`, etc.) with light and dark variants. Override any token in your own CSS to match your application's palette.
 
