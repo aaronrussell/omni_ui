@@ -34,13 +34,14 @@ config :esbuild,
 
 # Configure tailwind (the version is required)
 config :tailwind,
-  version: "4.1.12",
+  version: "4.3.0",
   omni_ui_dev: [
     args: ~w(
       --input=assets/css/app.css
       --output=priv/static/assets/css/app.css
     ),
-    cd: Path.expand("..", __DIR__)
+    cd: Path.expand("..", __DIR__),
+    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
   ]
 
 # Configure Elixir's Logger
@@ -61,6 +62,9 @@ config :omni, Omni.Providers.Ollama,
 config :omni_ui, Omni.UI.AgentLive,
   providers: [:ollama],
   default_model: {:ollama, "gemma4:latest"}
+
+# Ensure mdex is compiled with lumis
+config :mdex_native, syntax_highlighter: :lumis
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

@@ -35,7 +35,11 @@ defmodule Omni.UI.EditorComponent do
       ]}
       phx-drop-target={@uploads.attachments.ref}
       >
-      <form phx-submit="submit" phx-change="change" phx-target={@myself}>
+      <form
+        id={"#{@id}-form"}
+        phx-submit="submit"
+        phx-change="change"
+        phx-target={@myself}>
         <div class="relative">
           <div
             class={[

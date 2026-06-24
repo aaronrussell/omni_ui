@@ -36,12 +36,12 @@ defmodule Omni.UI.MixProject do
       {:omni_agent, "~> 0.5"},
       {:omni_tools, "~> 0.4"},
       {:jason, "~> 1.4"},
-      {:lucide_icons, "~> 2.0"},
-      {:lumis, "~> 0.2.0"},
-      {:mdex, "~> 0.11.6"},
+      {:lucide_icons, "~> 2.2"},
+      {:lumis, "~> 0.6"},
+      {:mdex, "~> 0.13"},
       {:mdex_gfm, "~> 0.2"},
-      {:mdex_mermaid, "~> 0.3.5"},
-      {:phoenix_live_view, "~> 1.1.27"},
+      {:mdex_mermaid, "~> 0.3"},
+      {:phoenix_live_view, "~> 1.2"},
 
       # dev dependencies
       {:ex_doc, "~> 0.40", only: :dev, runtime: false, warn_if_outdated: true}
@@ -73,7 +73,7 @@ defmodule Omni.UI.MixProject do
         "Agent chat UI for Elixir — ready-made LiveView interface and components for building Omni-powered agents.",
       licenses: ["Apache-2.0"],
       maintainers: ["Aaron Russell"],
-      files: ~w(lib priv .formatter.exs mix.exs CHANGELOG.md LICENSE README.md),
+      files: ~w(lib .formatter.exs mix.exs CHANGELOG.md LICENSE README.md),
       links: %{
         "GitHub" => @source_url
       }

@@ -32,17 +32,30 @@ defmodule Omni.UI do
   your provider API keys as described in the
   [Omni README](https://github.com/aaronrussell/omni#installation).
 
+  ### Requirements
+
+  Omni UI uses colocated CSS and JavaScript (extracted at compile time
+  by the `:phoenix_live_view` compiler). This requires:
+
+  - Phoenix 1.8+
+  - Phoenix LiveView 1.2+
+  - Tailwind 4.2.3+
+
+  New Phoenix applications generated from 1.8.8 onwards are ready out
+  of the box.
+
   ### Assets
 
-  Omni UI ships CSS and JavaScript that your application needs to include.
+  Omni UI ships its CSS and JavaScript as colocated assets — no static
+  files to copy. Your application imports them from the
+  `phoenix-colocated` build output.
 
-  In your CSS entry point, add a `@source` directive pointing at the
-  Omni UI component templates so Tailwind can scan them, and `@import`
-  the shipped stylesheet:
+  In your CSS entry point, import the colocated stylesheet and add a
+  `@source` directive so Tailwind can scan the component templates:
 
       /* assets/css/app.css */
-      @source "../../deps/omni_ui/lib/omni/ui";
-      @import "../../deps/omni_ui/priv/static/omni_ui.css";
+      @import "phoenix-colocated/omni_ui/colocated.css";
+      @source "../../deps/omni_ui/lib";
 
   In your JavaScript entry point, import the colocated hooks and spread
   them into your LiveSocket:
@@ -55,12 +68,21 @@ defmodule Omni.UI do
         // ...
       })
 
-  This requires your esbuild `NODE_PATH` to include
-  `Mix.Project.build_path()`, which is the default for Phoenix 1.8+
-  applications.
+  Both require your bundler's module resolution to include
+  `Mix.Project.build_path()`. For esbuild and Tailwind, this is
+  configured via the `NODE_PATH` environment variable, which is the
+  default for Phoenix 1.8+ applications.
 
-  The CSS defines OKLCH semantic colour tokens with light and dark variants.
-  Override any token to match your application's palette.
+  The CSS defines OKLCH semantic colour tokens with light and dark
+  variants. Override any token to match your application's palette.
+
+  ### Syntax highlighting
+
+  Omni UI uses mdex for Markdown rendering with syntax highlighting
+  powered by lumis. Enable it in your application config:
+
+      # config/config.exs
+      config :mdex_native, syntax_highlighter: :lumis
 
   ## Quick start with AgentLive
 
@@ -69,6 +91,8 @@ defmodule Omni.UI do
   router:
 
       # config/config.exs
+      config :mdex_native, syntax_highlighter: :lumis
+
       config :omni_ui, Omni.UI.Sessions,
         store: {Omni.Session.Stores.FileSystem, base_dir: "priv/sessions"},
         title_generator: {:anthropic, "claude-haiku-4-5"}

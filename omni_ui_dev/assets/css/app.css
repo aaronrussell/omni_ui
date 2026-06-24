@@ -2,12 +2,14 @@
    https://tailwindcss.com/docs/configuration */
 
 @import "tailwindcss" source(none);
+@import "phoenix-colocated/omni_ui/colocated.css";
 
 @source "../css";
 @source "../js";
 @source "../../lib/omni_ui_dev_web";
 @source "../../../lib/omni/ui";
-@import "../../../priv/static/omni_ui.css";
+/* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
+@source "../../_build/dev/phoenix-colocated/omni_ui";
 
 /* Add variants based on LiveView classes */
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);

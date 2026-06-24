@@ -76,7 +76,11 @@ defmodule Omni.UI.TurnComponent do
         "w-full border rounded-xl",
         "bg-omni-bg border-omni-border-1/75 [&:has(textarea:focus)]:border-omni-accent-1",
       ]}>
-      <form phx-change="change" phx-submit={JS.dispatch("omni:before-update") |> JS.push("submit")} phx-target={@target}>
+      <form
+        id="user-edit-form"
+        phx-submit={JS.dispatch("omni:before-update") |> JS.push("submit")}
+        phx-change="change"
+        phx-target={@target}>
         <div class="relative">
           <textarea
             name="input"

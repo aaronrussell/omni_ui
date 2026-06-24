@@ -250,11 +250,11 @@ defmodule Omni.UI.Helpers do
   """
   @spec highlight_code(String.t(), String.t() | nil) :: Phoenix.HTML.safe()
   def highlight_code(code, lang \\ nil) do
-    formatter = {:html_inline, theme: "catppuccin_macchiato"}
+    formatter = {:html_inline, language: lang, theme: "catppuccin_macchiato"}
 
     code
     |> String.trim()
-    |> Lumis.highlight!(language: lang, formatter: formatter)
+    |> Lumis.highlight!(formatter: formatter)
     |> Phoenix.HTML.raw()
   end
 
@@ -313,13 +313,8 @@ defmodule Omni.UI.Helpers do
     |> MDExMermaid.attach()
     |> MDEx.to_html!(
       syntax_highlight: [
-        formatter: {:html_inline, theme: "catppuccin_macchiato"}
-      ],
-      sanitize: [
-        add_tag_attributes: %{"a" => ~w(target rel)},
-        set_tag_attribute_values: %{
-          "a" => %{"target" => "_blank", "rel" => "noopener noreferrer"}
-        }
+        engine: :lumis,
+        opts: [formatter: {:html_inline, theme: "catppuccin_macchiato"}]
       ]
     )
     |> Phoenix.HTML.raw()
