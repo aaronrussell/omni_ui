@@ -63,6 +63,10 @@ defmodule Omni.UI do
         store: {Omni.Session.Stores.FileSystem, base_dir: "priv/sessions"},
         title_generator: {:anthropic, "claude-haiku-4-5"}
 
+      config :omni_ui, Omni.UI.AgentLive,
+        providers: [:anthropic],
+        default_model: {:anthropic, "claude-sonnet-4-6"}
+
       # application.ex
       children = [
         # ... your other children

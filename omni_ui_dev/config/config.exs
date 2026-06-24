@@ -58,6 +58,10 @@ config :omni, Omni.Providers.Ollama,
     [id: "gemma4:26b", reasoning: true]
   ]
 
+config :omni_ui, Omni.UI.AgentLive,
+  providers: [:ollama],
+  default_model: {:ollama, "gemma4:latest"}
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

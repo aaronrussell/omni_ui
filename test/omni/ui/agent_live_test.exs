@@ -130,6 +130,55 @@ defmodule Omni.UI.AgentLiveTest do
     end
   end
 
+  describe "model configuration" do
+    setup do
+      original = Application.get_env(:omni_ui, Omni.UI.AgentLive, [])
+      on_exit(fn -> Application.put_env(:omni_ui, Omni.UI.AgentLive, original) end)
+      :ok
+    end
+
+    test "unknown provider is silently skipped", %{conn: conn} do
+      Application.put_env(:omni_ui, Omni.UI.AgentLive,
+        providers: [:ollama, :nonexistent_provider],
+        default_model: {:ollama, "gemma4:latest"}
+      )
+
+      {:ok, _view, _html} = live(conn, "/")
+    end
+
+    test "empty providers hides model select (fixed model pattern)", %{conn: conn} do
+      Application.put_env(:omni_ui, Omni.UI.AgentLive, default_model: {:ollama, "gemma4:latest"})
+
+      {:ok, _view, html} = live(conn, "/")
+
+      refute html =~ "model-select"
+    end
+
+    test "falls back to first model when no default configured", %{conn: conn} do
+      Application.put_env(:omni_ui, Omni.UI.AgentLive, providers: [:ollama])
+
+      {:ok, _view, html} = live(conn, "/")
+
+      assert html =~ "model-select"
+    end
+
+    test "falls back to first model when default not in provider models", %{conn: conn} do
+      import ExUnit.CaptureLog
+
+      Application.put_env(:omni_ui, Omni.UI.AgentLive,
+        providers: [:ollama],
+        default_model: {:ollama, "nonexistent-model"}
+      )
+
+      log =
+        capture_log(fn ->
+          {:ok, _view, _html} = live(conn, "/")
+        end)
+
+      assert log =~ "not found in provider models"
+    end
+  end
+
   # ── Helpers ────────────────────────────────────────────────────────
 
   defp seed_session!(opts) do

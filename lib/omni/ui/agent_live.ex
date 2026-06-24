@@ -5,7 +5,7 @@ defmodule Omni.UI.AgentLive do
   Mounts a complete chat interface with a sessions drawer, files panel,
   and the built-in tools (Files, REPL, WebFetch, WebSearch) wired up
   via `Omni.UI.Agent`. Drop it into your router for a working agent UI
-  with no additional setup beyond configuring `Omni.UI.Sessions`:
+  with minimal setup:
 
       # router.ex
       forward "/omni_files", Omni.UI.Files.Plug
@@ -15,6 +15,37 @@ defmodule Omni.UI.AgentLive do
   files (HTML documents and code artifacts). See `Omni.UI.Files.Plug`
   for token signing and configuration details.
 
+  ## Configuration
+
+  Configure via `config :omni_ui, Omni.UI.AgentLive`:
+
+    * `:providers` — list of provider atoms. Calls `Omni.list_models/1`
+      for each at mount time, silently skipping any that fail. The
+      combined list populates the model selector. Defaults to `[]`.
+
+    * `:default_model` — `{provider, model_id}` tuple for the model
+      the agent starts with. If omitted, falls back to the first model
+      returned by the configured providers. If set but not found in the
+      provider models, logs a warning and falls back to the first
+      available model.
+
+  At least one of `:default_model` or a non-empty `:providers` list is
+  required.
+
+  ### Multi-provider setup
+
+      config :omni_ui, Omni.UI.AgentLive,
+        providers: [:anthropic, :ollama],
+        default_model: {:anthropic, "claude-sonnet-4-6"}
+
+  ### Fixed model (no selector)
+
+  Configure only `:default_model` with no `:providers` to lock the
+  model and hide the selector:
+
+      config :omni_ui, Omni.UI.AgentLive,
+        default_model: {:anthropic, "claude-sonnet-4-6"}
+
   For more control over layout, tools, or event handling, skip this
   module and `use Omni.UI` in your own LiveView instead.
   """
@@ -22,10 +53,10 @@ defmodule Omni.UI.AgentLive do
   use Phoenix.LiveView
   use Omni.UI
 
+  require Logger
+
   alias Omni.UI.FilesComponent
   alias Phoenix.LiveView.JS
-
-  @default_model {:ollama, "gemma4:latest"}
 
   attr :current_turn, Omni.UI.Turn
   attr :usage, Omni.Usage, required: true
@@ -183,10 +214,9 @@ defmodule Omni.UI.AgentLive do
 
   @impl Phoenix.LiveView
   def mount(_params, _session, socket) do
-    {:ok, models1} = Omni.list_models(:ollama)
-    {:ok, models2} = Omni.list_models(:alibaba)
-    {:ok, models3} = Omni.list_models(:venice)
-    model_options = models1 ++ models2 ++ models3
+    config = Application.get_env(:omni_ui, __MODULE__, [])
+    model_options = list_provider_models(config)
+    model = resolve_default_model(config, model_options)
 
     if connected?(socket), do: Omni.UI.Sessions.subscribe()
 
@@ -203,7 +233,7 @@ defmodule Omni.UI.AgentLive do
          "files" => &Omni.UI.ToolsUI.files_tool_use/1,
          "repl" => &Omni.UI.ToolsUI.repl_tool_use/1
        },
-       model: @default_model
+       model: model
      )}
   end
 
@@ -262,4 +292,56 @@ defmodule Omni.UI.AgentLive do
   end
 
   def session_event(_event, _data, socket), do: socket
+
+  defp list_provider_models(config) do
+    config
+    |> Keyword.get(:providers, [])
+    |> Enum.flat_map(fn provider_id ->
+      case Omni.list_models(provider_id) do
+        {:ok, models} -> models
+        {:error, _} -> []
+      end
+    end)
+  end
+
+  defp resolve_default_model(config, model_options) do
+    case {Keyword.get(config, :default_model), model_options} do
+      {{_, _} = ref, [model | _]} ->
+        if model_exists?(ref, model_options) do
+          ref
+        else
+          Logger.warning(
+            "Omni.UI.AgentLive: configured :default_model #{inspect(ref)} " <>
+              "not found in provider models, falling back to first available model"
+          )
+
+          model
+        end
+
+      {{_, _} = ref, []} ->
+        ref
+
+      {nil, [model | _]} ->
+        model
+
+      {nil, []} ->
+        raise ArgumentError, """
+        Omni.UI.AgentLive requires at least one of :default_model or \
+        a non-empty :providers list.
+
+        Configure in your application config:
+
+            config :omni_ui, Omni.UI.AgentLive,
+              providers: [:anthropic],
+              default_model: {:anthropic, "claude-sonnet-4-6"}
+        """
+    end
+  end
+
+  defp model_exists?({provider_id, model_id}, model_options) do
+    Enum.any?(model_options, fn model ->
+      {p, id} = Omni.Model.to_ref(model)
+      p == provider_id and id == model_id
+    end)
+  end
 end
