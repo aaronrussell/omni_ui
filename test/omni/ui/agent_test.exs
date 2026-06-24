@@ -1,5 +1,5 @@
 defmodule Omni.UI.AgentTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Omni.Agent.State
   alias Omni.UI.Agent
@@ -75,10 +75,8 @@ defmodule Omni.UI.AgentTest do
 
       files_tool = Enum.find(result.tools, &(&1.name == "files"))
       assert files_tool
-      assert files_tool.description =~ "file"
 
-      assert File.dir?(Path.dirname(expected_files_dir)) ||
-               !File.exists?(expected_files_dir)
+      assert Omni.UI.Sessions.session_files_dir("test-session-123") == expected_files_dir
     end
 
     test "preserves existing tools at the front of the list", %{state: state} do

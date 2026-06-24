@@ -94,4 +94,28 @@ defmodule Omni.UI.SessionLifecycleTest do
       assert reattached.assigns.session_id == attached.assigns.session_id
     end
   end
+
+  describe "ensure_session/1" do
+    test "creates and attaches a new session when none exists" do
+      socket = init_socket()
+      assert socket.assigns.session == nil
+
+      socket = Omni.UI.ensure_session(socket)
+
+      assert is_pid(socket.assigns.session)
+      assert Process.alive?(socket.assigns.session)
+      assert is_binary(socket.assigns.session_id)
+      assert %Omni.Session.Tree{} = socket.assigns.tree
+      assert socket.assigns.url_synced == false
+    end
+
+    test "is a no-op when a session is already attached" do
+      socket = Omni.UI.ensure_session(init_socket())
+      original_pid = socket.assigns.session
+
+      socket = Omni.UI.ensure_session(socket)
+
+      assert socket.assigns.session == original_pid
+    end
+  end
 end

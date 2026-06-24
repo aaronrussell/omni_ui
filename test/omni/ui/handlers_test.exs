@@ -225,9 +225,8 @@ defmodule Omni.UI.HandlersTest do
     test "logs the error and sends a notification" do
       socket = init_socket()
 
-      socket = Handlers.handle_session_event(:store, {:error, :tree, :enoent}, socket)
+      Handlers.handle_session_event(:store, {:error, :tree, :enoent}, socket)
 
-      assert socket == socket
       assert_received {Omni.UI, :notify, %Omni.UI.Notification{level: :error}}
     end
   end

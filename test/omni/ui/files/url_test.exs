@@ -4,7 +4,7 @@ defmodule Omni.UI.Files.URLTest.Endpoint do
 end
 
 defmodule Omni.UI.Files.URLTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Omni.UI.Files.URL
   alias Omni.UI.Files.URLTest.Endpoint
