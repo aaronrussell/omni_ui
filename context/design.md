@@ -590,6 +590,12 @@ typography styles via a class list returned by
 a plain `EditorComponent`. `editor/1` wraps `EditorComponent` with
 default controls (model select, thinking toggle, usage display).
 
+`chat_interface/1` also carries the colocated assets: a
+`ColocatedHook` (`.OmniScroll` on the scroll container — autoscroll,
+scroll lock, and `omni:updated` event handling) and a `ColocatedJS`
+side-effect (clipboard and autofocus listeners). These are extracted
+at compile time and bundled via `phoenix-colocated/omni_ui`.
+
 ### 7.2 The two LiveComponents
 
 - **`Omni.UI.TurnComponent`** — renders one completed turn. Owns the
@@ -1081,8 +1087,9 @@ Omni.UI-specific configuration.
 
 ## 14. CSS theming
 
-`priv/static/omni_ui.css` defines the visual theme using Tailwind 4's
-`@theme` directive. Semantic tokens in OKLCH:
+The visual theme is defined as colocated CSS (via `ColocatedCSS`)
+embedded in the component templates. It uses Tailwind 4's `@theme`
+directive with semantic tokens in OKLCH:
 
 - `omni-bg`, `omni-bg-1`, `omni-bg-2` — background layers.
 - `omni-text-1..4` — text emphasis (1 = strongest, 4 = muted).
@@ -1129,10 +1136,10 @@ lib/
     notification.ex                # %Notification{}
     sessions.ex                    # Omni.UI.Sessions — default Manager + dir helpers
     turn.ex                        # %Omni.UI.Turn{} + Turn.all/1, Turn.get/2, Turn.new/3
+    colocated_css.ex               # ColocatedCSS behaviour (global, no scoping)
     files/
       plug.ex                      # signed-token HTTP serving
       url.ex                       # token signing + URL construction
-priv/static/omni_ui.css            # OKLCH theme + markdown typography
 omni_ui_dev/                       # companion Phoenix app for browser testing
 test/                              # ExUnit suite
 ```
