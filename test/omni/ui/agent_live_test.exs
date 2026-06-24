@@ -45,11 +45,13 @@ defmodule Omni.UI.AgentLiveTest do
       {:ok, view, html} = live(conn, "/")
 
       assert html =~ ~s(title="Sessions")
-      toggled = view |> element(~s(button[title="Sessions"])) |> render_click()
-      refute toggled =~ "translate-x-0"
+      refute html =~ "translate-x-0"
 
-      reopened = view |> element(~s(button[title="Sessions"])) |> render_click()
-      assert reopened =~ "translate-x-0"
+      opened = view |> element(~s(button[title="Sessions"])) |> render_click()
+      assert opened =~ "translate-x-0"
+
+      closed = view |> element(~s(button[title="Sessions"])) |> render_click()
+      refute closed =~ "translate-x-0"
     end
 
     test "toggles files panel open/closed", %{conn: conn} do
