@@ -63,7 +63,10 @@ defmodule Omni.UI.AgentLive do
   @impl Phoenix.LiveView
   def render(assigns) do
     ~H"""
-    <div class="relative h-screen w-full flex bg-omni-bg text-omni-text overflow-x-hidden">
+    <div
+      id="agent-live"
+      phx-hook=".Responsive"
+      class="relative h-screen w-full flex bg-omni-bg text-omni-text overflow-x-hidden">
       <.side_panel
         align="left"
         open={@open_sessions}
@@ -121,6 +124,16 @@ defmodule Omni.UI.AgentLive do
 
       <.notifications stream={@streams.notifications} />
     </div>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Responsive">
+      export default {
+        mounted() {
+          if (window.innerWidth >= 1024) {
+            this.pushEvent("toggle", {name: "sessions"});
+          }
+        }
+      }
+    </script>
     """
   end
 
@@ -224,7 +237,7 @@ defmodule Omni.UI.AgentLive do
      socket
      |> assign(
        model_options: model_options,
-       open_sessions: true,
+       open_sessions: false,
        open_files: false
      )
      |> init_session(

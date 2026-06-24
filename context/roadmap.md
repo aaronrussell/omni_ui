@@ -13,18 +13,6 @@ and a release path.
 Smaller items that don't need major design work but should land
 before a public release.
 
-- **Hex docs** — moduledocs are mostly in shape. Need a usage guide
-  covering: the three layers; the `init_session` / `attach_session`
-  / `ensure_session` lifecycle; wiring `Omni.UI.Sessions`
-  into a supervision tree; mounting
-  `Files.Plug`; registering custom tool-use components.
-
-- **Test backfill** — current coverage is good for data
-  structures, components, and the macro lifecycle. Areas that would
-  benefit from more: `Omni.UI.Handlers` session-event paths
-  end-to-end (with stubbed `Omni.Session`), `Omni.UI.SessionsComponent`
-  manager-event reducers, branch-error notification mappings.
-
 - **Streaming-perf delta debounce** — debounce text deltas (50–100ms
   timer) to reduce re-renders during fast streaming. Optional —
   current performance is acceptable.

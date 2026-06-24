@@ -39,7 +39,7 @@ defmodule Omni.UI.ChatUI do
       ]}>
       <div
         id="omni-view"
-        phx-hook=".OmniScroll"
+        phx-hook=".Scrolling"
         class={[
           "flex-auto overflow-y-scroll",
           "px-4 py-8 @md/chat:px-8 @md/chat:py-16 @lg/chat:px-12"
@@ -138,7 +138,7 @@ defmodule Omni.UI.ChatUI do
       }
     </style>
 
-    <script :type={Phoenix.LiveView.ColocatedHook} name=".OmniScroll">
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Scrolling">
       export default {
         mounted() {
           this._content = this.el.querySelector("#omni-content");
