@@ -60,7 +60,7 @@ config :omni, Omni.Providers.Ollama,
   ]
 
 config :omni_ui, Omni.UI.AgentLive,
-  providers: [:ollama],
+  providers: [:alibaba, :ollama],
   default_model: {:ollama, "gemma4:latest"}
 
 # Ensure mdex is compiled with lumis
