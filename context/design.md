@@ -588,7 +588,7 @@ container, optional `:editor` and `:footer` slots, and the markdown
 typography styles via a class list returned by
 `Omni.UI.Helpers.md_styles/0`. When `:editor` is not provided, renders
 a plain `EditorComponent`. `editor/1` wraps `EditorComponent` with
-default controls (model select, thinking toggle, usage display).
+default controls (model select, thinking toggle).
 
 `chat_interface/1` also carries the colocated assets: a
 `ColocatedHook` (`.OmniScroll` on the scroll container — autoscroll,

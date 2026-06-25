@@ -110,7 +110,7 @@ defmodule Omni.UI.TurnComponent do
             <div class="flex-auto flex gap-2 pr-2 text-omni-text-3">
               <Lucideicons.info class="size-4" />
               <p class="text-xs">
-                Editing this message will create a new conversation branch. You can switch between branches using the arrow navigation buttons.
+                Editing this message will create a new, navigable conversation branch.
               </p>
             </div>
 

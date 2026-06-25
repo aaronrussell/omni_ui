@@ -100,12 +100,11 @@ defmodule Omni.UI.AgentLive do
             <.editor
               model={@model}
               model_options={@model_options}
-              thinking={@thinking}
-              usage={@usage} />
+              thinking={@thinking} />
           </:editor>
 
           <:footer>
-            <p>Boring footer here. <a href="#todo">Privacy Policy</a></p>
+            <.usage_block usage={@usage} />
           </:footer>
         </.chat_interface>
       </.panel>

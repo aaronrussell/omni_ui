@@ -55,7 +55,7 @@ defmodule Omni.UI.ChatUI do
         </div>
       </div>
 
-      <div class={["shrink-0 px-12", if(@footer == [], do: "pb-8", else: "pb-6")]}>
+      <div class={["shrink-0 @lg/chat:px-4", if(@footer == [], do: "@lg/chat:pb-8", else: "@lg/chat:pb-6")]}>
         <div class="max-w-3xl mx-auto flex flex-col items-center gap-6">
           <%= if @editor != [] do %>
             {render_slot(@editor)}
@@ -66,7 +66,7 @@ defmodule Omni.UI.ChatUI do
           <div
             :if={@footer != []}
             class={[
-              "text-xs text-omni-text-4",
+              "hidden @lg/chat:block text-xs text-omni-text-4",
               "[&_a]:text-omni-text-3 [&_a]:underline [&_a]:transition-colors",
               "[&_a]:hover:text-omni-accent-2"
             ]}>
@@ -255,7 +255,6 @@ defmodule Omni.UI.ChatUI do
   attr :model_options, :list, default: nil
   attr :model, Omni.Model, default: nil
   attr :thinking, :atom, default: nil
-  attr :usage, Omni.Usage, default: nil
   slot :controls
 
   @thinking_levels [:max, :high, :medium, :low, false]
@@ -274,39 +273,27 @@ defmodule Omni.UI.ChatUI do
         <%= if @controls != [] do %>
           {render_slot(@controls)}
         <% else %>
-          <div class="flex flex-auto items-center gap-4">
-            <div
-              :if={@formatted_model_options && @model}
-              class={[
-                "flex items-center gap-4",
-                "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
-              ]}>
-              <.select
-                id="model-select"
-                options={@formatted_model_options}
-                value={model_key(@model)}
-                event="omni:select" name="model"
-                position="above" />
-            </div>
+          <div
+            :if={@formatted_model_options && @model}
+            class="flex items-center gap-4">
+            <.select
+              id="model-select"
+              options={@formatted_model_options}
+              value={model_key(@model)}
+              event="omni:select" name="model"
+              position="above" />
+          </div>
 
-            <div
-              :if={@thinking != nil && @model && @model.reasoning}
-              class={[
-                "flex items-center gap-4",
-                "before:content=[''] before:w-px before:h-3 before:bg-omni-border-2"
-              ]}>
-              <.select
-                id="thinking-select"
-                options={@formatted_thinking_options}
-                value={to_string(@thinking)}
-                event="omni:select" name="thinking"
-                prompt="Thinking"
-                position="above" />
-            </div>
-
-            <div :if={@usage} class="flex-auto flex items-center justify-end">
-              <.usage_block usage={@usage} />
-            </div>
+          <div
+            :if={@thinking != nil && @model && @model.reasoning}
+            class="flex items-center gap-4">
+            <.select
+              id="thinking-select"
+              options={@formatted_thinking_options}
+              value={to_string(@thinking)}
+              event="omni:select" name="thinking"
+              prompt="Thinking"
+              position="above" />
           </div>
         <% end %>
       </:controls>

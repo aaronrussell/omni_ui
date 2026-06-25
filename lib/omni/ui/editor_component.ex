@@ -29,7 +29,7 @@ defmodule Omni.UI.EditorComponent do
     ~H"""
     <div
       class={[
-        "w-full border rounded-xl shadow-xl",
+        "w-full border-t @lg/chat:border @lg/chat:rounded-xl @lg/chat:shadow-xl",
         "bg-omni-bg border-omni-border-1/75 [&:has(textarea:focus)]:border-omni-accent-1",
         "[&.phx-drop-target-active]:border-omni-accent-1 [&.phx-drop-target-active]:ring-2 [&.phx-drop-target-active]:ring-omni-accent-1/50"
       ]}
@@ -40,7 +40,12 @@ defmodule Omni.UI.EditorComponent do
         phx-submit="submit"
         phx-change="change"
         phx-target={@myself}>
-        <div class="relative">
+        <div
+          class={[
+            "relative border-b",
+            "border-omni-border-1/75 @lg/chat:border-omni-border-2",
+            "[&:has(textarea:focus)]:border-omni-accent-1 [&:has(textarea:focus)]:@lg/chat:border-omni-accent-1"
+          ]}>
           <div
             class={[
               "absolute inset-0 z-10 bg-omni-bg-2 pointer-events-none items-center justify-center rounded-t-xl",
@@ -52,27 +57,15 @@ defmodule Omni.UI.EditorComponent do
           <textarea
             name="input"
             class={[
-              "block w-full max-h-64 p-4 pr-16 outline-none overflow-y-auto",
+              "block w-full max-h-64 p-4 outline-none overflow-y-auto",
               "field-sizing-content resize-none",
               "bg-transparent text-omni-text-3 focus:text-omni-text-1 placeholder-omni-text-4"
             ]}
             placeholder="Type your message here..."
             rows="1">{@input}</textarea>
-
-          <div class="absolute top-0 right-0 bottom-0 p-4 flex items-center justify-center">
-            <button
-              type="submit"
-              class={[
-                "transition-colors cursor-pointer",
-                "text-omni-text-3 hover:text-omni-accent-1"
-              ]}>
-              <Lucideicons.send class="size-6 [:disabled>&]:hidden" />
-              <Lucideicons.sparkle class="hidden size-5 text-amber-400 animate-spin [:disabled>&]:block" />
-            </button>
-          </div>
         </div>
 
-        <div class="bg-omni-bg-1 border-t border-omni-border-2 rounded-b-xl">
+        <div class="bg-omni-bg-1 rounded-b-xl">
           <div
             :if={@uploads.attachments.entries != []}
             class="flex flex-wrap items-center gap-3 px-4 pt-3">
@@ -104,16 +97,33 @@ defmodule Omni.UI.EditorComponent do
           </div>
 
           <div class="flex items-center gap-4 h-14 p-4">
-            <label class={[
-              "flex items-center gap-1.5 text-sm transition-colors cursor-pointer",
-              "text-omni-text-1 hover:text-omni-accent-1"
-            ]}>
+            <label
+              class={[
+                "flex items-center gap-1.5 text-sm transition-colors cursor-pointer",
+                "text-omni-text-1 hover:text-omni-accent-1"
+              ]}>
               <Lucideicons.paperclip class="size-4" />
               <span>Attach</span>
               <.live_file_input upload={@uploads.attachments} class="hidden" />
             </label>
 
-            {render_slot(@controls)}
+            <div
+              class={[
+                "flex flex-auto items-center gap-4",
+                "[&>*]:before:content=[''] [&>*]:before:w-px [&>*]:before:h-3 [&>*]:before:bg-omni-border-2"
+              ]}>
+              {render_slot(@controls)}
+            </div>
+
+            <button
+              type="submit"
+              class={[
+                "flex items-center justify-center size-8 rounded cursor-pointer",
+                "text-omni-text-3 hover:text-omni-accent-1 hover:bg-omni-accent-2/10"
+              ]}>
+              <Lucideicons.send class="size-5 [:disabled>&]:hidden" />
+              <Lucideicons.sparkle class="hidden size-4 text-amber-400 animate-spin [:disabled>&]:block" />
+            </button>
           </div>
         </div>
       </form>

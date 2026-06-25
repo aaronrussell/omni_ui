@@ -30,7 +30,8 @@ defmodule Omni.UI.Helpers do
   [&_.mdex_thead_th]:border-b [&_.mdex_thead_th]:border-omni-border-3
   [&_.mdex_th,td]:text-left [&_.mdex_th,td]:p-2.5
   [&_.mdex_tbody>tr]:odd:bg-omni-bg-2
-  [&_.mdex_pre]:-mx-6 [&_.mdex_pre]:px-6 [&_.mdex_pre]:py-5 [&_.mdex_pre]:rounded-xl [&_.mdex_pre]:overflow-auto
+  [&_.mdex_pre]:-mx-4 [&_.mdex_pre]:@md/chat:-mx-8 [&_.mdex_pre]:@lg/chat:-mx-6 [&_.mdex_pre]:px-6 [&_.mdex_pre]:py-5
+  [&_.mdex_pre]:@lg/chat:rounded-xl [&_.mdex_pre]:overflow-auto
   [&_.mdex_hr]:h-px [&_.mdex_hr]:bg-omni-border-2 [&_.mdex_hr]:border-none
   [&_.mdex_a]:font-medium [&_.mdex_a]:hover:underline [&_.mdex_a]:transition-colors
   [&_.mdex_a]:text-omni-accent-1 [&_.mdex_a]:hover:text-omni-accent-2
