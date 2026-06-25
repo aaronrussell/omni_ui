@@ -1,25 +1,15 @@
 # Omni.UI Roadmap
 
-Open work on the Omni.UI package. The architectural workstreams
-(macro, persistence, advanced tooling, session management, the
-`Omni.Session` pivot) are all done — see `context/design.md` for the
-current shape. What remains is mostly polish, naming/API decisions,
-and a release path.
+Open work on the Omni.UI package. Architecture and QA are complete —
+see `context/design.md` for the current shape.
 
 ---
 
-## Polish & Release
-
-Smaller items that don't need major design work but should land
-before a public release.
+## Future
 
 - **Streaming-perf delta debounce** — debounce text deltas (50–100ms
   timer) to reduce re-renders during fast streaming. Optional —
   current performance is acceptable.
-
-- **Cross-browser QA** — thorough testing across browsers. The
-  files panel iframe + sandbox token URLs are the most
-  sensitive area.
 
 ---
 
