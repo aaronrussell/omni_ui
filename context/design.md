@@ -21,19 +21,24 @@ provide a small library of shipped tools that live well inside the
 chat UI (files, an Elixir REPL, and web fetching — powered by
 `omni_tools`).
 
-The package is layered. Each layer is independently consumable:
+Two ways to work:
+
+| Approach | What you get |
+|---|---|
+| `Omni.UI.AgentLive` | A batteries-included LiveView — mount it in your router and you have a working agent chat with sessions, files, REPL, and web tools. |
+| `use Omni.UI` | A macro that injects session streaming, state management, and event routing into your own LiveView — you bring the template and compose with `ChatUI` / `CoreUI` components. |
+
+`AgentLive` is the fastest path to a running agent. When you need full
+control over layout, tools, or event handling, drop down to the macro
+and the component modules:
 
 ```
-Omni.UI.AgentLive       — mountable LiveView. Wires header, sessions
-                         drawer, files panel, Files+REPL+WebFetch
-                         tools, and the chat interface.
-       │
 use Omni.UI             — macro. Adds session-streaming plumbing,
                          state ownership, and event handling to any
                          LiveView. Public API: init_session/2,
                          attach_session/2, ensure_session/1,
                          update_session/2, notify/2,3.
-       │
+
 Omni.UI.ChatUI          — chat pipeline function components:
                          chat_interface, editor, turn_list, turn,
                          user_message, assistant_message, content_block,

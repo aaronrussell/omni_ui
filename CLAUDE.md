@@ -8,20 +8,14 @@ developer on this codebase and the conventions to follow.
 
 `omni_ui` is a Phoenix LiveView component kit for building agent chat
 interfaces on top of [`omni_agent`](https://github.com/aaronrussell/omni_agent).
-Three layers — pick the entry point that matches how much control you
-want:
+Two ways to work:
 
-```
-Omni.UI.AgentLive       — mountable LiveView. Header, sessions drawer,
-                         files panel, Files+REPL+WebFetch tools, chat.
-       │
-use Omni.UI             — macro. Adds session streaming, state, and
-                         event handling to any LiveView.
-       │
-Omni.UI.ChatUI          — chat pipeline function components.
-Omni.UI.CoreUI          — shared UI primitives (select, expandable,
-                         notifications, etc.).
-```
+- **`Omni.UI.AgentLive`** — batteries-included LiveView. Mount it
+  and you have a working agent chat with sessions, files, REPL, and
+  web tools.
+- **`use Omni.UI`** — macro that injects session streaming, state,
+  and event handling into your own LiveView. Compose with `ChatUI`
+  and `CoreUI` components for the rendering layer.
 
 Omni.UI does **not** own conversation state — `Omni.Session` (in
 `omni_agent`) does. The LiveView subscribes to a session and mirrors
