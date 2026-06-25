@@ -200,6 +200,23 @@ defmodule Omni.UI.ChatUI do
       }
     </script>
 
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".SubmitOnEnter">
+      export default {
+        mounted() {
+          this._onKeydown = (e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+              e.preventDefault();
+              this.el.form.requestSubmit();
+            }
+          };
+          this.el.addEventListener("keydown", this._onKeydown);
+        },
+        destroyed() {
+          this.el.removeEventListener("keydown", this._onKeydown);
+        }
+      }
+    </script>
+
     <script :type={Phoenix.LiveView.ColocatedJS}>
       window.addEventListener("phx:omni:clipboard", (e) => {
         if (e.detail.text != null) {

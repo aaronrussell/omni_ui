@@ -55,7 +55,9 @@ defmodule Omni.UI.EditorComponent do
           </div>
 
           <textarea
+            id={"#{@id}-input"}
             name="input"
+            phx-hook="Omni.UI.ChatUI.SubmitOnEnter"
             class={[
               "block w-full max-h-64 p-4 outline-none overflow-y-auto",
               "field-sizing-content resize-none",

@@ -49,7 +49,7 @@ defmodule Omni.UI.TurnComponent do
     <div id={@id}>
       <.turn turn={@turn} tool_components={@tool_components} target={@myself}>
         <:user :if={@editing} :let={_turn}>
-          <.user_edit_form input={@input} target={@myself} />
+          <.user_edit_form turn_id={@turn.id} input={@input} target={@myself} />
         </:user>
         <:user :if={not @editing} :for={item <- @user} :let={turn}>
           {render_slot(item, turn)}
@@ -66,6 +66,7 @@ defmodule Omni.UI.TurnComponent do
   # Inline edit form — extracted as a function component for readability,
   # not for reuse. Lives here rather than in a *UI module because it's
   # tightly coupled to this component's event handling.
+  attr :turn_id, :integer, required: true
   attr :input, :string, required: true
   attr :target, :any, required: true
 
@@ -77,13 +78,15 @@ defmodule Omni.UI.TurnComponent do
         "bg-omni-bg border-omni-border-1/75 [&:has(textarea:focus)]:border-omni-accent-1",
       ]}>
       <form
-        id="user-edit-form"
+        id={"turn-#{@turn_id}-form"}
         phx-submit={JS.dispatch("omni:before-update") |> JS.push("submit")}
         phx-change="change"
         phx-target={@target}>
         <div class="relative">
           <textarea
+            id={"turn-#{@turn_id}-input"}
             name="input"
+            phx-hook="Omni.UI.ChatUI.SubmitOnEnter"
             class={[
               "block w-full max-h-64 p-4 pr-16 outline-none overflow-y-auto",
               "field-sizing-content resize-none",
@@ -99,8 +102,8 @@ defmodule Omni.UI.TurnComponent do
                 "transition-colors cursor-pointer",
                 "text-omni-text-3 hover:text-omni-accent-1"
               ]}>
-              <Lucideicons.send class="size-6 [:disabled>&]:hidden" />
-              <Lucideicons.sparkle class="hidden size-5 text-amber-400 animate-spin [:disabled>&]:block" />
+              <Lucideicons.send class="size-5 [:disabled>&]:hidden" />
+              <Lucideicons.sparkle class="hidden size-4 text-amber-400 animate-spin [:disabled>&]:block" />
             </button>
           </div>
         </div>
